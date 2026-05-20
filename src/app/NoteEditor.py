@@ -63,6 +63,28 @@ def save_editor_notes(filepath: str, content: str) -> None:
         f.write(content or "")
 
 
+def load_editor_settings(filepath: str) -> dict:
+    """Return saved editor settings from disk, or an empty dict if unavailable."""
+    if os.path.isfile(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+    return {}
+
+
+def save_editor_settings(filepath: str, settings: dict) -> None:
+    """Persist editor settings to disk, creating parent directories as needed."""
+    dir_path = os.path.dirname(filepath)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(settings or {}, f)
+
+
 def raw_notes_to_text(raw_notes_path: str) -> str:
     """Convert data/raw_notes.json (DataFrame JSON) to plain text."""
     if not os.path.isfile(raw_notes_path):
@@ -83,31 +105,6 @@ def raw_notes_to_text(raw_notes_path: str) -> str:
             parts.append(contents)
         parts.append("")
     return "\n".join(parts).strip()
-
-
-_DEFAULT_EDITOR_CONFIG = {"font_family": "Georgia", "font_size": 16}
-
-_FONT_OPTIONS = ["Georgia", "Arial", "Courier New", "Times New Roman", "Palatino Linotype"]
-
-
-def load_editor_config(filepath: str) -> dict:
-    """Return editor config from disk, or defaults if unavailable."""
-    if os.path.isfile(filepath):
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return dict(_DEFAULT_EDITOR_CONFIG)
-
-
-def save_editor_config(filepath: str, config: dict) -> None:
-    """Persist editor config to disk, creating parent directories as needed."""
-    dir_path = os.path.dirname(filepath)
-    if dir_path:
-        os.makedirs(dir_path, exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(config, f)
 
 
 def build_txt_content(content: str) -> str:
@@ -149,7 +146,7 @@ class NoteEditor:
     _NOTES_FILE = "data/editor_notes.txt"
     _RAW_NOTES_FILE = "data/raw_notes.json"
     _CAMPAIGN_SUMMARY_FILE = "data/campaign_summary.json"
-    _CONFIG_FILE = "data/editor_config.json"
+    _SETTINGS_FILE = "data/editor_settings.json"
 
     def __init__(self):
         if "databasehandler" not in st.session_state:
@@ -168,10 +165,19 @@ class NoteEditor:
             st.session_state.editor_content = saved
         if "editor_key" not in st.session_state:
             st.session_state.editor_key = 0
-        if "editor_font_family" not in st.session_state:
-            config = load_editor_config(self._CONFIG_FILE)
-            st.session_state.editor_font_family = config.get("font_family", _DEFAULT_EDITOR_CONFIG["font_family"])
-            st.session_state.editor_font_size = config.get("font_size", _DEFAULT_EDITOR_CONFIG["font_size"])
+
+        # Streamlit drops widget-keyed state when the widget is not rendered for
+        # a full run (e.g. on page switch), and clears all state on app restart.
+        # Re-seed the toggle from disk whenever its key is absent so the dark
+        # mode preference survives both.
+        if "editor_dark_mode" not in st.session_state:
+            settings = load_editor_settings(self._SETTINGS_FILE)
+            st.session_state.editor_dark_mode = bool(settings.get("dark_mode", False))
+
+    def __persist_dark_mode(self):
+        settings = load_editor_settings(self._SETTINGS_FILE)
+        settings["dark_mode"] = bool(st.session_state.editor_dark_mode)
+        save_editor_settings(self._SETTINGS_FILE, settings)
 
     def __import_uploaded_notes(self):
         text = raw_notes_to_text(self._RAW_NOTES_FILE)
@@ -181,7 +187,7 @@ class NoteEditor:
             st.session_state.editor_key += 1
 
     def __vectorize_notes(self):
-        content = st.session_state.editor_content
+        content = strip_html(st.session_state.editor_content)
         if not content or not content.strip():
             st.error("No content in the editor to vectorize.")
             return
@@ -189,7 +195,7 @@ class NoteEditor:
         self.databasehandler.clear_database(DatabaseHandler.DATABASE_DIR)
         for stale in (self._RAW_NOTES_FILE, self._CAMPAIGN_SUMMARY_FILE):
             if os.path.isfile(stale):
-                os.remove(stale)
+                os.remvoe(stale)
 
         self.databasehandler.create_retrival_artifacts(DatabaseHandler.DATABASE_DIR)
 
@@ -249,21 +255,19 @@ class NoteEditor:
 
             st.divider()
 
-            st.subheader("🔤 Text Formatting")
-            current_font = st.session_state.get("editor_font_family", _DEFAULT_EDITOR_CONFIG["font_family"])
-            current_size = st.session_state.get("editor_font_size", _DEFAULT_EDITOR_CONFIG["font_size"])
-            font_idx = _FONT_OPTIONS.index(current_font) if current_font in _FONT_OPTIONS else 0
-            new_font = st.selectbox("Font", _FONT_OPTIONS, index=font_idx, disabled=processing)
-            new_size = st.slider("Size (px)", min_value=10, max_value=28, value=current_size, step=2, disabled=processing)
-            if new_font != current_font or new_size != current_size:
-                st.session_state.editor_font_family = new_font
-                st.session_state.editor_font_size = new_size
-                save_editor_config(self._CONFIG_FILE, {"font_family": new_font, "font_size": new_size})
+            st.subheader("🎨 Appearance")
+            st.toggle(
+                "🌙 Dark mode",
+                key="editor_dark_mode",
+                on_change=self.__persist_dark_mode,
+                disabled=processing,
+                help="Switch the note editor to a dark colour scheme.",
+            )
 
             st.divider()
 
             st.subheader("🧠 Vectorize")
-            has_content = bool(st.session_state.get("editor_content", "").strip())
+            has_content = bool(strip_html(st.session_state.get("editor_content", "")).strip())
             if st.button(
                 "⚡ Vectorize Notes",
                 type="primary",
@@ -278,7 +282,7 @@ class NoteEditor:
             st.divider()
 
             st.subheader("📤 Export")
-            content = st.session_state.get("editor_content", "")
+            content = strip_html(st.session_state.get("editor_content", ""))
             st.download_button(
                 label="📄 Export as TXT",
                 data=build_txt_content(content),
@@ -300,9 +304,7 @@ class NoteEditor:
         new_content = self._editor.render(
             key=f"note_editor_{st.session_state.editor_key}",
             initial_value=st.session_state.get("editor_content", ""),
-            height=600,
-            font_family=st.session_state.get("editor_font_family", _DEFAULT_EDITOR_CONFIG["font_family"]),
-            font_size=st.session_state.get("editor_font_size", _DEFAULT_EDITOR_CONFIG["font_size"]),
+            dark_mode=st.session_state.get("editor_dark_mode", False),
         )
         if new_content != st.session_state.editor_content:
             st.session_state.editor_content = new_content
