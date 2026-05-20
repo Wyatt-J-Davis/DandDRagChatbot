@@ -1,7 +1,6 @@
 """Unit tests for NoteEditor module-level utility functions — no Streamlit runtime."""
 
 import io
-import json
 import os
 import pytest
 import pandas as pd
@@ -11,11 +10,11 @@ from src.app.NoteEditor import (
     strip_html,
     load_editor_notes,
     save_editor_notes,
+    load_editor_settings,
+    save_editor_settings,
     raw_notes_to_text,
     build_txt_content,
     build_docx_bytes,
-    load_editor_config,
-    save_editor_config,
     _EditorDocument,
 )
 
@@ -88,6 +87,66 @@ class TestSaveEditorNotes:
         filepath = str(tmp_path / "subdir" / "notes.txt")
         save_editor_notes(filepath, "content")
         assert os.path.isfile(filepath)
+
+
+class TestLoadEditorSettings:
+    def test_returns_empty_dict_when_file_absent(self, tmp_path):
+        assert load_editor_settings(str(tmp_path / "nonexistent.json")) == {}
+
+    def test_returns_saved_settings(self, tmp_path):
+        f = tmp_path / "settings.json"
+        f.write_text('{"dark_mode": true}', encoding="utf-8")
+        assert load_editor_settings(str(f)) == {"dark_mode": True}
+
+    def test_returns_empty_dict_on_corrupt_json(self, tmp_path):
+        bad = tmp_path / "settings.json"
+        bad.write_text("not json", encoding="utf-8")
+        assert load_editor_settings(str(bad)) == {}
+
+    def test_returns_empty_dict_when_json_is_not_an_object(self, tmp_path):
+        f = tmp_path / "settings.json"
+        f.write_text("[1, 2, 3]", encoding="utf-8")
+        assert load_editor_settings(str(f)) == {}
+
+    def test_returns_empty_dict_on_read_error(self, tmp_path):
+        f = tmp_path / "settings.json"
+        f.write_text('{"dark_mode": true}', encoding="utf-8")
+        with patch("builtins.open", side_effect=OSError("permission denied")):
+            assert load_editor_settings(str(f)) == {}
+
+
+class TestSaveEditorSettings:
+    def test_round_trips_dark_mode_true(self, tmp_path):
+        filepath = str(tmp_path / "settings.json")
+        save_editor_settings(filepath, {"dark_mode": True})
+        assert load_editor_settings(filepath) == {"dark_mode": True}
+
+    def test_round_trips_dark_mode_false(self, tmp_path):
+        filepath = str(tmp_path / "settings.json")
+        save_editor_settings(filepath, {"dark_mode": False})
+        assert load_editor_settings(filepath) == {"dark_mode": False}
+
+    def test_saves_none_as_empty_object(self, tmp_path):
+        filepath = str(tmp_path / "settings.json")
+        save_editor_settings(filepath, None)
+        assert load_editor_settings(filepath) == {}
+
+    def test_creates_missing_parent_directory(self, tmp_path):
+        filepath = str(tmp_path / "subdir" / "settings.json")
+        save_editor_settings(filepath, {"dark_mode": True})
+        assert os.path.isfile(filepath)
+
+    def test_overwrites_existing_settings(self, tmp_path):
+        filepath = str(tmp_path / "settings.json")
+        save_editor_settings(filepath, {"dark_mode": True})
+        save_editor_settings(filepath, {"dark_mode": False})
+        assert load_editor_settings(filepath) == {"dark_mode": False}
+
+    def test_preserves_unrelated_keys_on_round_trip(self, tmp_path):
+        filepath = str(tmp_path / "settings.json")
+        save_editor_settings(filepath, {"dark_mode": True, "future_option": "x"})
+        loaded = load_editor_settings(filepath)
+        assert loaded == {"dark_mode": True, "future_option": "x"}
 
 
 class TestRawNotesToText:
@@ -169,66 +228,6 @@ class TestBuildDocxBytes:
         result = build_docx_bytes("Chapter One\nText here.")
         assert isinstance(result, bytes)
         assert len(result) > 0
-
-
-class TestLoadEditorConfig:
-    def test_returns_defaults_when_file_absent(self, tmp_path):
-        config = load_editor_config(str(tmp_path / "nonexistent.json"))
-        assert "font_family" in config
-        assert "font_size" in config
-
-    def test_returns_saved_font_family(self, tmp_path):
-        f = tmp_path / "config.json"
-        f.write_text(json.dumps({"font_family": "Arial", "font_size": 18}), encoding="utf-8")
-        assert load_editor_config(str(f))["font_family"] == "Arial"
-
-    def test_returns_saved_font_size(self, tmp_path):
-        f = tmp_path / "config.json"
-        f.write_text(json.dumps({"font_family": "Arial", "font_size": 18}), encoding="utf-8")
-        assert load_editor_config(str(f))["font_size"] == 18
-
-    def test_returns_defaults_on_corrupt_json(self, tmp_path):
-        f = tmp_path / "config.json"
-        f.write_text("not valid json", encoding="utf-8")
-        config = load_editor_config(str(f))
-        assert "font_family" in config
-        assert "font_size" in config
-
-    def test_returns_defaults_on_read_error(self, tmp_path):
-        f = tmp_path / "config.json"
-        f.write_text(json.dumps({"font_family": "Arial", "font_size": 18}), encoding="utf-8")
-        with patch("builtins.open", side_effect=OSError("permission denied")):
-            config = load_editor_config(str(f))
-        assert "font_family" in config
-        assert "font_size" in config
-
-
-class TestSaveEditorConfig:
-    def test_creates_file_with_font_family(self, tmp_path):
-        filepath = str(tmp_path / "config.json")
-        save_editor_config(filepath, {"font_family": "Arial", "font_size": 14})
-        with open(filepath, "r", encoding="utf-8") as f:
-            assert json.load(f)["font_family"] == "Arial"
-
-    def test_creates_file_with_font_size(self, tmp_path):
-        filepath = str(tmp_path / "config.json")
-        save_editor_config(filepath, {"font_family": "Arial", "font_size": 14})
-        with open(filepath, "r", encoding="utf-8") as f:
-            assert json.load(f)["font_size"] == 14
-
-    def test_creates_parent_directory(self, tmp_path):
-        filepath = str(tmp_path / "subdir" / "config.json")
-        save_editor_config(filepath, {"font_family": "Georgia", "font_size": 16})
-        assert os.path.isfile(filepath)
-
-    def test_overwrites_existing_config(self, tmp_path):
-        filepath = str(tmp_path / "config.json")
-        save_editor_config(filepath, {"font_family": "Georgia", "font_size": 16})
-        save_editor_config(filepath, {"font_family": "Arial", "font_size": 20})
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        assert data["font_family"] == "Arial"
-        assert data["font_size"] == 20
 
 
 class TestEditorDocument:

@@ -33,16 +33,22 @@ lcc_datas = collect_data_files("langchain_community")
 # ── chromadb — uses dynamic imports for telemetry and segment backends ────
 chroma_datas, chroma_binaries, chroma_hiddenimports = collect_all("chromadb")
 
+# ── streamlit_quill — Streamlit component; frontend assets must be bundled ─
+sq_datas, sq_binaries, sq_hiddenimports = collect_all("streamlit_quill")
+
 # ── Additional hidden imports that PyInstaller's static analyser misses ───
 extra_hiddenimports = [
     # ---- project source ----
     "src",
     "src.app",
     "src.app.TTRPGChatBot",
+    "src.app.CampaignSummarizer",
     "src.app.NoteEditor",
     "src.utils",
     "src.utils.DatabaseHandler",
     "src.utils.LLMHandler",
+    "src.utils.NavigationHandler",
+    "src.utils.SummaryHandler",
     "src.utils.TextEditorHandler",
     # ---- langchain stack ----
     "langchain_core",
@@ -77,6 +83,7 @@ extra_hiddenimports = [
     "numpy",
     # ---- Streamlit extras ----
     "streamlit_lottie",
+    "streamlit_quill",
     # ---- LLM client ----
     "ollama",
     # ---- stdlib ----
@@ -95,6 +102,7 @@ a = Analysis(
         *arrow_binaries,        # flight-filtered
         *fe_binaries,
         *chroma_binaries,
+        *sq_binaries,
         # lcc_binaries omitted — langchain_community has no meaningful binaries
     ],
     datas=[
@@ -104,6 +112,7 @@ a = Analysis(
         *fe_datas,
         *lcc_datas,
         *chroma_datas,
+        *sq_datas,
         ("streamlit_app.py", "."),
         ("pages",             "pages"),
         ("src",               "src"),
@@ -116,6 +125,7 @@ a = Analysis(
         *arrow_hiddenimports,
         *fe_hiddenimports,
         *chroma_hiddenimports,
+        *sq_hiddenimports,
         *extra_hiddenimports,
     ],
     hookspath=[],
