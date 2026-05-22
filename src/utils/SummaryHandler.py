@@ -182,22 +182,10 @@ class SummaryHandler:
         """
         Determine the safe content chunk size (in characters) for the selected model.
 
-        Queries Ollama for the model's declared context length. Falls back to a
-        conservative 4096-token default when the info is unavailable.
+        Uses the same effective context window that load_model passes to Ollama so
+        that chunks are always sized to fit within the runtime context.
         """
-        import ollama
-
-        context_tokens = 4096
-        try:
-            info = ollama.show(model_name)
-            if hasattr(info, "modelinfo") and info.modelinfo:
-                for key in ("llama.context_length", "context_length"):
-                    if key in info.modelinfo:
-                        context_tokens = int(info.modelinfo[key])
-                        break
-        except Exception:
-            pass
-
+        context_tokens = self.llm_handler.get_context_tokens(model_name)
         return int(context_tokens * _CONTEXT_USAGE_RATIO * _CHARS_PER_TOKEN)
 
     def _sort_chronologically(self, df):
@@ -205,8 +193,13 @@ class SummaryHandler:
 
         try:
             df = df.copy()
-            df["_sort_date"] = pd.to_datetime(df["Date"], errors="coerce")
-            df = df.sort_values("_sort_date").drop(columns=["_sort_date"])
+            # Extract only the date portion (digits + separators) so trailing
+            # characters like a stray colon don't prevent a valid date from parsing.
+            date_strs = df["Date"].astype(str).str.extract(
+                r'(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})', expand=False
+            )
+            df["_sort_date"] = pd.to_datetime(date_strs, format="mixed", errors="coerce")
+            df = df.sort_values("_sort_date", kind="stable").drop(columns=["_sort_date"])
         except Exception:
             pass
         return df.reset_index(drop=True)

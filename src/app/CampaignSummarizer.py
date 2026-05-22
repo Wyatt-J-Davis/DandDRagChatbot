@@ -90,8 +90,15 @@ class CampaignSummarizer:
         self.__init_state_variables()
         self.__process_model_options()
 
+        error_msg = st.session_state.pop('_summary_error', None)
+        was_success = st.session_state.pop('_summary_success', False)
+
         existing = self.summary_handler.get_saved_summary()
         if existing and not st.session_state.get("_regenerating_summary"):
+            if was_success:
+                st.success("Campaign summary generated!")
+            if error_msg:
+                st.error(error_msg)
             self.__render_existing_summary(existing)
             st.stop()
 
@@ -119,12 +126,16 @@ class CampaignSummarizer:
 
         st.title("📖 Campaign Summary")
 
+        if error_msg:
+            st.error(error_msg)
+
         # Phase 2: execute pending summary generation (widgets already disabled from Phase 1 rerun)
         if st.session_state.pop('_pending_summary_gen', False):
             try:
                 self.__generate_and_display()
             finally:
                 st.session_state.is_processing = False
+            st.rerun()
             return
 
         st.info("No campaign summary has been generated yet.")
@@ -185,9 +196,9 @@ class CampaignSummarizer:
         try:
             self.llm_handler.load_model(str(model_name), float(model_temp))
         except Exception as e:
-            st.error(f"Could not load model **{model_name}**: {e}")
+            st.session_state._summary_error = f"Could not load model **{model_name}**: {e}"
             st.session_state.pop("_regenerating_summary", None)
-            st.stop()
+            return
 
         try:
             with open("assets/star-magic.json", "r", errors="ignore") as f:
@@ -216,20 +227,14 @@ class CampaignSummarizer:
             animation_slot.empty()
             progress_slot.empty()
             st.session_state.pop("_regenerating_summary", None)
-            st.error(f"Summary generation failed: {e}")
-            st.stop()
+            st.session_state._summary_error = f"Summary generation failed: {e}"
+            return
 
         animation_slot.empty()
         progress_slot.empty()
         st.session_state.pop("_regenerating_summary", None)
 
         if final_summary:
-            st.success("Campaign summary generated!")
-            saved = self.summary_handler.get_saved_summary()
-            self.__render_summary(
-                final_summary,
-                saved.get("model", model_name),
-                saved.get("generated_at", "")[:10],
-            )
+            st.session_state._summary_success = True
         else:
-            st.error("Summary generation returned no content.")
+            st.session_state._summary_error = "Summary generation returned no content."

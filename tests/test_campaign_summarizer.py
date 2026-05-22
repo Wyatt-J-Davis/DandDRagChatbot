@@ -338,3 +338,143 @@ class TestSummaryPersistence:
         with patch.object(cs, "_notes_in_database", return_value=True):
             ss = _SS(summary_model_name="llama3:latest", party_members=[])
             assert self._run_expecting_render(cs, ss)
+
+
+# ---------------------------------------------------------------------------
+# __generate_and_display — error handling stores in session state, no st.stop
+# ---------------------------------------------------------------------------
+
+class TestGenerateAndDisplayErrorHandling:
+    def _make_ss(self):
+        return _SS(
+            summary_model_name="llama3:latest",
+            summary_model_temperature=0.7,
+            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
+        )
+
+    def test_stores_error_in_session_state_on_model_load_failure(self):
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.side_effect = RuntimeError("model not found")
+        ss = self._make_ss()
+        with patch("streamlit.session_state", ss), \
+             patch("builtins.open", mock_open(read_data="{}")), \
+             patch("json.load", return_value={}):
+            cs._CampaignSummarizer__generate_and_display()
+        assert "_summary_error" in ss
+        assert "llama3:latest" in ss["_summary_error"]
+
+    def test_stores_error_in_session_state_on_generation_failure(self):
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.return_value = None
+        cs.summary_handler.generate_summary_streaming.side_effect = RuntimeError("LLM crashed")
+        ss = self._make_ss()
+        mock_slot = MagicMock()
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.empty", return_value=mock_slot), \
+             patch("streamlit.progress", return_value=MagicMock()), \
+             patch("builtins.open", mock_open(read_data="{}")), \
+             patch("json.load", return_value={}):
+            cs._CampaignSummarizer__generate_and_display()
+        assert "_summary_error" in ss
+        assert "LLM crashed" in ss["_summary_error"]
+
+    def test_stores_success_flag_in_session_state_on_success(self):
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.return_value = None
+        cs.summary_handler.generate_summary_streaming.return_value = iter([
+            (False, 50, "Working..."),
+            (True, 100, "Summary text"),
+        ])
+        ss = self._make_ss()
+        mock_slot = MagicMock()
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.empty", return_value=mock_slot), \
+             patch("streamlit.progress", return_value=MagicMock()), \
+             patch("builtins.open", mock_open(read_data="{}")), \
+             patch("json.load", return_value={}):
+            cs._CampaignSummarizer__generate_and_display()
+        assert ss.get("_summary_success") is True
+        assert "_summary_error" not in ss
+
+    def test_does_not_call_st_stop_on_error(self):
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.side_effect = RuntimeError("boom")
+        ss = self._make_ss()
+        stop_called = []
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.stop", side_effect=lambda: stop_called.append(True)), \
+             patch("builtins.open", mock_open(read_data="{}")), \
+             patch("json.load", return_value={}):
+            cs._CampaignSummarizer__generate_and_display()
+        assert not stop_called
+
+
+# ---------------------------------------------------------------------------
+# run() phase 2 — st.rerun() called and is_processing cleared after generation
+# ---------------------------------------------------------------------------
+
+class TestRunPhase2Rerun:
+    """After phase 2 generation, run() must rerun to re-enable disabled UI elements."""
+
+    _PARTY = [{"id": "1", "name": "Aria", "note_taker": True}]
+
+    def _run_phase2(self, cs, ss, fake_generate=None):
+        rerun_called = []
+        if fake_generate is None:
+            fake_generate = MagicMock()
+
+        def fake_rerun():
+            rerun_called.append(True)
+            raise StopIteration()
+
+        with patch("streamlit.session_state", ss), \
+             patch.object(cs, "_CampaignSummarizer__init_state_variables"), \
+             patch.object(cs, "_CampaignSummarizer__process_model_options"), \
+             patch.object(cs, "_notes_in_database", return_value=True), \
+             patch.object(cs, "_CampaignSummarizer__generate_and_display", side_effect=fake_generate), \
+             patch("streamlit.title"), \
+             patch("streamlit.info"), \
+             patch("streamlit.warning"), \
+             patch("streamlit.error"), \
+             patch("streamlit.success"), \
+             patch("streamlit.stop", side_effect=StopIteration), \
+             patch("streamlit.rerun", side_effect=fake_rerun):
+            try:
+                cs.run()
+            except StopIteration:
+                pass
+        return rerun_called
+
+    def _make_phase2_ss(self):
+        return _SS(
+            summary_model_name="llama3:latest",
+            is_processing=True,
+            _pending_summary_gen=True,
+            party_members=self._PARTY,
+        )
+
+    def test_reruns_after_successful_generation(self):
+        cs = _make_summarizer()
+        cs.summary_handler.raw_notes_exist.return_value = True
+        cs.summary_handler.get_saved_summary.return_value = None
+        ss = self._make_phase2_ss()
+        assert self._run_phase2(cs, ss)
+
+    def test_reruns_after_generation_error(self):
+        cs = _make_summarizer()
+        cs.summary_handler.raw_notes_exist.return_value = True
+        cs.summary_handler.get_saved_summary.return_value = None
+        ss = self._make_phase2_ss()
+
+        def store_error():
+            ss['_summary_error'] = "something went wrong"
+
+        assert self._run_phase2(cs, ss, fake_generate=store_error)
+
+    def test_is_processing_cleared_after_phase2(self):
+        cs = _make_summarizer()
+        cs.summary_handler.raw_notes_exist.return_value = True
+        cs.summary_handler.get_saved_summary.return_value = None
+        ss = self._make_phase2_ss()
+        self._run_phase2(cs, ss)
+        assert ss.get("is_processing") is False

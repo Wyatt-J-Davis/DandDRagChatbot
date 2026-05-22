@@ -190,6 +190,22 @@ class TestSortChronologically:
         result = self.h._sort_chronologically(df)
         assert list(result.index) == [0, 1]
 
+    def test_trailing_colon_in_date_is_parsed_correctly(self):
+        df = pd.DataFrame({
+            "Date": ["1/1/2023", "9/11/2024:", "3/1/2024"],
+            "Contents": ["First", "Colon date", "Third"],
+        })
+        result = self.h._sort_chronologically(df)
+        assert list(result["Contents"]) == ["First", "Third", "Colon date"]
+
+    def test_mixed_us_format_dates_sort_chronologically(self):
+        df = pd.DataFrame({
+            "Date": ["12/1/2023", "1/5/2023", "6/15/2023"],
+            "Contents": ["Dec", "Jan", "Jun"],
+        })
+        result = self.h._sort_chronologically(df)
+        assert list(result["Contents"]) == ["Jan", "Jun", "Dec"]
+
 
 # ---------------------------------------------------------------------------
 # _get_chunk_char_size
@@ -197,34 +213,28 @@ class TestSortChronologically:
 
 class TestGetChunkCharSize:
     def setup_method(self):
-        self.h = SummaryHandler(MagicMock())
+        self.mock_llm = MagicMock()
+        self.h = SummaryHandler(self.mock_llm)
 
     def test_returns_int(self):
-        size = self.h._get_chunk_char_size("llama3:latest")
-        assert isinstance(size, int)
+        self.mock_llm.get_context_tokens.return_value = 4096
+        assert isinstance(self.h._get_chunk_char_size("llama3:latest"), int)
 
-    def test_uses_default_when_ollama_show_raises(self):
-        import ollama as mock_ollama_mod
-        mock_ollama_mod.show.side_effect = Exception("connection refused")
+    def test_uses_context_tokens_from_llm_handler(self):
+        self.mock_llm.get_context_tokens.return_value = 8192
         size = self.h._get_chunk_char_size("llama3:latest")
-        assert size == 8192
-        mock_ollama_mod.show.side_effect = None
-
-    def test_uses_context_length_from_modelinfo(self):
-        import ollama as mock_ollama_mod
-        mock_info = MagicMock()
-        mock_info.modelinfo = {"llama.context_length": 8192}
-        mock_ollama_mod.show.return_value = mock_info
-        size = self.h._get_chunk_char_size("llama3:latest")
+        # 8192 * 0.5 (usage ratio) * 4 (chars/token)
         assert size == 16384
 
-    def test_falls_back_to_default_when_modelinfo_missing_key(self):
-        import ollama as mock_ollama_mod
-        mock_info = MagicMock()
-        mock_info.modelinfo = {}
-        mock_ollama_mod.show.return_value = mock_info
+    def test_chunk_size_matches_default_context_tokens(self):
+        self.mock_llm.get_context_tokens.return_value = 4096
         size = self.h._get_chunk_char_size("llama3:latest")
         assert size == 8192
+
+    def test_delegates_model_name_to_llm_handler(self):
+        self.mock_llm.get_context_tokens.return_value = 4096
+        self.h._get_chunk_char_size("some-other-model")
+        self.mock_llm.get_context_tokens.assert_called_once_with("some-other-model")
 
 
 # ---------------------------------------------------------------------------
