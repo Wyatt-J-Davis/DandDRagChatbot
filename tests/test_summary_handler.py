@@ -352,3 +352,16 @@ class TestGenerateSummaryStreaming:
             results = list(h.generate_summary_streaming("llama3:latest", party_members=[]))
 
         assert results[-1][0] is True
+
+    def test_reduce_loop_raises_when_model_output_does_not_shrink(self, tmp_path):
+        _write_raw_notes(tmp_path, rows=[
+            {"Date": "2023-01-01", "Contents": "A " * 500},
+            {"Date": "2023-01-02", "Contents": "B " * 500},
+        ])
+        h = _make_handler(tmp_path)
+        # Model returns very verbose output — combined never shrinks below chunk_size
+        h.llm_handler.invoke_model.return_value = "word " * 200  # ~1000 chars
+
+        with patch.object(h, "_get_chunk_char_size", return_value=200):
+            with pytest.raises(RuntimeError):
+                list(h.generate_summary_streaming("llama3:latest"))

@@ -9,6 +9,10 @@ import ollama
 # while keeping KV-cache memory manageable (~1.75 GB for llama3.2 3B).
 _MAX_CONTEXT_TOKENS = 16384
 
+# Summarization tasks use a bounded output budget to prevent thinking models from
+# generating unbounded reasoning traces that cause the summarizer to hang.
+_SUMMARY_MAX_PREDICT = 4096
+
 
 class LLMHandler:
     def __init__(self):
@@ -17,6 +21,17 @@ class LLMHandler:
 
     def get_available_models(self):
         return self.availble_models
+
+    def is_thinking_model(self, model_name):
+        """Return True if *model_name* has thinking/reasoning capability per Ollama."""
+        try:
+            info = ollama.show(model_name)
+            caps = getattr(info, "capabilities", None)
+            if caps:
+                return "thinking" in caps
+        except Exception:
+            pass
+        return False
 
     def get_context_tokens(self, model_name):
         """Return the effective context size (tokens) to use for *model_name*.
@@ -37,17 +52,22 @@ class LLMHandler:
             pass
         return min(context_tokens, _MAX_CONTEXT_TOKENS)
 
-    def load_model(self, model_name, model_temperature):
+    def load_model(self, model_name, model_temperature, disable_thinking=False):
         temp_model = self.currnet_model
         for item in self.availble_models:
             if item['model'] == model_name:
                 num_ctx = self.get_context_tokens(model_name)
-                self.currnet_model = OllamaLLM(
+                kwargs = dict(
                     model=model_name,
                     temperature=model_temperature,
                     num_predict=-1,
                     num_ctx=num_ctx,
                 )
+                if disable_thinking:
+                    kwargs["num_predict"] = _SUMMARY_MAX_PREDICT
+                    if self.is_thinking_model(model_name):
+                        kwargs["reasoning"] = False
+                self.currnet_model = OllamaLLM(**kwargs)
         if self.currnet_model == temp_model:
             raise ValueError(f"Model {model_name} not found in local ollama list. Please select an installed model or download it.")
 

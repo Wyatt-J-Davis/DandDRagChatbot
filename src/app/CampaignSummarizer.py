@@ -194,7 +194,7 @@ class CampaignSummarizer:
         party_members = st.session_state.get("party_members", [])
 
         try:
-            self.llm_handler.load_model(str(model_name), float(model_temp))
+            self.llm_handler.load_model(str(model_name), float(model_temp), disable_thinking=True)
         except Exception as e:
             st.session_state._summary_error = f"Could not load model **{model_name}**: {e}"
             st.session_state.pop("_regenerating_summary", None)

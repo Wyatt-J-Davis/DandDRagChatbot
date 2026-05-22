@@ -21,6 +21,8 @@ _COMBINE_PROMPT = ChatPromptTemplate.from_messages([
     ("user", "Section summaries:\n\n{text}\n\nProvide a unified summary:")
 ])
 
+_MAX_REDUCE_PASSES = 6
+
 _FINAL_SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
      "You are writing a comprehensive campaign overview for a D&D campaign. "
@@ -107,6 +109,13 @@ class SummaryHandler:
             combined = "\n\n---\n\n".join(chunk_summaries)
             reduction_pass = 0
             while len(combined) > chunk_size:
+                if reduction_pass >= _MAX_REDUCE_PASSES:
+                    raise RuntimeError(
+                        f"Summary reduction did not converge after {_MAX_REDUCE_PASSES} passes. "
+                        "The model may be generating overly verbose output. "
+                        "Try a different model or reduce the size of your campaign notes."
+                    )
+                prev_len = len(combined)
                 reduction_pass += 1
                 base_progress = min(60 + reduction_pass * 7, 80)
                 yield (False, base_progress, f"Combining summaries (pass {reduction_pass})...")
@@ -116,6 +125,12 @@ class SummaryHandler:
                     for sc in sub_chunks
                 ]
                 combined = "\n\n---\n\n".join(new_summaries)
+                if len(combined) >= prev_len:
+                    raise RuntimeError(
+                        "Summary reduction made no progress — the model output is not getting shorter. "
+                        "The model may be generating overly verbose output. "
+                        "Try a different model or reduce the size of your campaign notes."
+                    )
 
             yield (False, 85, "Writing final campaign summary...")
             summary = self.llm_handler.invoke_model(
