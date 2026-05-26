@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
-from api.main import create_app, get_llm_handler, get_db_handler
+from api.main import create_app, get_llm_handler, get_db_handler, get_summary_handler
 
 
 @pytest.fixture
@@ -223,3 +223,88 @@ class TestChatEndpoint:
         assert "answer" in terminal
         assert terminal["sources"] == []
         llm.invoke_model.assert_not_called()
+
+
+class TestSummaryGenerateEndpoint:
+    _BODY = {"model": "llama3", "party_members": ["Alice", "Bob"]}
+
+    def _client_with_handler(self, summary_handler):
+        app = create_app()
+        app.dependency_overrides[get_summary_handler] = lambda: summary_handler
+        return TestClient(app)
+
+    def _make_summary_handler(self, yields):
+        handler = MagicMock()
+        handler.generate_summary_streaming.return_value = iter(yields)
+        return handler
+
+    def _make_erroring_handler(self):
+        handler = MagicMock()
+        handler.generate_summary_streaming.side_effect = RuntimeError("no notes found")
+        return handler
+
+    def test_returns_200(self):
+        handler = self._make_summary_handler([
+            (False, 30, "Summarizing section 1 of 2..."),
+            (True, 100, "Final campaign summary text."),
+        ])
+        client = self._client_with_handler(handler)
+        response = client.post("/summary/generate", json=self._BODY)
+        assert response.status_code == 200
+
+    def test_content_type_is_event_stream(self):
+        handler = self._make_summary_handler([(True, 100, "Summary.")])
+        client = self._client_with_handler(handler)
+        response = client.post("/summary/generate", json=self._BODY)
+        assert "text/event-stream" in response.headers["content-type"]
+
+    def test_emits_progress_events_before_terminal(self):
+        handler = self._make_summary_handler([
+            (False, 20, "Map phase: summarizing chunk 1/3"),
+            (False, 40, "Map phase: summarizing chunk 2/3"),
+            (True, 100, "Done summary."),
+        ])
+        client = self._client_with_handler(handler)
+        response = client.post("/summary/generate", json=self._BODY)
+        events = _parse_sse_events(response.text)
+        assert len(events) >= 2
+        for event in events[:-1]:
+            assert event["done"] is False
+
+    def test_terminal_event_has_done_true_and_progress_100(self):
+        handler = self._make_summary_handler([
+            (False, 50, "Working..."),
+            (True, 100, "Campaign summary."),
+        ])
+        client = self._client_with_handler(handler)
+        response = client.post("/summary/generate", json=self._BODY)
+        events = _parse_sse_events(response.text)
+        terminal = events[-1]
+        assert terminal["done"] is True
+        assert terminal["progress"] == 100
+
+    def test_intermediate_events_have_message_field(self):
+        handler = self._make_summary_handler([
+            (False, 30, "Map phase: summarizing chunk 1/2"),
+            (False, 60, "Combining summaries..."),
+            (True, 100, "Final."),
+        ])
+        client = self._client_with_handler(handler)
+        response = client.post("/summary/generate", json=self._BODY)
+        events = _parse_sse_events(response.text)
+        for event in events[:-1]:
+            assert "message" in event
+            assert "progress" in event
+
+    def test_passes_model_and_party_members_to_handler(self):
+        handler = self._make_summary_handler([(True, 100, "Summary.")])
+        client = self._client_with_handler(handler)
+        client.post("/summary/generate", json=self._BODY)
+        handler.generate_summary_streaming.assert_called_once_with("llama3", ["Alice", "Bob"])
+
+    def test_error_emits_sse_error_event_not_http_500(self):
+        client = self._client_with_handler(self._make_erroring_handler())
+        response = client.post("/summary/generate", json=self._BODY)
+        assert response.status_code == 200
+        events = _parse_sse_events(response.text)
+        assert any(e.get("error") for e in events)

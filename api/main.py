@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from src.utils.DatabaseHandler import DatabaseHandler, DATABASE_DIR
 from src.utils.LLMHandler import LLMHandler
+from src.utils.SummaryHandler import SummaryHandler
 
 _USER_DATA_FILE = "data/user_data.json"
 
@@ -35,6 +36,10 @@ def get_db_handler() -> DatabaseHandler:
     return DatabaseHandler()
 
 
+def get_summary_handler() -> SummaryHandler:
+    return SummaryHandler(get_llm_handler())
+
+
 def _sse_event(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
@@ -47,6 +52,11 @@ class ChatRequest(BaseModel):
     question: str
     model: str
     temperature: float
+
+
+class SummaryGenerateRequest(BaseModel):
+    model: str
+    party_members: list[str] = []
 
 
 def create_app() -> FastAPI:
@@ -157,6 +167,25 @@ def create_app() -> FastAPI:
 
                 sources = [doc.page_content for doc in notes]
                 yield _sse_event({"done": True, "answer": answer, "sources": sources})
+            except Exception as exc:
+                yield _sse_event({"done": True, "error": True, "message": str(exc)})
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+    @application.post("/summary/generate")
+    def summary_generate(
+        body: SummaryGenerateRequest,
+        summary: SummaryHandler = Depends(get_summary_handler),
+    ):
+        def event_stream():
+            try:
+                for is_done, progress, text in summary.generate_summary_streaming(
+                    body.model, body.party_members
+                ):
+                    if is_done:
+                        yield _sse_event({"done": True, "progress": 100})
+                    else:
+                        yield _sse_event({"done": False, "progress": progress, "message": text})
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
