@@ -1,7 +1,13 @@
 import os
 import uvicorn
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from src.utils.LLMHandler import LLMHandler
+
+
+def get_llm_handler() -> LLMHandler:
+    return LLMHandler()
 
 
 def create_app() -> FastAPI:
@@ -17,6 +23,10 @@ def create_app() -> FastAPI:
     @application.get("/health")
     def health():
         return {"status": "ok"}
+
+    @application.get("/models")
+    def models(handler: LLMHandler = Depends(get_llm_handler)):
+        return [m.model for m in handler.get_available_models()]
 
     return application
 
