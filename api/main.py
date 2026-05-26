@@ -13,6 +13,7 @@ from src.utils.LLMHandler import LLMHandler
 from src.utils.SummaryHandler import SummaryHandler
 
 _USER_DATA_FILE = "data/user_data.json"
+_NOTES_FILE = "data/editor_notes.txt"
 
 _CHAT_PROMPT = ChatPromptTemplate.from_messages([
     (
@@ -57,6 +58,10 @@ class ChatRequest(BaseModel):
 class SummaryGenerateRequest(BaseModel):
     model: str
     party_members: list[str] = []
+
+
+class NotesRequest(BaseModel):
+    content: str
 
 
 def create_app() -> FastAPI:
@@ -176,6 +181,20 @@ def create_app() -> FastAPI:
     def summary_get(summary: SummaryHandler = Depends(get_summary_handler)):
         data = summary.get_saved_summary()
         return data if data is not None else {}
+
+    @application.get("/notes")
+    def notes_get():
+        if os.path.isfile(_NOTES_FILE):
+            with open(_NOTES_FILE, "r", encoding="utf-8") as f:
+                return {"content": f.read()}
+        return {"content": ""}
+
+    @application.post("/notes")
+    def notes_post(body: NotesRequest):
+        os.makedirs(os.path.dirname(_NOTES_FILE), exist_ok=True)
+        with open(_NOTES_FILE, "w", encoding="utf-8") as f:
+            f.write(body.content)
+        return {"status": "ok"}
 
     @application.post("/summary/generate")
     def summary_generate(

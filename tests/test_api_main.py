@@ -340,3 +340,39 @@ class TestSummaryGetEndpoint:
         response = client.get("/summary")
         assert response.status_code == 200
         assert response.json() == {}
+
+
+class TestNotesGetEndpoint:
+    def test_returns_200_with_content(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        notes_file.write_text("Session 1: party arrived at the tavern.")
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        response = TestClient(create_app()).get("/notes")
+        assert response.status_code == 200
+        assert response.json() == {"content": "Session 1: party arrived at the tavern."}
+
+    def test_returns_empty_content_when_file_missing(self, tmp_path, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(tmp_path / "nonexistent.txt"))
+        response = TestClient(create_app()).get("/notes")
+        assert response.status_code == 200
+        assert response.json() == {"content": ""}
+
+
+class TestNotesPostEndpoint:
+    def test_returns_200_and_writes_file(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        response = TestClient(create_app()).post("/notes", json={"content": "New notes content."})
+        assert response.status_code == 200
+        assert notes_file.read_text() == "New notes content."
+
+    def test_overwrites_existing_content(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        notes_file.write_text("Old content.")
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        TestClient(create_app()).post("/notes", json={"content": "Updated notes."})
+        assert notes_file.read_text() == "Updated notes."
