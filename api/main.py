@@ -1,4 +1,3 @@
-import io
 import json
 import os
 import uvicorn
@@ -195,6 +194,40 @@ def create_app() -> FastAPI:
         with open(_NOTES_FILE, "w", encoding="utf-8") as f:
             f.write(body.content)
         return {"status": "ok"}
+
+    @application.post("/notes/vectorize")
+    def notes_vectorize(
+        body: NotesRequest,
+        db: DatabaseHandler = Depends(get_db_handler),
+    ):
+        def event_stream():
+            try:
+                db.create_retrival_artifacts(DATABASE_DIR)
+
+                class _TextWrapper:
+                    name = "notes.txt"
+
+                    def __init__(self, content: str):
+                        self._bytes = content.encode("utf-8")
+
+                    def read(self):
+                        return self._bytes
+
+                    def getvalue(self):
+                        return self._bytes
+
+                wrapper = _TextWrapper(body.content)
+                for pct in db.generate_database(wrapper, DATABASE_DIR):
+                    yield _sse_event({
+                        "done": False,
+                        "progress": int(pct),
+                        "message": f"Vectorizing… {int(pct)}%",
+                    })
+                yield _sse_event({"done": True, "progress": 100})
+            except Exception as exc:
+                yield _sse_event({"done": True, "error": True, "message": str(exc)})
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     @application.post("/summary/generate")
     def summary_generate(

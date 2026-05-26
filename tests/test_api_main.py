@@ -376,3 +376,77 @@ class TestNotesPostEndpoint:
         monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
         TestClient(create_app()).post("/notes", json={"content": "Updated notes."})
         assert notes_file.read_text() == "Updated notes."
+
+
+class TestNotesVectorizeEndpoint:
+    def _client_with_db(self, db_handler):
+        app = create_app()
+        app.dependency_overrides[get_db_handler] = lambda: db_handler
+        return TestClient(app)
+
+    def _make_db_handler(self, progress_values: list[float]):
+        handler = MagicMock()
+        handler.generate_database.return_value = iter(progress_values)
+        return handler
+
+    def _make_erroring_db_handler(self):
+        handler = MagicMock()
+        handler.generate_database.side_effect = RuntimeError("embed error")
+        return handler
+
+    def test_returns_200(self):
+        client = self._client_with_db(self._make_db_handler([50.0, 100.0]))
+        response = client.post("/notes/vectorize", json={"content": "Session notes here."})
+        assert response.status_code == 200
+
+    def test_content_type_is_event_stream(self):
+        client = self._client_with_db(self._make_db_handler([50.0]))
+        response = client.post("/notes/vectorize", json={"content": "Session notes here."})
+        assert "text/event-stream" in response.headers["content-type"]
+
+    def test_emits_progress_events_before_done(self):
+        client = self._client_with_db(self._make_db_handler([33.0, 66.0, 100.0]))
+        response = client.post("/notes/vectorize", json={"content": "Session notes here."})
+        events = _parse_sse_events(response.text)
+        progress_events = [e for e in events if not e.get("done")]
+        assert len(progress_events) >= 1
+
+    def test_terminal_event_has_done_true_and_progress_100(self):
+        client = self._client_with_db(self._make_db_handler([50.0]))
+        response = client.post("/notes/vectorize", json={"content": "Session notes here."})
+        events = _parse_sse_events(response.text)
+        terminal = events[-1]
+        assert terminal["done"] is True
+        assert terminal["progress"] == 100
+
+    def test_intermediate_events_have_done_false(self):
+        client = self._client_with_db(self._make_db_handler([25.0, 50.0, 75.0]))
+        response = client.post("/notes/vectorize", json={"content": "Session notes here."})
+        events = _parse_sse_events(response.text)
+        for event in events[:-1]:
+            assert event["done"] is False
+
+    def test_intermediate_events_have_message_and_progress_fields(self):
+        client = self._client_with_db(self._make_db_handler([50.0]))
+        response = client.post("/notes/vectorize", json={"content": "Session notes here."})
+        events = _parse_sse_events(response.text)
+        progress_events = [e for e in events if not e.get("done")]
+        for event in progress_events:
+            assert "message" in event
+            assert "progress" in event
+
+    def test_error_emits_sse_error_event_not_http_500(self):
+        client = self._client_with_db(self._make_erroring_db_handler())
+        response = client.post("/notes/vectorize", json={"content": "Session notes here."})
+        assert response.status_code == 200
+        events = _parse_sse_events(response.text)
+        assert any(e.get("error") for e in events)
+
+    def test_calls_generate_database_with_txt_wrapper(self):
+        handler = self._make_db_handler([100.0])
+        client = self._client_with_db(handler)
+        client.post("/notes/vectorize", json={"content": "My notes."})
+        handler.generate_database.assert_called_once()
+        wrapper_arg = handler.generate_database.call_args[0][0]
+        assert wrapper_arg.name.endswith(".txt")
+        assert wrapper_arg.getvalue() == b"My notes."
