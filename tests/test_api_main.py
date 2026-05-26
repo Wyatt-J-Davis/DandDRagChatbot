@@ -308,3 +308,35 @@ class TestSummaryGenerateEndpoint:
         assert response.status_code == 200
         events = _parse_sse_events(response.text)
         assert any(e.get("error") for e in events)
+
+
+class TestSummaryGetEndpoint:
+    _SUMMARY_DATA = {
+        "summary": "The party defeated the dragon.",
+        "model": "llama3:latest",
+        "generated_at": "2024-01-15T10:30:00",
+    }
+
+    def _client_with_handler(self, summary_handler):
+        app = create_app()
+        app.dependency_overrides[get_summary_handler] = lambda: summary_handler
+        return TestClient(app)
+
+    def test_returns_200_with_summary_content(self):
+        handler = MagicMock()
+        handler.get_saved_summary.return_value = self._SUMMARY_DATA
+        client = self._client_with_handler(handler)
+        response = client.get("/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["summary"] == self._SUMMARY_DATA["summary"]
+        assert data["model"] == self._SUMMARY_DATA["model"]
+        assert data["generated_at"] == self._SUMMARY_DATA["generated_at"]
+
+    def test_returns_empty_dict_when_no_summary_exists(self):
+        handler = MagicMock()
+        handler.get_saved_summary.return_value = None
+        client = self._client_with_handler(handler)
+        response = client.get("/summary")
+        assert response.status_code == 200
+        assert response.json() == {}

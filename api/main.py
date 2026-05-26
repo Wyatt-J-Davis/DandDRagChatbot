@@ -172,6 +172,11 @@ def create_app() -> FastAPI:
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
+    @application.get("/summary")
+    def summary_get(summary: SummaryHandler = Depends(get_summary_handler)):
+        data = summary.get_saved_summary()
+        return data if data is not None else {}
+
     @application.post("/summary/generate")
     def summary_generate(
         body: SummaryGenerateRequest,
