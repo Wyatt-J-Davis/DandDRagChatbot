@@ -139,3 +139,87 @@ class TestUploadNotesEndpoint:
         events = _parse_sse_events(response.text)
         error_events = [e for e in events if e.get("error")]
         assert len(error_events) >= 1
+
+
+def _make_mock_doc(content: str) -> MagicMock:
+    doc = MagicMock()
+    doc.page_content = content
+    return doc
+
+
+class TestChatEndpoint:
+    _CHAT_BODY = {"question": "What happened?", "model": "llama3", "temperature": 0.7}
+
+    def _client_with_handlers(self, llm_handler, db_handler):
+        app = create_app()
+        app.dependency_overrides[get_llm_handler] = lambda: llm_handler
+        app.dependency_overrides[get_db_handler] = lambda: db_handler
+        return TestClient(app)
+
+    def _make_handlers(self, answer="The dragon attacked", sources=None):
+        if sources is None:
+            sources = ["Dragons raided the village on day 3."]
+        llm = MagicMock()
+        llm.invoke_model.return_value = answer
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc(s) for s in sources]
+        return llm, db
+
+    # --- tracer bullet ---
+
+    def test_terminal_event_has_done_answer_sources(self):
+        llm, db = self._make_handlers()
+        client = self._client_with_handlers(llm, db)
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        terminal = events[-1]
+        assert terminal["done"] is True
+        assert "answer" in terminal
+        assert "sources" in terminal
+
+    def test_returns_200_with_event_stream_content_type(self):
+        llm, db = self._make_handlers()
+        client = self._client_with_handlers(llm, db)
+        response = client.post("/chat", json=self._CHAT_BODY)
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+
+    def test_emits_progress_events_before_terminal(self):
+        llm, db = self._make_handlers()
+        client = self._client_with_handlers(llm, db)
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        assert len(events) >= 2
+        for event in events[:-1]:
+            assert event["done"] is False
+
+    def test_sources_match_retrieved_chunk_text(self):
+        llm, db = self._make_handlers(sources=["Chunk A", "Chunk B"])
+        client = self._client_with_handlers(llm, db)
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        assert events[-1]["sources"] == ["Chunk A", "Chunk B"]
+
+    def test_error_emits_sse_error_event_not_http_500(self):
+        llm = MagicMock()
+        llm.invoke_model.side_effect = RuntimeError("model unavailable")
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc("some text")]
+        client = self._client_with_handlers(llm, db)
+        response = client.post("/chat", json=self._CHAT_BODY)
+        assert response.status_code == 200
+        events = _parse_sse_events(response.text)
+        assert any(e.get("error") for e in events)
+
+    def test_no_notes_returns_fallback_answer_with_empty_sources(self):
+        llm = MagicMock()
+        db = MagicMock()
+        db.retrieve_notes.return_value = []
+        client = self._client_with_handlers(llm, db)
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        terminal = events[-1]
+        assert terminal["done"] is True
+        assert "answer" in terminal
+        assert terminal["sources"] == []
+        llm.invoke_model.assert_not_called()

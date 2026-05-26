@@ -5,10 +5,26 @@ import uvicorn
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
 from src.utils.DatabaseHandler import DatabaseHandler, DATABASE_DIR
 from src.utils.LLMHandler import LLMHandler
+
+_USER_DATA_FILE = "data/user_data.json"
+
+_CHAT_PROMPT = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "You are an expert in answering questions about a TTRPG campaign described in provided documents. "
+        "The provided documents describe a campaign where the party members (player characters) are {partymembers}. "
+        "Here are the relevant documents from {notetaker}'s perspective (could be in first person or third person): {notes}"
+        "\n Base your answers only off of the provided documents. "
+        "Do not use extraneous information to answer the question. "
+        "Do not provide references to the documents.",
+    ),
+    ("user", "{question}"),
+])
 
 
 def get_llm_handler() -> LLMHandler:
@@ -25,6 +41,12 @@ def _sse_event(payload: dict) -> str:
 
 class UploadNotesRequest(BaseModel):
     file_path: str
+
+
+class ChatRequest(BaseModel):
+    question: str
+    model: str
+    temperature: float
 
 
 def create_app() -> FastAPI:
@@ -74,6 +96,67 @@ def create_app() -> FastAPI:
                         "message": f"Processing… {int(pct)}%",
                     })
                 yield _sse_event({"done": True, "progress": 100})
+            except Exception as exc:
+                yield _sse_event({"done": True, "error": True, "message": str(exc)})
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+    @application.post("/chat")
+    def chat(
+        body: ChatRequest,
+        llm: LLMHandler = Depends(get_llm_handler),
+        db: DatabaseHandler = Depends(get_db_handler),
+    ):
+        def event_stream():
+            try:
+                yield _sse_event({"done": False, "progress": 10, "message": "Retrieving relevant notes…"})
+
+                db.create_retrival_artifacts(DATABASE_DIR)
+                notes = db.retrieve_notes(body.question)
+
+                yield _sse_event({"done": False, "progress": 50, "message": "Generating response…"})
+
+                party_members: list[dict] = []
+                note_taker = "Unknown"
+                try:
+                    if os.path.isfile(_USER_DATA_FILE):
+                        with open(_USER_DATA_FILE, "r") as f:
+                            user_data = json.load(f)
+                        party_members = user_data.get("party_members", [])
+                        takers = [m.get("name", "") for m in party_members if m.get("note_taker")]
+                        if takers:
+                            note_taker = takers[0]
+                except Exception:
+                    pass
+
+                member_names = [m.get("name", "") for m in party_members if m.get("name")]
+                if len(member_names) > 1:
+                    formatted_members = ", ".join(member_names[:-1]) + ", and " + member_names[-1]
+                elif member_names:
+                    formatted_members = member_names[0]
+                else:
+                    formatted_members = "the party"
+
+                if notes:
+                    llm.load_model(body.model, body.temperature)
+                    answer = llm.invoke_model(
+                        _CHAT_PROMPT,
+                        {
+                            "question": body.question,
+                            "partymembers": formatted_members,
+                            "notes": notes,
+                            "notetaker": note_taker,
+                        },
+                    )
+                else:
+                    answer = (
+                        "Could not find any relevant journal entries for your query. "
+                        "It could be that there is not any relevant information regarding your query in the notes, "
+                        "the question needs to be reworded, or spelling needs to be reviewed."
+                    )
+
+                sources = [doc.page_content for doc in notes]
+                yield _sse_event({"done": True, "answer": answer, "sources": sources})
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
