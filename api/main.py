@@ -1,9 +1,10 @@
+import io
 import json
 import os
 import uvicorn
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
@@ -61,6 +62,10 @@ class SummaryGenerateRequest(BaseModel):
 
 class NotesRequest(BaseModel):
     content: str
+
+
+class PartyRequest(BaseModel):
+    party_members: list[dict] = []
 
 
 def create_app() -> FastAPI:
@@ -247,6 +252,59 @@ def create_app() -> FastAPI:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+    @application.get("/party")
+    def party_get():
+        if os.path.isfile(_USER_DATA_FILE):
+            with open(_USER_DATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return {"party_members": data.get("party_members", [])}
+        return {"party_members": []}
+
+    @application.post("/party")
+    def party_post(body: PartyRequest):
+        data = {}
+        if os.path.isfile(_USER_DATA_FILE):
+            with open(_USER_DATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        data["party_members"] = body.party_members
+        os.makedirs(os.path.dirname(_USER_DATA_FILE), exist_ok=True)
+        with open(_USER_DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        return {"status": "ok"}
+
+    @application.get("/notes/export/txt")
+    def notes_export_txt():
+        if not os.path.isfile(_NOTES_FILE):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="No notes file found.")
+        with open(_NOTES_FILE, "rb") as f:
+            content = f.read()
+        return Response(
+            content=content,
+            media_type="text/plain",
+            headers={"Content-Disposition": "attachment; filename=\"editor_notes.txt\""},
+        )
+
+    @application.get("/notes/export/docx")
+    def notes_export_docx():
+        if not os.path.isfile(_NOTES_FILE):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="No notes file found.")
+        from docx import Document
+        with open(_NOTES_FILE, "r", encoding="utf-8") as f:
+            text = f.read()
+        doc = Document()
+        for line in text.splitlines():
+            doc.add_paragraph(line)
+        buf = io.BytesIO()
+        doc.save(buf)
+        buf.seek(0)
+        return Response(
+            content=buf.read(),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": "attachment; filename=\"editor_notes.docx\""},
+        )
 
     return application
 

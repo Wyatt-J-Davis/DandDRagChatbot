@@ -450,3 +450,132 @@ class TestNotesVectorizeEndpoint:
         wrapper_arg = handler.generate_database.call_args[0][0]
         assert wrapper_arg.name.endswith(".txt")
         assert wrapper_arg.getvalue() == b"My notes."
+
+
+class TestPartyGetEndpoint:
+    def test_returns_200_with_party_data_when_file_exists(self, tmp_path, monkeypatch):
+        data = {"party_members": [{"name": "Aria", "note_taker": True}, {"name": "Brom", "note_taker": False}]}
+        user_data_file = tmp_path / "user_data.json"
+        user_data_file.write_text(json.dumps(data))
+        import api.main as m
+        monkeypatch.setattr(m, "_USER_DATA_FILE", str(user_data_file))
+        response = TestClient(create_app()).get("/party")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["party_members"] == data["party_members"]
+
+    def test_returns_empty_list_when_file_missing(self, tmp_path, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_USER_DATA_FILE", str(tmp_path / "nonexistent.json"))
+        response = TestClient(create_app()).get("/party")
+        assert response.status_code == 200
+        assert response.json() == {"party_members": []}
+
+    def test_returns_empty_list_when_party_members_key_absent(self, tmp_path, monkeypatch):
+        user_data_file = tmp_path / "user_data.json"
+        user_data_file.write_text(json.dumps({"model": "llama3"}))
+        import api.main as m
+        monkeypatch.setattr(m, "_USER_DATA_FILE", str(user_data_file))
+        response = TestClient(create_app()).get("/party")
+        assert response.status_code == 200
+        assert response.json() == {"party_members": []}
+
+
+class TestPartyPostEndpoint:
+    def test_returns_200_and_writes_party_data(self, tmp_path, monkeypatch):
+        user_data_file = tmp_path / "user_data.json"
+        import api.main as m
+        monkeypatch.setattr(m, "_USER_DATA_FILE", str(user_data_file))
+        payload = {"party_members": [{"name": "Aria", "note_taker": True}]}
+        response = TestClient(create_app()).post("/party", json=payload)
+        assert response.status_code == 200
+        saved = json.loads(user_data_file.read_text())
+        assert saved["party_members"] == payload["party_members"]
+
+    def test_merges_with_existing_user_data(self, tmp_path, monkeypatch):
+        user_data_file = tmp_path / "user_data.json"
+        user_data_file.write_text(json.dumps({"model": "llama3", "temperature": 0.7}))
+        import api.main as m
+        monkeypatch.setattr(m, "_USER_DATA_FILE", str(user_data_file))
+        payload = {"party_members": [{"name": "Brom", "note_taker": False}]}
+        TestClient(create_app()).post("/party", json=payload)
+        saved = json.loads(user_data_file.read_text())
+        assert saved["model"] == "llama3"
+        assert saved["party_members"] == payload["party_members"]
+
+    def test_creates_file_when_missing(self, tmp_path, monkeypatch):
+        user_data_file = tmp_path / "user_data.json"
+        import api.main as m
+        monkeypatch.setattr(m, "_USER_DATA_FILE", str(user_data_file))
+        payload = {"party_members": []}
+        response = TestClient(create_app()).post("/party", json=payload)
+        assert response.status_code == 200
+        assert user_data_file.exists()
+
+
+class TestNotesExportTxtEndpoint:
+    def test_returns_200_with_text_plain_content_type(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        notes_file.write_text("Session notes content.")
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        response = TestClient(create_app()).get("/notes/export/txt")
+        assert response.status_code == 200
+        assert "text/plain" in response.headers["content-type"]
+
+    def test_returns_notes_content_as_body(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        notes_file.write_text("My campaign notes.")
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        response = TestClient(create_app()).get("/notes/export/txt")
+        assert response.content == b"My campaign notes."
+
+    def test_returns_404_when_notes_file_missing(self, tmp_path, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(tmp_path / "nonexistent.txt"))
+        response = TestClient(create_app()).get("/notes/export/txt")
+        assert response.status_code == 404
+
+    def test_includes_content_disposition_header(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        notes_file.write_text("Notes.")
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        response = TestClient(create_app()).get("/notes/export/txt")
+        assert "content-disposition" in response.headers
+        assert "editor_notes.txt" in response.headers["content-disposition"]
+
+
+class TestNotesExportDocxEndpoint:
+    def test_returns_200_with_docx_content_type(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        notes_file.write_text("Session notes content.")
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        response = TestClient(create_app()).get("/notes/export/docx")
+        assert response.status_code == 200
+        assert "application/vnd.openxmlformats-officedocument.wordprocessingml.document" in response.headers["content-type"]
+
+    def test_returns_non_empty_body(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        notes_file.write_text("My campaign notes.")
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        response = TestClient(create_app()).get("/notes/export/docx")
+        assert len(response.content) > 0
+
+    def test_returns_404_when_notes_file_missing(self, tmp_path, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(tmp_path / "nonexistent.txt"))
+        response = TestClient(create_app()).get("/notes/export/docx")
+        assert response.status_code == 404
+
+    def test_includes_content_disposition_header(self, tmp_path, monkeypatch):
+        notes_file = tmp_path / "editor_notes.txt"
+        notes_file.write_text("Notes.")
+        import api.main as m
+        monkeypatch.setattr(m, "_NOTES_FILE", str(notes_file))
+        response = TestClient(create_app()).get("/notes/export/docx")
+        assert "content-disposition" in response.headers
+        assert "editor_notes.docx" in response.headers["content-disposition"]
