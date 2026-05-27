@@ -52,7 +52,21 @@ class _PartyMemberInputState extends State<PartyMemberInput> {
                 ),
               ],
             ),
-            ...widget.appState.partyMembers.map((name) => Text(name)),
+            ...widget.appState.partyMembers.map(
+              (name) => RadioListTile<String>(
+                value: name,
+                groupValue: widget.appState.noteTaker,
+                onChanged: (v) => widget.appState.setNoteTaker(v),
+                title: Text(
+                  name,
+                  style: name == widget.appState.noteTaker
+                      ? const TextStyle(fontWeight: FontWeight.bold)
+                      : null,
+                ),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
           ],
         );
       },

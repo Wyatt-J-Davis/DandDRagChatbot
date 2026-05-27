@@ -100,5 +100,66 @@ void main() {
 
       expect(find.text('Dex'), findsOneWidget);
     });
+
+    testWidgets('each party member has a RadioListTile',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      appState.addPartyMember('Borin');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      expect(find.byType(RadioListTile<String>), findsNWidgets(2));
+    });
+
+    testWidgets('tapping RadioListTile designates that member as note-taker',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      await tester.tap(find.byType(RadioListTile<String>));
+      await tester.pump();
+
+      expect(appState.noteTaker, 'Aria');
+    });
+
+    testWidgets('selecting a new note-taker replaces the previous one',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      appState.addPartyMember('Borin');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      await tester.tap(find.widgetWithText(RadioListTile<String>, 'Aria'));
+      await tester.pump();
+      expect(appState.noteTaker, 'Aria');
+
+      await tester.tap(find.widgetWithText(RadioListTile<String>, 'Borin'));
+      await tester.pump();
+      expect(appState.noteTaker, 'Borin');
+    });
+
+    testWidgets('note-taker name is displayed in bold',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      appState.setNoteTaker('Aria');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      final text = tester.widget<Text>(find.text('Aria'));
+      expect(text.style?.fontWeight, FontWeight.bold);
+    });
+
+    testWidgets('non-note-taker names are not bold',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      appState.addPartyMember('Borin');
+      appState.setNoteTaker('Aria');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      final borinText = tester.widget<Text>(find.text('Borin'));
+      expect(borinText.style?.fontWeight, isNot(FontWeight.bold));
+    });
   });
 }

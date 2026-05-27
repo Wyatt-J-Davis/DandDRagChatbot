@@ -219,4 +219,48 @@ void main() {
       expect(notifier.partyMembers, ['Aria', 'Borin']);
     });
   });
+
+  group('noteTaker', () {
+    test('noteTaker is null initially', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.noteTaker, isNull);
+    });
+
+    test('setNoteTaker sets the note-taker', () {
+      final notifier = AppStateNotifier();
+      notifier.setNoteTaker('Aria');
+      expect(notifier.noteTaker, 'Aria');
+    });
+
+    test('setNoteTaker notifies listeners', () {
+      final notifier = AppStateNotifier();
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.setNoteTaker('Aria');
+      expect(callCount, 1);
+    });
+
+    test('setNoteTaker does not notify when value unchanged', () {
+      final notifier = AppStateNotifier();
+      notifier.setNoteTaker('Aria');
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.setNoteTaker('Aria');
+      expect(callCount, 0);
+    });
+
+    test('setNoteTaker can clear note-taker with null', () {
+      final notifier = AppStateNotifier();
+      notifier.setNoteTaker('Aria');
+      notifier.setNoteTaker(null);
+      expect(notifier.noteTaker, isNull);
+    });
+
+    test('setNoteTaker replaces previous note-taker', () {
+      final notifier = AppStateNotifier();
+      notifier.setNoteTaker('Aria');
+      notifier.setNoteTaker('Borin');
+      expect(notifier.noteTaker, 'Borin');
+    });
+  });
 }
