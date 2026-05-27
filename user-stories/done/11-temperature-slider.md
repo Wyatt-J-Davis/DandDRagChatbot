@@ -6,11 +6,11 @@ Add a temperature slider widget to the sidebar panel. The slider controls the LL
 
 ## Acceptance criteria
 
-- [ ] Slider is visible in the Q&A sidebar panel
-- [ ] Range is 0.0 to 1.0 with a visible numeric readout of the current value
-- [ ] Selected temperature is stored in `AppStateNotifier`
-- [ ] Slider renders correctly within the fixed-width sidebar layout
+- [x] Slider is visible in the Q&A sidebar panel
+- [x] Range is 0.0 to 1.0 with a visible numeric readout of the current value
+- [x] Selected temperature is stored in `AppStateNotifier`
+- [x] Slider renders correctly within the fixed-width sidebar layout
 
 ## Blocked by
 
-- Issue 7: Sidebar panel placeholder
+- Issue 7: Sidebar panel placeholder (complete)
