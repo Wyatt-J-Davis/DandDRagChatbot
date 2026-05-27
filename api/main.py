@@ -93,6 +93,7 @@ def create_app() -> FastAPI:
     ):
         def event_stream():
             try:
+                db.clear_database(DATABASE_DIR)
                 db.create_retrival_artifacts(DATABASE_DIR)
 
                 class _FileWrapper:

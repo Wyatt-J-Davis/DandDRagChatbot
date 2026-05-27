@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from api.main import create_app, get_llm_handler, get_db_handler, get_summary_handler
+from src.utils.DatabaseHandler import DATABASE_DIR
 
 
 @pytest.fixture
@@ -139,6 +140,12 @@ class TestUploadNotesEndpoint:
         events = _parse_sse_events(response.text)
         error_events = [e for e in events if e.get("error")]
         assert len(error_events) >= 1
+
+    def test_clears_database_before_generating_to_replace_not_append(self):
+        handler = self._make_db_handler([100.0])
+        client = self._client_with_db(handler)
+        client.post("/upload-notes", json={"file_path": "/tmp/notes.txt"})
+        handler.clear_database.assert_called_once_with(DATABASE_DIR)
 
 
 def _make_mock_doc(content: str) -> MagicMock:

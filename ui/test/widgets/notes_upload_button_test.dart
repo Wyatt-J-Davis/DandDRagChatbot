@@ -43,6 +43,21 @@ class _BlockingUploadService extends UploadService {
   Stream<UploadEvent> uploadNotes(String _) => controller.stream;
 }
 
+class _CountingUploadService extends UploadService {
+  final void Function() onCall;
+  final List<UploadEvent> events;
+
+  _CountingUploadService({required this.onCall, required this.events});
+
+  @override
+  Stream<UploadEvent> uploadNotes(String _) async* {
+    onCall();
+    for (final e in events) {
+      yield e;
+    }
+  }
+}
+
 Widget buildSubject({
   AppStateNotifier? appState,
   FilePickerService? pickerService,
@@ -306,6 +321,81 @@ void main() {
 
       controller.close();
       await tester.pumpAndSettle();
+    });
+
+    // Re-upload (Issue 20) tests
+
+    testWidgets('Upload Notes button is re-enabled after a successful upload',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(events: [UploadDoneEvent()]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Upload Notes'));
+      expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets('Vectorize button remains shown after a successful upload',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(events: [UploadDoneEvent()]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vectorize'), findsOneWidget);
+    });
+
+    testWidgets('re-vectorizing after success clears previous success message',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final blockingService = _BlockingUploadService();
+      final firstService = _FakeUploadService(events: [UploadDoneEvent()]);
+
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: firstService));
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+      expect(find.text('Vectorization complete'), findsOneWidget);
+
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: blockingService));
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump();
+
+      expect(find.text('Vectorization complete'), findsNothing);
+
+      blockingService.controller.close();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('re-vectorizing after success calls uploadService again',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+
+      int callCount = 0;
+      final countingService = _CountingUploadService(
+          onCall: () => callCount++, events: [UploadDoneEvent()]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: countingService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 2);
     });
 
     testWidgets(
