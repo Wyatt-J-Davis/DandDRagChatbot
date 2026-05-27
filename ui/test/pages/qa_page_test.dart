@@ -1,9 +1,70 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/pages/qa_page.dart';
+import 'package:ttrpg_chatbot/services/chat_service.dart';
+import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
+import 'package:ttrpg_chatbot/widgets/chat_bubble.dart';
 
-Widget buildSubject() {
-  return const MaterialApp(home: Scaffold(body: QAPage()));
+class _NoOpChatService extends ChatService {
+  @override
+  Stream<ChatEvent> chat({
+    required String question,
+    required String model,
+    required double temperature,
+  }) async* {}
+}
+
+class _AnswerChatService extends ChatService {
+  final String answer;
+  _AnswerChatService(this.answer);
+
+  @override
+  Stream<ChatEvent> chat({
+    required String question,
+    required String model,
+    required double temperature,
+  }) async* {
+    yield ChatAnswerEvent(answer: answer, sources: []);
+  }
+}
+
+class _ErrorChatService extends ChatService {
+  final String errorMessage;
+  _ErrorChatService(this.errorMessage);
+
+  @override
+  Stream<ChatEvent> chat({
+    required String question,
+    required String model,
+    required double temperature,
+  }) async* {
+    yield ChatErrorEvent(message: errorMessage);
+  }
+}
+
+class _HangingChatService extends ChatService {
+  @override
+  Stream<ChatEvent> chat({
+    required String question,
+    required String model,
+    required double temperature,
+  }) {
+    // Never emits and never closes — no pending timers.
+    return StreamController<ChatEvent>().stream;
+  }
+}
+
+Widget buildSubject({ChatService? chatService}) {
+  return MaterialApp(
+    home: Scaffold(
+      body: QAPage(
+        appState: AppStateNotifier(initialModel: 'llama3'),
+        chatService: chatService ?? _NoOpChatService(),
+      ),
+    ),
+  );
 }
 
 void main() {
@@ -32,6 +93,21 @@ void main() {
       await tester.pump();
       final button = tester.widget<IconButton>(find.byType(IconButton));
       expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets('tapping submit button adds a user ChatBubble',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.enterText(find.byType(TextField), 'What happened in session 3?');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+
+      final bubbles = tester.widgetList<ChatBubble>(find.byType(ChatBubble));
+      expect(bubbles.any((b) =>
+              b.sender == ChatSender.user &&
+              b.message == 'What happened in session 3?'),
+          isTrue);
     });
 
     testWidgets('tapping submit button captures input text',
@@ -70,6 +146,47 @@ void main() {
       await tester.pump();
       final tf = tester.widget<TextField>(find.byType(TextField));
       expect(tf.controller!.text, isEmpty);
+    });
+
+    testWidgets('assistant ChatBubble appears after ChatAnswerEvent',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _AnswerChatService('The dragon is red.')));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      final bubbles = tester.widgetList<ChatBubble>(find.byType(ChatBubble));
+      expect(bubbles.any((b) => b.sender == ChatSender.assistant), isTrue);
+      expect(find.text('The dragon is red.'), findsOneWidget);
+    });
+
+    testWidgets('assistant ChatBubble appears with error text after ChatErrorEvent',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _ErrorChatService('Model not found')));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      final bubbles = tester.widgetList<ChatBubble>(find.byType(ChatBubble));
+      expect(bubbles.any((b) => b.sender == ChatSender.assistant), isTrue);
+      expect(find.text('Error: Model not found'), findsOneWidget);
+    });
+
+    testWidgets('send button is disabled while waiting for response',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _HangingChatService()));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+
+      final button = tester.widget<IconButton>(find.byType(IconButton));
+      expect(button.onPressed, isNull);
     });
   });
 }

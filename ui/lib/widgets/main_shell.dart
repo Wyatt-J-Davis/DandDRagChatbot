@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../pages/note_editor_page.dart';
 import '../pages/qa_page.dart';
 import '../pages/summary_page.dart';
+import '../services/chat_service.dart';
 import '../services/file_picker_service.dart';
 import '../services/model_service.dart';
 import '../services/upload_service.dart';
@@ -20,6 +21,7 @@ class MainShell extends StatefulWidget {
   final UserPreferencesService? prefsService;
   final FilePickerService? pickerService;
   final UploadService? uploadService;
+  final ChatService? chatService;
 
   const MainShell({
     super.key,
@@ -28,6 +30,7 @@ class MainShell extends StatefulWidget {
     this.prefsService,
     this.pickerService,
     this.uploadService,
+    this.chatService,
   });
 
   @override
@@ -90,13 +93,19 @@ class _MainShellState extends State<MainShell> {
   Widget _buildPage() {
     switch (_selectedIndex) {
       case 0:
-        return const QAPage();
+        return QAPage(
+          appState: widget.appState,
+          chatService: widget.chatService,
+        );
       case 1:
         return const SummaryPage();
       case 2:
         return const NoteEditorPage();
       default:
-        return const QAPage();
+        return QAPage(
+          appState: widget.appState,
+          chatService: widget.chatService,
+        );
     }
   }
 
