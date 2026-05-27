@@ -41,4 +41,37 @@ void main() {
       expect(notifier.selectedModel, isNull);
     });
   });
+
+  group('temperature', () {
+    test('temperature is 0.5 initially', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.temperature, 0.5);
+    });
+
+    test('setTemperature updates temperature', () {
+      final notifier = AppStateNotifier();
+      notifier.setTemperature(0.8);
+      expect(notifier.temperature, 0.8);
+    });
+
+    test('setTemperature notifies listeners', () {
+      final notifier = AppStateNotifier();
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+
+      notifier.setTemperature(0.8);
+      expect(callCount, 1);
+    });
+
+    test('setTemperature does not notify when value is unchanged', () {
+      final notifier = AppStateNotifier();
+      notifier.setTemperature(0.8);
+
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+
+      notifier.setTemperature(0.8);
+      expect(callCount, 0);
+    });
+  });
 }

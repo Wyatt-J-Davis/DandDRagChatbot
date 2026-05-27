@@ -80,7 +80,6 @@ class _ModelSelectorDropdownState extends State<ModelSelectorDropdown> {
             return DropdownButton<String>(
               value: widget.appState.selectedModel,
               isExpanded: true,
-
               onChanged: (value) => widget.appState.setSelectedModel(value),
               items: models
                   .map(

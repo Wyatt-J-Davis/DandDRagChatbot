@@ -7,6 +7,7 @@ import '../services/model_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
 import 'sidebar_panel.dart';
+import 'temperature_slider.dart';
 
 class MainShell extends StatefulWidget {
   final AppStateNotifier appState;
@@ -74,10 +75,18 @@ class _MainShellState extends State<MainShell> {
     if (_selectedIndex != 0) return null;
     return Padding(
       padding: const EdgeInsets.all(12.0),
-      child: ModelSelectorDropdown(
-        modelsFuture: _modelsFuture,
-        appState: widget.appState,
-        onRetry: _retryFetchModels,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ModelSelectorDropdown(
+            modelsFuture: _modelsFuture,
+            appState: widget.appState,
+            onRetry: _retryFetchModels,
+          ),
+          const SizedBox(height: 12),
+          TemperatureSlider(appState: widget.appState),
+        ],
       ),
     );
   }

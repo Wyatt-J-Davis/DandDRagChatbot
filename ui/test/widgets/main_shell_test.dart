@@ -6,6 +6,7 @@ import 'package:ttrpg_chatbot/services/model_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
+import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
 
 ModelService _stubModelService({List<String> models = const []}) {
   return ModelService(
@@ -178,6 +179,34 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(DropdownButton<String>), findsNothing);
+    });
+
+    testWidgets('TemperatureSlider is shown in SidebarPanel on Q&A page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      expect(find.byType(TemperatureSlider), findsOneWidget);
+    });
+
+    testWidgets('TemperatureSlider is not shown on Summary page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TemperatureSlider), findsNothing);
+    });
+
+    testWidgets('TemperatureSlider is not shown on Note Editor page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TemperatureSlider), findsNothing);
     });
 
     testWidgets('shows error state then dropdown after tapping Retry',
