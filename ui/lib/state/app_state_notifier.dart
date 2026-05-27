@@ -7,6 +7,7 @@ class AppStateNotifier extends ChangeNotifier {
 
   String? _selectedModel;
   double _temperature;
+  final List<String> _partyMembers = [];
 
   AppStateNotifier({
     String? initialModel,
@@ -18,6 +19,7 @@ class AppStateNotifier extends ChangeNotifier {
 
   String? get selectedModel => _selectedModel;
   double get temperature => _temperature;
+  List<String> get partyMembers => List.unmodifiable(_partyMembers);
 
   void setSelectedModel(String? model) {
     if (_selectedModel == model) return;
@@ -31,6 +33,12 @@ class AppStateNotifier extends ChangeNotifier {
     _temperature = temperature;
     notifyListeners();
     _persist();
+  }
+
+  void addPartyMember(String name) {
+    if (name.trim().isEmpty) return;
+    _partyMembers.add(name.trim());
+    notifyListeners();
   }
 
   void _persist() {

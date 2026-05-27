@@ -7,6 +7,7 @@ import '../services/model_service.dart';
 import '../services/user_preferences_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
+import 'party_member_input.dart';
 import 'sidebar_panel.dart';
 import 'temperature_slider.dart';
 
@@ -113,6 +114,8 @@ class _MainShellState extends State<MainShell> {
           ),
           const SizedBox(height: 12),
           TemperatureSlider(appState: widget.appState),
+          const SizedBox(height: 12),
+          PartyMemberInput(appState: widget.appState),
         ],
       ),
     );

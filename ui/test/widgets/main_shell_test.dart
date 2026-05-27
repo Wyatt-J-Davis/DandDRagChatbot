@@ -9,6 +9,7 @@ import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
+import 'package:ttrpg_chatbot/widgets/party_member_input.dart';
 import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
 
 class _FakePrefsService extends UserPreferencesService {
@@ -283,6 +284,34 @@ void main() {
 
       expect(fakePrefs.saved, isNotEmpty);
       expect(fakePrefs.saved.last.temperature, closeTo(0.9, 0.001));
+    });
+
+    testWidgets('PartyMemberInput is shown in SidebarPanel on Q&A page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      expect(find.byType(PartyMemberInput), findsOneWidget);
+    });
+
+    testWidgets('PartyMemberInput is not shown on Summary page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PartyMemberInput), findsNothing);
+    });
+
+    testWidgets('PartyMemberInput is not shown on Note Editor page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PartyMemberInput), findsNothing);
     });
   });
 }

@@ -170,4 +170,53 @@ void main() {
       expect(fake.saved.last.temperature, 0.9);
     });
   });
+
+  group('partyMembers', () {
+    test('partyMembers is empty initially', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.partyMembers, isEmpty);
+    });
+
+    test('addPartyMember appends name to partyMembers', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('Aria');
+      expect(notifier.partyMembers, ['Aria']);
+    });
+
+    test('addPartyMember notifies listeners', () {
+      final notifier = AppStateNotifier();
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.addPartyMember('Aria');
+      expect(callCount, 1);
+    });
+
+    test('addPartyMember ignores empty name', () {
+      final notifier = AppStateNotifier();
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.addPartyMember('');
+      expect(notifier.partyMembers, isEmpty);
+      expect(callCount, 0);
+    });
+
+    test('addPartyMember ignores whitespace-only name', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('   ');
+      expect(notifier.partyMembers, isEmpty);
+    });
+
+    test('addPartyMember trims surrounding whitespace', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('  Aria  ');
+      expect(notifier.partyMembers, ['Aria']);
+    });
+
+    test('addPartyMember supports multiple members', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('Aria');
+      notifier.addPartyMember('Borin');
+      expect(notifier.partyMembers, ['Aria', 'Borin']);
+    });
+  });
 }
