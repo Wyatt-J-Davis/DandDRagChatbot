@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'loading_screen.dart';
 import 'services/backend_service.dart';
 import 'widgets/app_shell.dart';
+import 'widgets/main_shell.dart';
 
 BackendService? _backendService;
 
@@ -36,20 +37,7 @@ class TTRPGChatbotApp extends StatelessWidget {
       ),
       home: AppShell(
         ready: backendReady,
-        child: const _PlaceholderHome(),
-      ),
-    );
-  }
-}
-
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('TTRPG Campaign Chatbot'),
+        child: const MainShell(),
       ),
     );
   }
