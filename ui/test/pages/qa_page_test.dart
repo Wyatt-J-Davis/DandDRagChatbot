@@ -188,5 +188,43 @@ void main() {
       final button = tester.widget<IconButton>(find.byType(IconButton));
       expect(button.onPressed, isNull);
     });
+
+    testWidgets('four bubbles visible after two question-answer cycles',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _AnswerChatService('The answer')));
+
+      await tester.enterText(find.byType(TextField), 'First question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Second question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChatBubble), findsNWidgets(4));
+    });
+
+    testWidgets('prior messages remain visible after second submission',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _AnswerChatService('The answer')));
+
+      await tester.enterText(find.byType(TextField), 'First question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Second question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('First question'), findsOneWidget);
+      expect(find.text('Second question'), findsOneWidget);
+      expect(find.text('The answer'), findsNWidgets(2));
+    });
   });
 }
