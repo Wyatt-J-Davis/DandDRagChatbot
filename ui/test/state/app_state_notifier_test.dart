@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
@@ -296,6 +296,43 @@ void main() {
       notifier.setNoteTaker('Aria');
       notifier.setNoteTaker('Borin');
       expect(notifier.noteTaker, 'Borin');
+    });
+  });
+
+  group('selectedNotesPath', () {
+    test('selectedNotesPath is null initially', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.selectedNotesPath, isNull);
+    });
+
+    test('setSelectedNotesPath updates selectedNotesPath', () {
+      final notifier = AppStateNotifier();
+      notifier.setSelectedNotesPath(r'C:\Users\user\notes.txt');
+      expect(notifier.selectedNotesPath, r'C:\Users\user\notes.txt');
+    });
+
+    test('setSelectedNotesPath notifies listeners', () {
+      final notifier = AppStateNotifier();
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.setSelectedNotesPath(r'C:\notes.txt');
+      expect(callCount, 1);
+    });
+
+    test('setSelectedNotesPath does not notify when value unchanged', () {
+      final notifier = AppStateNotifier();
+      notifier.setSelectedNotesPath(r'C:\notes.txt');
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.setSelectedNotesPath(r'C:\notes.txt');
+      expect(callCount, 0);
+    });
+
+    test('setSelectedNotesPath can clear path with null', () {
+      final notifier = AppStateNotifier();
+      notifier.setSelectedNotesPath(r'C:\notes.txt');
+      notifier.setSelectedNotesPath(null);
+      expect(notifier.selectedNotesPath, isNull);
     });
   });
 }

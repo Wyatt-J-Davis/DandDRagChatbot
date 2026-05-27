@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../pages/note_editor_page.dart';
 import '../pages/qa_page.dart';
 import '../pages/summary_page.dart';
+import '../services/file_picker_service.dart';
 import '../services/model_service.dart';
 import '../services/user_preferences_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
+import 'notes_upload_button.dart';
 import 'party_member_input.dart';
 import 'sidebar_panel.dart';
 import 'temperature_slider.dart';
@@ -15,12 +17,14 @@ class MainShell extends StatefulWidget {
   final AppStateNotifier appState;
   final ModelService modelService;
   final UserPreferencesService? prefsService;
+  final FilePickerService? pickerService;
 
   const MainShell({
     super.key,
     required this.appState,
     required this.modelService,
     this.prefsService,
+    this.pickerService,
   });
 
   @override
@@ -116,6 +120,11 @@ class _MainShellState extends State<MainShell> {
           TemperatureSlider(appState: widget.appState),
           const SizedBox(height: 12),
           PartyMemberInput(appState: widget.appState),
+          const SizedBox(height: 12),
+          NotesUploadButton(
+            appState: widget.appState,
+            pickerService: widget.pickerService ?? FilePickerService(),
+          ),
         ],
       ),
     );

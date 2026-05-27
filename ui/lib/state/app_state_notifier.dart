@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 
 import '../services/user_preferences_service.dart';
 
@@ -9,6 +9,7 @@ class AppStateNotifier extends ChangeNotifier {
   double _temperature;
   final List<String> _partyMembers = [];
   String? _noteTaker;
+  String? _selectedNotesPath;
 
   AppStateNotifier({
     String? initialModel,
@@ -22,6 +23,7 @@ class AppStateNotifier extends ChangeNotifier {
   double get temperature => _temperature;
   List<String> get partyMembers => List.unmodifiable(_partyMembers);
   String? get noteTaker => _noteTaker;
+  String? get selectedNotesPath => _selectedNotesPath;
 
   void setSelectedModel(String? model) {
     if (_selectedModel == model) return;
@@ -49,6 +51,12 @@ class AppStateNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSelectedNotesPath(String? path) {
+    if (_selectedNotesPath == path) return;
+    _selectedNotesPath = path;
+    notifyListeners();
+  }
+
   void setNoteTaker(String? name) {
     if (_noteTaker == name) return;
     _noteTaker = name;
@@ -62,3 +70,4 @@ class AppStateNotifier extends ChangeNotifier {
     );
   }
 }
+

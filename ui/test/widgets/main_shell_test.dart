@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +10,8 @@ import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
 import 'package:ttrpg_chatbot/widgets/party_member_input.dart';
+import 'package:ttrpg_chatbot/services/file_picker_service.dart';
+import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
 import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
 
 class _FakePrefsService extends UserPreferencesService {
@@ -61,16 +63,23 @@ ModelService _stubRetryModelService({required List<String> models}) {
   );
 }
 
+
+class _FakePickerService extends FilePickerService {
+  @override
+  Future<String?> pickNotesFile() async => null;
+}
 Widget buildSubject({
   AppStateNotifier? appState,
   ModelService? modelService,
   UserPreferencesService? prefsService,
+  FilePickerService? pickerService,
 }) {
   return MaterialApp(
     home: MainShell(
       appState: appState ?? AppStateNotifier(),
       modelService: modelService ?? _stubModelService(),
       prefsService: prefsService,
+      pickerService: pickerService ?? _FakePickerService(),
     ),
   );
 }
@@ -242,12 +251,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // First fetch fails — error message and retry button are shown.
+      // First fetch fails â€” error message and retry button are shown.
       expect(find.text('No models found. Is Ollama running?'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
       expect(find.byType(DropdownButton<String>), findsNothing);
 
-      // Tap Retry — second fetch succeeds.
+      // Tap Retry â€” second fetch succeeds.
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
 
@@ -313,5 +322,33 @@ void main() {
 
       expect(find.byType(PartyMemberInput), findsNothing);
     });
+    testWidgets('NotesUploadButton is shown in SidebarPanel on Q&A page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      expect(find.byType(NotesUploadButton), findsOneWidget);
+    });
+
+    testWidgets('NotesUploadButton is not shown on Summary page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NotesUploadButton), findsNothing);
+    });
+
+    testWidgets('NotesUploadButton is not shown on Note Editor page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NotesUploadButton), findsNothing);
+    });
   });
 }
+
