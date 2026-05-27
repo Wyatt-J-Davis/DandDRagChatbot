@@ -5,6 +5,7 @@ import '../pages/qa_page.dart';
 import '../pages/summary_page.dart';
 import '../services/file_picker_service.dart';
 import '../services/model_service.dart';
+import '../services/upload_service.dart';
 import '../services/user_preferences_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
@@ -18,6 +19,7 @@ class MainShell extends StatefulWidget {
   final ModelService modelService;
   final UserPreferencesService? prefsService;
   final FilePickerService? pickerService;
+  final UploadService? uploadService;
 
   const MainShell({
     super.key,
@@ -25,6 +27,7 @@ class MainShell extends StatefulWidget {
     required this.modelService,
     this.prefsService,
     this.pickerService,
+    this.uploadService,
   });
 
   @override
@@ -124,6 +127,7 @@ class _MainShellState extends State<MainShell> {
           NotesUploadButton(
             appState: widget.appState,
             pickerService: widget.pickerService ?? FilePickerService(),
+            uploadService: widget.uploadService ?? UploadService(),
           ),
         ],
       ),

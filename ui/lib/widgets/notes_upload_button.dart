@@ -1,39 +1,111 @@
 import 'package:flutter/material.dart';
 
 import '../services/file_picker_service.dart';
+import '../services/upload_service.dart';
 import '../state/app_state_notifier.dart';
 
-class NotesUploadButton extends StatelessWidget {
+class NotesUploadButton extends StatefulWidget {
   final AppStateNotifier appState;
   final FilePickerService pickerService;
+  final UploadService uploadService;
 
   const NotesUploadButton({
     super.key,
     required this.appState,
     required this.pickerService,
+    required this.uploadService,
   });
+
+  @override
+  State<NotesUploadButton> createState() => _NotesUploadButtonState();
+}
+
+class _NotesUploadButtonState extends State<NotesUploadButton> {
+  bool _isUploading = false;
+  int _uploadProgress = 0;
+  String? _uploadError;
+  bool _uploadSuccess = false;
+
+  Future<void> _startUpload(String path) async {
+    setState(() {
+      _isUploading = true;
+      _uploadProgress = 0;
+      _uploadError = null;
+      _uploadSuccess = false;
+    });
+    await for (final event in widget.uploadService.uploadNotes(path)) {
+      if (!mounted) return;
+      if (event is UploadProgressEvent) {
+        setState(() => _uploadProgress = event.progress);
+      } else if (event is UploadDoneEvent) {
+        setState(() {
+          _isUploading = false;
+          _uploadSuccess = true;
+        });
+      } else if (event is UploadErrorEvent) {
+        setState(() {
+          _isUploading = false;
+          _uploadError = event.message;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: appState,
+      listenable: widget.appState,
       builder: (context, _) {
-        final path = appState.selectedNotesPath;
+        final path = widget.appState.selectedNotesPath;
         final filename = path != null ? _basename(path) : null;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             ElevatedButton(
-              onPressed: () async {
-                final picked = await pickerService.pickNotesFile();
-                if (picked != null) appState.setSelectedNotesPath(picked);
-              },
+              onPressed: _isUploading
+                  ? null
+                  : () async {
+                      final picked =
+                          await widget.pickerService.pickNotesFile();
+                      if (picked != null) {
+                        widget.appState.setSelectedNotesPath(picked);
+                        setState(() {
+                          _uploadError = null;
+                          _uploadSuccess = false;
+                        });
+                      }
+                    },
               child: const Text('Upload Notes'),
             ),
             if (filename != null) ...[
               const SizedBox(height: 4),
               Text(filename, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 8),
+              if (!_isUploading)
+                ElevatedButton(
+                  onPressed: () => _startUpload(path!),
+                  child: const Text('Vectorize'),
+                ),
+              if (_isUploading)
+                LinearProgressIndicator(value: _uploadProgress / 100),
+              if (_uploadSuccess) ...[
+                const SizedBox(height: 4),
+                const Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 16),
+                    SizedBox(width: 4),
+                    Text('Vectorization complete'),
+                  ],
+                ),
+              ],
+              if (_uploadError != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _uploadError!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
             ],
           ],
         );

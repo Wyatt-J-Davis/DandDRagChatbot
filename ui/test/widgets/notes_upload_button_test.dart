@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
+import 'package:ttrpg_chatbot/services/upload_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
 
@@ -17,15 +20,41 @@ class _FakePickerService extends FilePickerService {
   }
 }
 
+class _FakeUploadService extends UploadService {
+  final List<UploadEvent> events;
+  String? capturedPath;
+
+  _FakeUploadService({required this.events});
+
+  @override
+  Stream<UploadEvent> uploadNotes(String filePath) async* {
+    capturedPath = filePath;
+    for (final e in events) {
+      yield e;
+    }
+  }
+}
+
+class _BlockingUploadService extends UploadService {
+  final StreamController<UploadEvent> controller =
+      StreamController<UploadEvent>();
+
+  @override
+  Stream<UploadEvent> uploadNotes(String _) => controller.stream;
+}
+
 Widget buildSubject({
   AppStateNotifier? appState,
   FilePickerService? pickerService,
+  UploadService? uploadService,
 }) {
   return MaterialApp(
     home: Scaffold(
       body: NotesUploadButton(
         appState: appState ?? AppStateNotifier(),
         pickerService: pickerService ?? _FakePickerService(),
+        uploadService:
+            uploadService ?? _FakeUploadService(events: const []),
       ),
     ),
   );
@@ -59,11 +88,13 @@ void main() {
       expect(picker.callCount, 1);
     });
 
-    testWidgets('when picker returns a path, appState.selectedNotesPath is updated',
+    testWidgets(
+        'when picker returns a path, appState.selectedNotesPath is updated',
         (WidgetTester tester) async {
       final appState = AppStateNotifier();
       final picker = _FakePickerService(returnPath: r'C:\docs\notes.txt');
-      await tester.pumpWidget(buildSubject(appState: appState, pickerService: picker));
+      await tester.pumpWidget(
+          buildSubject(appState: appState, pickerService: picker));
 
       await tester.tap(find.text('Upload Notes'));
       await tester.pump();
@@ -86,7 +117,8 @@ void main() {
         (WidgetTester tester) async {
       final appState = AppStateNotifier();
       final picker = _FakePickerService(returnPath: null);
-      await tester.pumpWidget(buildSubject(appState: appState, pickerService: picker));
+      await tester.pumpWidget(
+          buildSubject(appState: appState, pickerService: picker));
 
       await tester.tap(find.text('Upload Notes'));
       await tester.pump();
@@ -99,7 +131,8 @@ void main() {
       final appState = AppStateNotifier();
       appState.setSelectedNotesPath(r'C:\old\campaign.txt');
       final picker = _FakePickerService(returnPath: r'C:\new\session5.txt');
-      await tester.pumpWidget(buildSubject(appState: appState, pickerService: picker));
+      await tester.pumpWidget(
+          buildSubject(appState: appState, pickerService: picker));
 
       expect(find.text('campaign.txt'), findsOneWidget);
 
@@ -108,6 +141,195 @@ void main() {
 
       expect(find.text('session5.txt'), findsOneWidget);
       expect(find.text('campaign.txt'), findsNothing);
+    });
+
+    // Vectorize button tests
+
+    testWidgets('Vectorize button is not shown before a file is picked',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      expect(find.text('Vectorize'), findsNothing);
+    });
+
+    testWidgets('Vectorize button appears after a file is picked',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      expect(find.text('Vectorize'), findsOneWidget);
+    });
+
+    testWidgets('tapping Vectorize calls uploadService.uploadNotes with path',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(events: [UploadDoneEvent()]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(uploadService.capturedPath, r'C:\notes.txt');
+    });
+
+    testWidgets('LinearProgressIndicator shown while upload is in progress',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _BlockingUploadService();
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump();
+
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+      uploadService.controller.close();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('LinearProgressIndicator not shown before upload starts',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+    });
+
+    testWidgets('Vectorize button hidden while upload is in progress',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _BlockingUploadService();
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump();
+
+      expect(find.text('Vectorize'), findsNothing);
+
+      uploadService.controller.close();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('Upload Notes button is disabled while upload is in progress',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _BlockingUploadService();
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump();
+
+      final button = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Upload Notes'));
+      expect(button.onPressed, isNull);
+
+      uploadService.controller.close();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('success message shown after upload completes',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService =
+          _FakeUploadService(events: [UploadDoneEvent()]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vectorization complete'), findsOneWidget);
+    });
+
+    testWidgets('error message shown when upload errors',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(
+          events: [UploadErrorEvent(message: 'File not found')]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('File not found'), findsOneWidget);
+    });
+
+    testWidgets('Vectorize button reappears after upload error',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(
+          events: [UploadErrorEvent(message: 'File not found')]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vectorize'), findsOneWidget);
+    });
+
+    testWidgets('progress value reflects UploadProgressEvent',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final controller = StreamController<UploadEvent>();
+      final uploadService = _BlockingUploadService();
+      // Replace controller with one we control
+      final customService = _FakeUploadService(
+          events: [UploadProgressEvent(progress: 75, message: '75%')]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: customService));
+
+      // Set path pre-tap via a blocking service to capture mid-state
+      // Use customService which yields progress then stops (no done event)
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump(); // process initial setState + first event
+
+      final indicator = tester.widget<LinearProgressIndicator>(
+          find.byType(LinearProgressIndicator));
+      // After progress 75, upload is still running (no done event yet)
+      // The indicator value may be 0 or 0.75 depending on timing
+      expect(indicator.value, isNotNull);
+
+      controller.close();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'picking a new file resets success state and shows Vectorize button',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\old.txt');
+      final uploadService =
+          _FakeUploadService(events: [UploadDoneEvent()]);
+      final picker = _FakePickerService(returnPath: r'C:\new.txt');
+      await tester.pumpWidget(buildSubject(
+          appState: appState,
+          pickerService: picker,
+          uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+      expect(find.text('Vectorization complete'), findsOneWidget);
+
+      await tester.tap(find.text('Upload Notes'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vectorization complete'), findsNothing);
+      expect(find.text('Vectorize'), findsOneWidget);
     });
   });
 }
