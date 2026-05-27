@@ -1,5 +1,20 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
+
+class _FakePrefsService extends UserPreferencesService {
+  final List<UserPreferences> saved = [];
+
+  _FakePrefsService() : super(file: File(''));
+
+  @override
+  Future<UserPreferences> load() async => const UserPreferences();
+
+  @override
+  Future<void> save(UserPreferences prefs) async => saved.add(prefs);
+}
 
 void main() {
   group('AppStateNotifier', () {
@@ -72,6 +87,87 @@ void main() {
 
       notifier.setTemperature(0.8);
       expect(callCount, 0);
+    });
+  });
+
+  group('initialisation from stored preferences', () {
+    test('uses provided initialModel', () {
+      final notifier = AppStateNotifier(initialModel: 'mistral');
+      expect(notifier.selectedModel, 'mistral');
+    });
+
+    test('uses provided initialTemperature', () {
+      final notifier = AppStateNotifier(initialTemperature: 0.9);
+      expect(notifier.temperature, 0.9);
+    });
+
+    test('defaults apply when no initial values given', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.selectedModel, isNull);
+      expect(notifier.temperature, 0.5);
+    });
+  });
+
+  group('persistence', () {
+    test('saves model when setSelectedModel is called', () async {
+      final fake = _FakePrefsService();
+      final notifier = AppStateNotifier(prefsService: fake);
+
+      notifier.setSelectedModel('llama3');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fake.saved, isNotEmpty);
+      expect(fake.saved.last.model, 'llama3');
+    });
+
+    test('saves temperature when setTemperature is called', () async {
+      final fake = _FakePrefsService();
+      final notifier = AppStateNotifier(prefsService: fake);
+
+      notifier.setTemperature(0.7);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fake.saved, isNotEmpty);
+      expect(fake.saved.last.temperature, 0.7);
+    });
+
+    test('does not save when model is unchanged', () async {
+      final fake = _FakePrefsService();
+      final notifier = AppStateNotifier(prefsService: fake);
+
+      notifier.setSelectedModel('llama3');
+      await Future<void>.delayed(Duration.zero);
+      final savedBefore = fake.saved.length;
+
+      notifier.setSelectedModel('llama3');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fake.saved.length, savedBefore);
+    });
+
+    test('does not save when temperature is unchanged', () async {
+      final fake = _FakePrefsService();
+      final notifier = AppStateNotifier(initialTemperature: 0.5, prefsService: fake);
+
+      notifier.setTemperature(0.5);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fake.saved, isEmpty);
+    });
+
+    test('saved preferences include current model and temperature together', () async {
+      final fake = _FakePrefsService();
+      final notifier = AppStateNotifier(
+        initialModel: 'mistral',
+        initialTemperature: 0.6,
+        prefsService: fake,
+      );
+
+      notifier.setTemperature(0.9);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fake.saved.last.model, 'mistral');
+      expect(fake.saved.last.temperature, 0.9);
     });
   });
 }

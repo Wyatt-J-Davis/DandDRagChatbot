@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'loading_screen.dart';
 import 'services/backend_service.dart';
 import 'services/model_service.dart';
+import 'services/user_preferences_service.dart';
 import 'state/app_state_notifier.dart';
 import 'widgets/app_shell.dart';
 import 'widgets/main_shell.dart';
@@ -15,19 +18,38 @@ Future<void> _startBackend() async {
   return _backendService!.ready;
 }
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefsService = UserPreferencesService(file: File('user_data.json'));
+  final initialPrefs = await prefsService.load();
+
   final backendReady = _startBackend();
-  runApp(TTRPGChatbotApp(backendReady: backendReady));
+  runApp(TTRPGChatbotApp(
+    backendReady: backendReady,
+    prefsService: prefsService,
+    initialPrefs: initialPrefs,
+  ));
 }
 
 class TTRPGChatbotApp extends StatelessWidget {
   final Future<void> backendReady;
+  final UserPreferencesService? prefsService;
+  final UserPreferences? initialPrefs;
 
-  const TTRPGChatbotApp({super.key, required this.backendReady});
+  const TTRPGChatbotApp({
+    super.key,
+    required this.backendReady,
+    this.prefsService,
+    this.initialPrefs,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final appState = AppStateNotifier();
+    final appState = AppStateNotifier(
+      initialModel: initialPrefs?.model,
+      initialTemperature: initialPrefs?.temperature ?? 0.5,
+    );
     final modelService = ModelService();
 
     return MaterialApp(
@@ -42,7 +64,11 @@ class TTRPGChatbotApp extends StatelessWidget {
       ),
       home: AppShell(
         ready: backendReady,
-        child: MainShell(appState: appState, modelService: modelService),
+        child: MainShell(
+          appState: appState,
+          modelService: modelService,
+          prefsService: prefsService,
+        ),
       ),
     );
   }

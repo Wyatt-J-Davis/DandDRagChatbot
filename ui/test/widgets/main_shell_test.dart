@@ -1,12 +1,33 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:ttrpg_chatbot/services/model_service.dart';
+import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
 import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
+
+class _FakePrefsService extends UserPreferencesService {
+  UserPreferences _stored;
+  final List<UserPreferences> saved = [];
+
+  _FakePrefsService(UserPreferences initial)
+      : _stored = initial,
+        super(file: File(''));
+
+  @override
+  Future<UserPreferences> load() async => _stored;
+
+  @override
+  Future<void> save(UserPreferences prefs) async {
+    _stored = prefs;
+    saved.add(prefs);
+  }
+}
 
 ModelService _stubModelService({List<String> models = const []}) {
   return ModelService(
@@ -42,11 +63,13 @@ ModelService _stubRetryModelService({required List<String> models}) {
 Widget buildSubject({
   AppStateNotifier? appState,
   ModelService? modelService,
+  UserPreferencesService? prefsService,
 }) {
   return MaterialApp(
     home: MainShell(
       appState: appState ?? AppStateNotifier(),
       modelService: modelService ?? _stubModelService(),
+      prefsService: prefsService,
     ),
   );
 }
@@ -229,6 +252,37 @@ void main() {
 
       expect(find.byType(DropdownButton<String>), findsOneWidget);
       expect(find.text('No models found. Is Ollama running?'), findsNothing);
+    });
+
+    testWidgets('loads saved temperature from UserPreferencesService on startup',
+        (WidgetTester tester) async {
+      final fakePrefs = _FakePrefsService(
+        const UserPreferences(model: null, temperature: 0.8),
+      );
+      final appState = AppStateNotifier();
+
+      await tester.pumpWidget(
+        buildSubject(appState: appState, prefsService: fakePrefs),
+      );
+      await tester.pump();
+
+      expect(appState.temperature, closeTo(0.8, 0.001));
+    });
+
+    testWidgets('saves preferences when AppStateNotifier changes',
+        (WidgetTester tester) async {
+      final fakePrefs = _FakePrefsService(const UserPreferences());
+      final appState = AppStateNotifier();
+
+      await tester.pumpWidget(
+        buildSubject(appState: appState, prefsService: fakePrefs),
+      );
+      await tester.pump();
+
+      appState.setTemperature(0.9);
+
+      expect(fakePrefs.saved, isNotEmpty);
+      expect(fakePrefs.saved.last.temperature, closeTo(0.9, 0.001));
     });
   });
 }

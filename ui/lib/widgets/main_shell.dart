@@ -4,6 +4,7 @@ import '../pages/note_editor_page.dart';
 import '../pages/qa_page.dart';
 import '../pages/summary_page.dart';
 import '../services/model_service.dart';
+import '../services/user_preferences_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
 import 'sidebar_panel.dart';
@@ -12,11 +13,13 @@ import 'temperature_slider.dart';
 class MainShell extends StatefulWidget {
   final AppStateNotifier appState;
   final ModelService modelService;
+  final UserPreferencesService? prefsService;
 
   const MainShell({
     super.key,
     required this.appState,
     required this.modelService,
+    this.prefsService,
   });
 
   @override
@@ -50,6 +53,30 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _modelsFuture = widget.modelService.fetchModels();
+    if (widget.prefsService != null) {
+      widget.appState.addListener(_savePreferences);
+      _applyStoredPreferences();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.appState.removeListener(_savePreferences);
+    super.dispose();
+  }
+
+  Future<void> _applyStoredPreferences() async {
+    final prefs = await widget.prefsService!.load();
+    if (!mounted) return;
+    widget.appState.setSelectedModel(prefs.model);
+    widget.appState.setTemperature(prefs.temperature);
+  }
+
+  void _savePreferences() {
+    widget.prefsService?.save(UserPreferences(
+      model: widget.appState.selectedModel,
+      temperature: widget.appState.temperature,
+    ));
   }
 
   Widget _buildPage() {
