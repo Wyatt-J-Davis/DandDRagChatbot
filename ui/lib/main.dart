@@ -1,11 +1,26 @@
 import 'package:flutter/material.dart';
 
+import 'loading_screen.dart';
+import 'services/backend_service.dart';
+import 'widgets/app_shell.dart';
+
+BackendService? _backendService;
+
+Future<void> _startBackend() async {
+  _backendService = BackendService(executablePath: 'backend/ttrpg_backend.exe');
+  await _backendService!.start();
+  return _backendService!.ready;
+}
+
 void main() {
-  runApp(const TTRPGChatbotApp());
+  final backendReady = _startBackend();
+  runApp(TTRPGChatbotApp(backendReady: backendReady));
 }
 
 class TTRPGChatbotApp extends StatelessWidget {
-  const TTRPGChatbotApp({super.key});
+  final Future<void> backendReady;
+
+  const TTRPGChatbotApp({super.key, required this.backendReady});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +34,10 @@ class TTRPGChatbotApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const _PlaceholderHome(),
+      home: AppShell(
+        ready: backendReady,
+        child: const _PlaceholderHome(),
+      ),
     );
   }
 }
