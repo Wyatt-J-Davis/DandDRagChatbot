@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../pages/note_editor_page.dart';
 import '../pages/qa_page.dart';
 import '../pages/summary_page.dart';
-import '../pages/note_editor_page.dart';
+import 'sidebar_panel.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -50,6 +51,8 @@ class _MainShellState extends State<MainShell> {
             labelType: NavigationRailLabelType.all,
             destinations: _destinations,
           ),
+          const VerticalDivider(thickness: 1, width: 1),
+          const SidebarPanel(),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(child: _pages[_selectedIndex]),
         ],

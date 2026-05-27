@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
+import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
 
 void main() {
   group('MainShell', () {
@@ -75,6 +76,42 @@ void main() {
       await tester.tap(find.text('Note Editor'));
       await tester.pumpAndSettle();
       expect(find.byType(NavigationRail), findsOneWidget);
+    });
+
+    testWidgets('SidebarPanel is visible inside the shell',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      expect(find.byType(SidebarPanel), findsOneWidget);
+    });
+
+    testWidgets('SidebarPanel is visible on all pages',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      expect(find.byType(SidebarPanel), findsOneWidget);
+
+      await tester.tap(find.text('Summary'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SidebarPanel), findsOneWidget);
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SidebarPanel), findsOneWidget);
+    });
+
+    testWidgets('SidebarPanel is positioned between NavigationRail and content',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      final navRailRect = tester.getRect(find.byType(NavigationRail));
+      final sidebarRect = tester.getRect(find.byType(SidebarPanel));
+      final contentRight = tester.getRect(find.text('Q&A Page')).right;
+
+      // Sidebar starts at or after the right edge of the rail
+      expect(sidebarRect.left, greaterThanOrEqualTo(navRailRect.right));
+      // Content starts at or after the right edge of the sidebar
+      expect(contentRight, greaterThan(sidebarRect.right));
     });
   });
 }
