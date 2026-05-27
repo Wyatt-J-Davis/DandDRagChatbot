@@ -13,6 +13,7 @@ import 'package:ttrpg_chatbot/widgets/party_member_input.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
 import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
 import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
+import 'package:ttrpg_chatbot/pages/qa_page.dart';
 
 class _FakePrefsService extends UserPreferencesService {
   UserPreferences _stored;
@@ -97,11 +98,11 @@ void main() {
       expect(find.text('Note Editor'), findsOneWidget);
     });
 
-    testWidgets('shows Q&A page stub by default', (WidgetTester tester) async {
+    testWidgets('shows Q&A page by default', (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump(); // let model future resolve
 
-      expect(find.text('Q&A Page'), findsOneWidget);
+      expect(find.byType(QAPage), findsOneWidget);
     });
 
     testWidgets('tapping Summary destination shows Summary page stub',
@@ -126,7 +127,7 @@ void main() {
       expect(find.text('Q&A Page'), findsNothing);
     });
 
-    testWidgets('tapping back to Q&A shows Q&A page stub',
+    testWidgets('tapping back to Q&A shows Q&A page',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
 
@@ -136,7 +137,7 @@ void main() {
       await tester.tap(find.text('Q&A'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Q&A Page'), findsOneWidget);
+      expect(find.byType(QAPage), findsOneWidget);
       expect(find.text('Summary Page'), findsNothing);
     });
 
@@ -184,7 +185,7 @@ void main() {
 
       final navRailRect = tester.getRect(find.byType(NavigationRail));
       final sidebarRect = tester.getRect(find.byType(SidebarPanel));
-      final contentRight = tester.getRect(find.text('Q&A Page')).right;
+      final contentRight = tester.getRect(find.byType(QAPage)).right;
 
       expect(sidebarRect.left, greaterThanOrEqualTo(navRailRect.right));
       expect(contentRight, greaterThan(sidebarRect.right));
