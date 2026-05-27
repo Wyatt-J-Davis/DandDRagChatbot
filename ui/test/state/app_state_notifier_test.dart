@@ -220,6 +220,41 @@ void main() {
     });
   });
 
+  group('removePartyMember', () {
+    test('removePartyMember removes the member from the list', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('Aria');
+      notifier.removePartyMember('Aria');
+      expect(notifier.partyMembers, isEmpty);
+    });
+
+    test('removePartyMember notifies listeners', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('Aria');
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.removePartyMember('Aria');
+      expect(callCount, 1);
+    });
+
+    test('removePartyMember clears noteTaker when that member is removed', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('Aria');
+      notifier.setNoteTaker('Aria');
+      notifier.removePartyMember('Aria');
+      expect(notifier.noteTaker, isNull);
+    });
+
+    test('removePartyMember does not clear noteTaker when a different member is removed', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('Aria');
+      notifier.addPartyMember('Borin');
+      notifier.setNoteTaker('Aria');
+      notifier.removePartyMember('Borin');
+      expect(notifier.noteTaker, 'Aria');
+    });
+  });
+
   group('noteTaker', () {
     test('noteTaker is null initially', () {
       final notifier = AppStateNotifier();

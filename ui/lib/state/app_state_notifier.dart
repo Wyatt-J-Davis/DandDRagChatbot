@@ -43,6 +43,12 @@ class AppStateNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removePartyMember(String name) {
+    _partyMembers.remove(name);
+    if (_noteTaker == name) _noteTaker = null;
+    notifyListeners();
+  }
+
   void setNoteTaker(String? name) {
     if (_noteTaker == name) return;
     _noteTaker = name;

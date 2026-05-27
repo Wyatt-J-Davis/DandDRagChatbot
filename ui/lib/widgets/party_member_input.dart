@@ -63,6 +63,10 @@ class _PartyMemberInputState extends State<PartyMemberInput> {
                       ? const TextStyle(fontWeight: FontWeight.bold)
                       : null,
                 ),
+                secondary: IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: () => widget.appState.removePartyMember(name),
+                ),
                 dense: true,
                 contentPadding: EdgeInsets.zero,
               ),

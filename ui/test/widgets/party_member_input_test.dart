@@ -150,6 +150,53 @@ void main() {
       expect(text.style?.fontWeight, FontWeight.bold);
     });
 
+    testWidgets('each party member has a delete IconButton',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      appState.addPartyMember('Borin');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      expect(find.byIcon(Icons.delete), findsNWidgets(2));
+    });
+
+    testWidgets('tapping delete button removes the member',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      await tester.tap(find.byIcon(Icons.delete));
+      await tester.pump();
+
+      expect(appState.partyMembers, isEmpty);
+    });
+
+    testWidgets('tapping delete button removes that member from the list UI',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      await tester.tap(find.byIcon(Icons.delete));
+      await tester.pump();
+
+      expect(find.text('Aria'), findsNothing);
+    });
+
+    testWidgets('deleting note-taker clears note-taker designation',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.addPartyMember('Aria');
+      appState.setNoteTaker('Aria');
+      await tester.pumpWidget(buildSubject(appState: appState));
+
+      await tester.tap(find.byIcon(Icons.delete));
+      await tester.pump();
+
+      expect(appState.noteTaker, isNull);
+    });
+
     testWidgets('non-note-taker names are not bold',
         (WidgetTester tester) async {
       final appState = AppStateNotifier();
