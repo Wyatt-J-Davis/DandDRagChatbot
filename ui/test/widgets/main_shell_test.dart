@@ -19,6 +19,25 @@ ModelService _stubModelService({List<String> models = const []}) {
   );
 }
 
+/// Returns a ModelService whose first call returns an error and whose
+/// subsequent calls return [models].
+ModelService _stubRetryModelService({required List<String> models}) {
+  var callCount = 0;
+  return ModelService(
+    port: 9999,
+    httpClient: MockClient((_) async {
+      callCount++;
+      if (callCount == 1) {
+        return http.Response('Internal Server Error', 500);
+      }
+      return http.Response(
+        '[${models.map((m) => '"$m"').join(',')}]',
+        200,
+      );
+    }),
+  );
+}
+
 Widget buildSubject({
   AppStateNotifier? appState,
   ModelService? modelService,
@@ -159,6 +178,28 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(DropdownButton<String>), findsNothing);
+    });
+
+    testWidgets('shows error state then dropdown after tapping Retry',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        buildSubject(
+          modelService: _stubRetryModelService(models: ['llama3']),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // First fetch fails — error message and retry button are shown.
+      expect(find.text('No models found. Is Ollama running?'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.byType(DropdownButton<String>), findsNothing);
+
+      // Tap Retry — second fetch succeeds.
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DropdownButton<String>), findsOneWidget);
+      expect(find.text('No models found. Is Ollama running?'), findsNothing);
     });
   });
 }

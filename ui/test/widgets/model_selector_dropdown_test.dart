@@ -8,6 +8,7 @@ import 'package:ttrpg_chatbot/widgets/model_selector_dropdown.dart';
 Widget buildSubject({
   required Future<List<String>> modelsFuture,
   AppStateNotifier? notifier,
+  VoidCallback? onRetry,
 }) {
   final appState = notifier ?? AppStateNotifier();
   return MaterialApp(
@@ -17,6 +18,7 @@ Widget buildSubject({
         builder: (context, _) => ModelSelectorDropdown(
           modelsFuture: modelsFuture,
           appState: appState,
+          onRetry: onRetry ?? () {},
         ),
       ),
     ),
@@ -40,33 +42,74 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('shows disabled dropdown with placeholder on empty list',
+    testWidgets('shows error message when model list is empty',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         buildSubject(modelsFuture: Future.value([])),
       );
-      await tester.pump(); // let the future resolve
+      await tester.pump();
 
-      final dropdown =
-          tester.widget<DropdownButton<String>>(find.byType(DropdownButton<String>));
-      expect(dropdown.onChanged, isNull);
-      expect(find.text('No models available'), findsOneWidget);
+      expect(find.text('No models found. Is Ollama running?'), findsOneWidget);
     });
 
-    testWidgets('shows disabled dropdown with placeholder on fetch error',
+    testWidgets('shows no dropdown when model list is empty',
         (WidgetTester tester) async {
-      // Attach an error handler immediately so the rejected future is never
-      // "unhandled" from flutter_test's perspective.
+      await tester.pumpWidget(
+        buildSubject(modelsFuture: Future.value([])),
+      );
+      await tester.pump();
+
+      expect(find.byType(DropdownButton<String>), findsNothing);
+    });
+
+    testWidgets('shows error message when fetch errors',
+        (WidgetTester tester) async {
       final errorFuture = Future<List<String>>.error(Exception('network error'))
           .catchError((_) => <String>[]);
 
       await tester.pumpWidget(buildSubject(modelsFuture: errorFuture));
       await tester.pump();
 
-      final dropdown =
-          tester.widget<DropdownButton<String>>(find.byType(DropdownButton<String>));
-      expect(dropdown.onChanged, isNull);
-      expect(find.text('No models available'), findsOneWidget);
+      expect(find.text('No models found. Is Ollama running?'), findsOneWidget);
+    });
+
+    testWidgets('shows no dropdown when fetch errors',
+        (WidgetTester tester) async {
+      final errorFuture = Future<List<String>>.error(Exception('network error'))
+          .catchError((_) => <String>[]);
+
+      await tester.pumpWidget(buildSubject(modelsFuture: errorFuture));
+      await tester.pump();
+
+      expect(find.byType(DropdownButton<String>), findsNothing);
+    });
+
+    testWidgets('shows retry button when model list is empty',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        buildSubject(modelsFuture: Future.value([])),
+      );
+      await tester.pump();
+
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
+    testWidgets('tapping retry button calls onRetry',
+        (WidgetTester tester) async {
+      var retryCalled = false;
+
+      await tester.pumpWidget(
+        buildSubject(
+          modelsFuture: Future.value([]),
+          onRetry: () => retryCalled = true,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+
+      expect(retryCalled, isTrue);
     });
 
     testWidgets('populates dropdown items from fetched model list',

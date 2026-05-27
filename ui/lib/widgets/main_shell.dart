@@ -25,7 +25,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
 
-  late final Future<List<String>> _modelsFuture;
+  late Future<List<String>> _modelsFuture;
 
   static const List<NavigationRailDestination> _destinations = [
     NavigationRailDestination(
@@ -64,6 +64,12 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  void _retryFetchModels() {
+    setState(() {
+      _modelsFuture = widget.modelService.fetchModels();
+    });
+  }
+
   Widget? _buildSidebarChild() {
     if (_selectedIndex != 0) return null;
     return Padding(
@@ -71,6 +77,7 @@ class _MainShellState extends State<MainShell> {
       child: ModelSelectorDropdown(
         modelsFuture: _modelsFuture,
         appState: widget.appState,
+        onRetry: _retryFetchModels,
       ),
     );
   }
