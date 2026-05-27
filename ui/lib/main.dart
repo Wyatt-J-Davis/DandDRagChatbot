@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'loading_screen.dart';
 import 'services/backend_service.dart';
+import 'services/model_service.dart';
+import 'state/app_state_notifier.dart';
 import 'widgets/app_shell.dart';
 import 'widgets/main_shell.dart';
 
@@ -25,6 +27,9 @@ class TTRPGChatbotApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appState = AppStateNotifier();
+    final modelService = ModelService();
+
     return MaterialApp(
       title: 'TTRPG Campaign Chatbot',
       debugShowCheckedModeBanner: false,
@@ -37,7 +42,7 @@ class TTRPGChatbotApp extends StatelessWidget {
       ),
       home: AppShell(
         ready: backendReady,
-        child: const MainShell(),
+        child: MainShell(appState: appState, modelService: modelService),
       ),
     );
   }

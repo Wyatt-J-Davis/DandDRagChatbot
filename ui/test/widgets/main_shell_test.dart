@@ -1,13 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:ttrpg_chatbot/services/model_service.dart';
+import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
 
+ModelService _stubModelService({List<String> models = const []}) {
+  return ModelService(
+    port: 9999,
+    httpClient: MockClient(
+      (_) async => http.Response(
+        '[${models.map((m) => '"$m"').join(',')}]',
+        200,
+      ),
+    ),
+  );
+}
+
+Widget buildSubject({
+  AppStateNotifier? appState,
+  ModelService? modelService,
+}) {
+  return MaterialApp(
+    home: MainShell(
+      appState: appState ?? AppStateNotifier(),
+      modelService: modelService ?? _stubModelService(),
+    ),
+  );
+}
+
 void main() {
   group('MainShell', () {
-    Widget buildSubject() => const MaterialApp(home: MainShell());
-
-    testWidgets('renders a NavigationRail with Q&A, Summary, and Note Editor destinations',
+    testWidgets(
+        'renders a NavigationRail with Q&A, Summary, and Note Editor destinations',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
 
@@ -17,9 +44,9 @@ void main() {
       expect(find.text('Note Editor'), findsOneWidget);
     });
 
-    testWidgets('shows Q&A page stub by default',
-        (WidgetTester tester) async {
+    testWidgets('shows Q&A page stub by default', (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
+      await tester.pump(); // let model future resolve
 
       expect(find.text('Q&A Page'), findsOneWidget);
     });
@@ -64,15 +91,12 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
 
-      // On Q&A page
       expect(find.byType(NavigationRail), findsOneWidget);
 
-      // On Summary page
       await tester.tap(find.text('Summary'));
       await tester.pumpAndSettle();
       expect(find.byType(NavigationRail), findsOneWidget);
 
-      // On Note Editor page
       await tester.tap(find.text('Note Editor'));
       await tester.pumpAndSettle();
       expect(find.byType(NavigationRail), findsOneWidget);
@@ -103,15 +127,38 @@ void main() {
     testWidgets('SidebarPanel is positioned between NavigationRail and content',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
+      await tester.pump();
 
       final navRailRect = tester.getRect(find.byType(NavigationRail));
       final sidebarRect = tester.getRect(find.byType(SidebarPanel));
       final contentRight = tester.getRect(find.text('Q&A Page')).right;
 
-      // Sidebar starts at or after the right edge of the rail
       expect(sidebarRect.left, greaterThanOrEqualTo(navRailRect.right));
-      // Content starts at or after the right edge of the sidebar
       expect(contentRight, greaterThan(sidebarRect.right));
+    });
+
+    testWidgets(
+        'ModelSelectorDropdown is shown in SidebarPanel on Q&A page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        buildSubject(
+          modelService: _stubModelService(models: ['llama3']),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(DropdownButton<String>), findsOneWidget);
+    });
+
+    testWidgets(
+        'ModelSelectorDropdown is not shown in SidebarPanel on Summary page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DropdownButton<String>), findsNothing);
     });
   });
 }

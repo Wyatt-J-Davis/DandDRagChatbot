@@ -3,10 +3,20 @@ import 'package:flutter/material.dart';
 import '../pages/note_editor_page.dart';
 import '../pages/qa_page.dart';
 import '../pages/summary_page.dart';
+import '../services/model_service.dart';
+import '../state/app_state_notifier.dart';
+import 'model_selector_dropdown.dart';
 import 'sidebar_panel.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  final AppStateNotifier appState;
+  final ModelService modelService;
+
+  const MainShell({
+    super.key,
+    required this.appState,
+    required this.modelService,
+  });
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -15,11 +25,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
 
-  static const List<Widget> _pages = [
-    QAPage(),
-    SummaryPage(),
-    NoteEditorPage(),
-  ];
+  late final Future<List<String>> _modelsFuture;
 
   static const List<NavigationRailDestination> _destinations = [
     NavigationRailDestination(
@@ -40,6 +46,36 @@ class _MainShellState extends State<MainShell> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _modelsFuture = widget.modelService.fetchModels();
+  }
+
+  Widget _buildPage() {
+    switch (_selectedIndex) {
+      case 0:
+        return const QAPage();
+      case 1:
+        return const SummaryPage();
+      case 2:
+        return const NoteEditorPage();
+      default:
+        return const QAPage();
+    }
+  }
+
+  Widget? _buildSidebarChild() {
+    if (_selectedIndex != 0) return null;
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: ModelSelectorDropdown(
+        modelsFuture: _modelsFuture,
+        appState: widget.appState,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
@@ -52,9 +88,9 @@ class _MainShellState extends State<MainShell> {
             destinations: _destinations,
           ),
           const VerticalDivider(thickness: 1, width: 1),
-          const SidebarPanel(),
+          SidebarPanel(child: _buildSidebarChild()),
           const VerticalDivider(thickness: 1, width: 1),
-          Expanded(child: _pages[_selectedIndex]),
+          Expanded(child: _buildPage()),
         ],
       ),
     );
