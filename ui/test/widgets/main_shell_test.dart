@@ -13,6 +13,7 @@ import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
 import 'package:ttrpg_chatbot/widgets/party_member_input.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
 import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
+import 'package:ttrpg_chatbot/widgets/note_import_button.dart';
 import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
 import 'package:ttrpg_chatbot/pages/qa_page.dart';
 import 'package:ttrpg_chatbot/pages/summary_page.dart';
@@ -353,6 +354,34 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(NotesUploadButton), findsNothing);
+    });
+
+    testWidgets('NoteImportButton is shown in SidebarPanel on Note Editor page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NoteImportButton), findsOneWidget);
+    });
+
+    testWidgets('NoteImportButton is not shown on Q&A page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      expect(find.byType(NoteImportButton), findsNothing);
+    });
+
+    testWidgets('NoteImportButton is not shown on Summary page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NoteImportButton), findsNothing);
     });
 
     testWidgets('note editor dark mode toggle persists across navigation',

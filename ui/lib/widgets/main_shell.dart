@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 
 import '../pages/note_editor_page.dart';
 import '../pages/qa_page.dart';
@@ -6,11 +7,13 @@ import '../pages/summary_page.dart';
 import '../services/chat_service.dart';
 import '../services/file_picker_service.dart';
 import '../services/model_service.dart';
+import '../services/note_file_reader_service.dart';
 import '../services/summary_service.dart';
 import '../services/upload_service.dart';
 import '../services/user_preferences_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
+import 'note_import_button.dart';
 import 'notes_upload_button.dart';
 import 'party_member_input.dart';
 import 'sidebar_panel.dart';
@@ -24,6 +27,7 @@ class MainShell extends StatefulWidget {
   final UploadService? uploadService;
   final ChatService? chatService;
   final SummaryService? summaryService;
+  final NoteFileReaderService? noteFileReaderService;
 
   const MainShell({
     super.key,
@@ -34,6 +38,7 @@ class MainShell extends StatefulWidget {
     this.uploadService,
     this.chatService,
     this.summaryService,
+    this.noteFileReaderService,
   });
 
   @override
@@ -43,6 +48,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
   bool _noteEditorDarkMode = false;
+  late final QuillController _noteController;
 
   late Future<List<String>> _modelsFuture;
 
@@ -67,6 +73,7 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    _noteController = QuillController.basic();
     _modelsFuture = widget.modelService.fetchModels();
     if (widget.prefsService != null) {
       widget.appState.addListener(_savePreferences);
@@ -76,6 +83,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    _noteController.dispose();
     widget.appState.removeListener(_savePreferences);
     super.dispose();
   }
@@ -108,6 +116,7 @@ class _MainShellState extends State<MainShell> {
         );
       case 2:
         return NoteEditorPage(
+          controller: _noteController,
           darkMode: _noteEditorDarkMode,
           onToggleDarkMode: () =>
               setState(() => _noteEditorDarkMode = !_noteEditorDarkMode),
@@ -127,31 +136,50 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget? _buildSidebarChild() {
-    if (_selectedIndex != 0) return null;
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ModelSelectorDropdown(
-            modelsFuture: _modelsFuture,
-            appState: widget.appState,
-            onRetry: _retryFetchModels,
+    switch (_selectedIndex) {
+      case 0:
+        return Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ModelSelectorDropdown(
+                modelsFuture: _modelsFuture,
+                appState: widget.appState,
+                onRetry: _retryFetchModels,
+              ),
+              const SizedBox(height: 12),
+              TemperatureSlider(appState: widget.appState),
+              const SizedBox(height: 12),
+              PartyMemberInput(appState: widget.appState),
+              const SizedBox(height: 12),
+              NotesUploadButton(
+                appState: widget.appState,
+                pickerService: widget.pickerService ?? FilePickerService(),
+                uploadService: widget.uploadService ?? UploadService(),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          TemperatureSlider(appState: widget.appState),
-          const SizedBox(height: 12),
-          PartyMemberInput(appState: widget.appState),
-          const SizedBox(height: 12),
-          NotesUploadButton(
-            appState: widget.appState,
-            pickerService: widget.pickerService ?? FilePickerService(),
-            uploadService: widget.uploadService ?? UploadService(),
+        );
+      case 2:
+        return Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              NoteImportButton(
+                controller: _noteController,
+                appState: widget.appState,
+                fileReader: widget.noteFileReaderService,
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
+      default:
+        return null;
+    }
   }
 
   @override
