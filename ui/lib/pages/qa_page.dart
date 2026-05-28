@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../services/chat_service.dart';
 import '../state/app_state_notifier.dart';
 import '../widgets/chat_bubble.dart';
+import '../widgets/reference_chip.dart';
 
 class _ChatMessage {
   final ChatSender sender;
   final String text;
-  const _ChatMessage({required this.sender, required this.text});
+  final List<String> sources;
+  const _ChatMessage({required this.sender, required this.text, this.sources = const []});
 }
 
 class QAPage extends StatefulWidget {
@@ -71,8 +73,11 @@ class _QAPageState extends State<QAPage> {
       if (!mounted) return;
       if (event is ChatAnswerEvent) {
         setState(() {
-          _messages
-              .add(_ChatMessage(sender: ChatSender.assistant, text: event.answer));
+          _messages.add(_ChatMessage(
+            sender: ChatSender.assistant,
+            text: event.answer,
+            sources: event.sources,
+          ));
           _isLoading = false;
         });
         _scrollToBottom();
@@ -101,7 +106,23 @@ class _QAPageState extends State<QAPage> {
             itemCount: _messages.length,
             itemBuilder: (context, index) {
               final msg = _messages[index];
-              return ChatBubble(message: msg.text, sender: msg.sender);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ChatBubble(message: msg.text, sender: msg.sender),
+                  if (msg.sender == ChatSender.assistant && msg.sources.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8, bottom: 4),
+                      child: Wrap(
+                        spacing: 4,
+                        children: [
+                          for (var i = 0; i < msg.sources.length; i++)
+                            ReferenceChip(index: i + 1),
+                        ],
+                      ),
+                    ),
+                ],
+              );
             },
           ),
         ),

@@ -6,6 +6,7 @@ import 'package:ttrpg_chatbot/pages/qa_page.dart';
 import 'package:ttrpg_chatbot/services/chat_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/chat_bubble.dart';
+import 'package:ttrpg_chatbot/widgets/reference_chip.dart';
 
 class _NoOpChatService extends ChatService {
   @override
@@ -41,6 +42,20 @@ class _ErrorChatService extends ChatService {
     required double temperature,
   }) async* {
     yield ChatErrorEvent(message: errorMessage);
+  }
+}
+
+class _SourcedAnswerChatService extends ChatService {
+  final List<String> sources;
+  _SourcedAnswerChatService(this.sources);
+
+  @override
+  Stream<ChatEvent> chat({
+    required String question,
+    required String model,
+    required double temperature,
+  }) async* {
+    yield ChatAnswerEvent(answer: 'The answer', sources: sources);
   }
 }
 
@@ -205,6 +220,56 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(ChatBubble), findsNWidgets(4));
+    });
+
+    testWidgets('reference chips appear when answer has sources',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          chatService: _SourcedAnswerChatService(['chunk a', 'chunk b'])));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ReferenceChip), findsNWidgets(2));
+    });
+
+    testWidgets('chip labels are "Source 1", "Source 2", etc.',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          chatService: _SourcedAnswerChatService(['chunk a', 'chunk b'])));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Source 1'), findsOneWidget);
+      expect(find.text('Source 2'), findsOneWidget);
+    });
+
+    testWidgets('no reference chips when answer has no sources',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _AnswerChatService('The answer')));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ReferenceChip), findsNothing);
+    });
+
+    testWidgets('no reference chips for user messages',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          chatService: _SourcedAnswerChatService(['chunk a'])));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      final chips = tester.widgetList<ReferenceChip>(find.byType(ReferenceChip));
+      expect(chips.length, 1);
     });
 
     testWidgets('prior messages remain visible after second submission',
