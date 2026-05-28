@@ -1,0 +1,110 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: ============================================================
+:: afk.bat  --  Single-run AFK Claude development helper
+:: Usage:  afk.bat [options]
+::   /F      Generate instructions.md file (default: no)
+::   --file  Alias for /F
+:: ============================================================
+
+echo.
+echo === AFK Claude Development (Single Run) ===
+echo.
+
+:: Check for file generation option
+set "GENERATE_FILE=n"
+for %%I in (%*) do (
+    if /I "%%I"=="--file" set "GENERATE_FILE=y"
+    if /I "%%I"=="/F" set "GENERATE_FILE=y"
+)
+
+if "%GENERATE_FILE%"=="y" (
+    echo [Option] Generating instructions.md file...
+)
+
+:: Find the lowest-numbered open user story (sorted by filename, first match wins)
+set "STORY_FILE="
+for /f "delims=" %%F in ('dir /b /on "user-stories\*.md" 2^>nul') do (
+    if not defined STORY_FILE set "STORY_FILE=user-stories\%%F"
+)
+
+if not defined STORY_FILE (
+    echo No open user stories found.
+    echo.
+    echo === AFK Development Complete ===
+    exit /b 0
+)
+
+echo Selected story: %STORY_FILE%
+
+:: Build the prompt content
+set "PROMPT_CONTENT="
+set "PROMPT_FILE=%TEMP%\ralph_prompt_%RANDOM%.txt"
+set "INSTRUCTIONS_FILE=instructions.md"
+
+(
+    echo Previous commits:
+    git log -n 5 --format="%%H%%n%%ad%%n%%B---" --date=short 2>nul || echo No commits found
+    echo.
+    echo User Story:
+    type "%STORY_FILE%"
+    echo.
+    type ralph\dev-prompt.md
+) > "%PROMPT_FILE%"
+
+:: Read the content into a variable (for file output)
+set "PROMPT_CONTENT="
+for /f "delims=" %%L in ("%PROMPT_FILE%") do set "PROMPT_CONTENT=%PROMPT_CONTENT%%L%"
+set "PROMPT_CONTENT=%PROMPT_CONTENT%"
+
+if "%GENERATE_FILE%"=="y" (
+    echo.
+    echo Writing instructions to %CD%\%INSTRUCTIONS_FILE%
+    echo %PROMPT_CONTENT% > "%CD%\%INSTRUCTIONS_FILE%"
+) else (
+    echo Writing temp file for stdin: %PROMPT_FILE%
+)
+
+:: Run Claude, pass the file to stdin
+:: --output-format stream-json lets us detect the NO MORE TASKS sentinel
+set "RESULT_FILE=%TEMP%\ralph_result_%RANDOM%.txt"
+
+if "%GENERATE_FILE%"=="y" (
+    echo.
+    echo [Input File] Using %CD%\%INSTRUCTIONS_FILE% for stdin
+) else (
+    echo.
+    echo [Input File] Using temp file %PROMPT_FILE% for stdin
+)
+
+claude --permission-mode acceptEdits --print --verbose --output-format stream-json --remote-control < "%PROMPT_FILE%" > "%RESULT_FILE%" 2>&1
+
+:: Stream assistant text to the console (requires jq on PATH)
+where jq >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    jq -rj "select(.type==\"assistant\").message.content[]? | select(.type==\"text\").text // empty" "%RESULT_FILE%"
+) else (
+    :: jq not available — just print the raw output
+    type "%RESULT_FILE%"
+)
+
+:: Check for the NO MORE TASKS sentinel
+findstr /i "NO MORE TASKS" "%RESULT_FILE%" >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    echo.
+    echo All AFK issues complete.
+)
+
+:: Clean up temp files
+del "%PROMPT_FILE%" "%RESULT_FILE%" 2>nul
+
+:: Indicate completion
+echo.
+echo === AFK Development Complete ===
+echo.
+
+endlocal
+exit /b 0
+
+--- End of afk.bat ---

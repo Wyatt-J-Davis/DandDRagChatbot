@@ -1,0 +1,317 @@
+120 INFO: PyInstaller: 6.20.0, contrib hooks: 2026.5
+120 INFO: Python: 3.10.11
+130 INFO: Platform: Windows-10-10.0.26200-SP0
+130 INFO: Python environment: C:\projects\LocalAIAgent\venv
+1826 WARNING: Failed to collect submodules for 'chromadb.server.fastapi' because importing 'chromadb.server.fastapi' raised: ModuleNotFoundError: No module named 'fastapi'
+2026-05-19 23:35:56.225 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+15717 INFO: Module search paths (PYTHONPATH):
+['C:\\projects\\LocalAIAgent',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\\python310.zip',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\\DLLs',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\\lib',
+ 'C:\\Users\\whyit\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0',
+ 'C:\\projects\\LocalAIAgent\\venv',
+ 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages',
+ 'C:\\projects\\LocalAIAgent']
+16049 INFO: Appending 'binaries' from .spec
+16050 INFO: Appending 'datas' from .spec
+16237 INFO: checking Analysis
+16237 INFO: Building Analysis because Analysis-00.toc is non existent
+16237 INFO: Looking for Python shared library...
+16237 INFO: Using Python shared library: C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\python310.dll
+16237 INFO: Running Analysis Analysis-00.toc
+16237 INFO: Target bytecode optimization level: 0
+16237 INFO: Initializing module dependency graph...
+16239 INFO: Initializing module graph hook caches...
+16313 INFO: Analyzing modules for base_library.zip ...
+16946 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+17776 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+18298 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+18513 INFO: Caching module dependency graph...
+18545 INFO: Analyzing C:\projects\LocalAIAgent\launcher.py
+18664 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+19207 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+19217 INFO: SetuptoolsInfo: initializing cached setuptools info...
+20547 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+20625 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+20753 INFO: Processing standard module hook 'hook-_ctypes.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+20997 INFO: Processing standard module hook 'hook-numpy.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+21473 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+22089 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+23784 INFO: Processing standard module hook 'hook-charset_normalizer.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+25267 INFO: Processing standard module hook 'hook-py.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+33583 INFO: Processing standard module hook 'hook-PIL.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+33640 INFO: Processing standard module hook 'hook-PIL.Image.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+34008 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+34141 INFO: Processing standard module hook 'hook-PIL.ImageFilter.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+35444 INFO: Processing standard module hook 'hook-xml.dom.domreg.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+35693 INFO: Processing standard module hook 'hook-lxml.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+36113 INFO: Processing standard module hook 'hook-lxml.etree.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+37186 INFO: Processing standard module hook 'hook-jinja2.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+37682 INFO: Processing standard module hook 'hook-altair.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+37815 INFO: Processing standard module hook 'hook-jsonschema.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+38426 INFO: Processing standard module hook 'hook-jsonschema_specifications.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+38469 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+38480 INFO: Processing standard module hook 'hook-importlib_resources.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+38545 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+38655 INFO: Processing standard module hook 'hook-urllib3.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+38776 INFO: Processing pre-safe-import-module hook 'hook-backports.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+39108 INFO: Processing standard module hook 'hook-cryptography.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+40530 INFO: hook-cryptography: cryptography does not seem to be using dynamically linked OpenSSL.
+40941 INFO: Processing standard module hook 'hook-bcrypt.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+40985 INFO: Processing standard module hook 'hook-certifi.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+41163 INFO: Processing standard module hook 'hook-narwhals.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+41316 INFO: Processing standard module hook 'hook-pandas.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+44476 INFO: Processing standard module hook 'hook-pytz.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+46022 INFO: Processing standard module hook 'hook-pyarrow.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+46884 INFO: Processing standard module hook 'hook-fsspec.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+47800 INFO: Processing standard module hook 'hook-pandas.io.formats.style.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+51124 INFO: Processing standard module hook 'hook-sqlalchemy.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+52291 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+52316 INFO: Processing standard module hook 'hook-importlib_metadata.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+55328 INFO: Processing standard module hook 'hook-sqlite3.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+55636 INFO: Processing standard module hook 'hook-pandas.io.clipboard.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+55693 INFO: Processing standard module hook 'hook-pandas.plotting.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+56324 INFO: Processing standard module hook 'hook-dateutil.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+56471 INFO: Processing pre-safe-import-module hook 'hook-six.moves.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+59216 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+60751 INFO: Processing standard module hook 'hook-rich.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+61455 INFO: Processing standard module hook 'hook-pygments.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+65555 INFO: Processing pre-safe-import-module hook 'hook-tensorflow.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\pre_safe_import_module'
+66805 INFO: Analyzing hidden import 'streamlit.__main__'
+66811 INFO: Analyzing hidden import 'streamlit.components.v1.components'
+66820 INFO: Analyzing hidden import 'streamlit.external'
+66821 INFO: Analyzing hidden import 'streamlit.external.langchain'
+66844 INFO: Processing standard module hook 'hook-langchain.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+68547 INFO: Processing standard module hook 'hook-pydantic.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+69248 INFO: Processing standard module hook 'hook-zoneinfo.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+71268 INFO: Processing standard module hook 'hook-anyio.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+72919 INFO: Processing standard module hook 'hook-opentelemetry.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+73564 INFO: Processing standard module hook 'hook-orjson.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+76737 INFO: Processing standard module hook 'hook-grpc.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+78671 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+89329 INFO: Processing standard module hook 'hook-onnxruntime.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+89498 INFO: Processing standard module hook 'hook-pkg_resources.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+95243 INFO: Analyzing hidden import 'streamlit.hello.animation_demo'
+95259 INFO: Analyzing hidden import 'streamlit.hello.dataframe_demo'
+95266 INFO: Analyzing hidden import 'streamlit.hello.hello'
+95267 INFO: Analyzing hidden import 'streamlit.hello.mapping_demo'
+95276 INFO: Analyzing hidden import 'streamlit.hello.plotting_demo'
+95283 INFO: Analyzing hidden import 'streamlit.platform'
+95290 INFO: Analyzing hidden import 'streamlit.proto.MetricsEvent_pb2'
+95300 INFO: Analyzing hidden import 'streamlit.runtime.scriptrunner.magic_funcs'
+95302 INFO: Analyzing hidden import 'streamlit.testing'
+95307 INFO: Analyzing hidden import 'streamlit.testing.v1'
+95462 INFO: Analyzing hidden import 'streamlit.web.server.websocket_headers'
+95469 INFO: Analyzing hidden import 'altair.expr.consts'
+95475 INFO: Analyzing hidden import 'altair.expr.funcs'
+95493 INFO: Analyzing hidden import 'altair.utils.execeval'
+95494 INFO: Analyzing hidden import 'altair.vegalite.api'
+95499 INFO: Analyzing hidden import 'altair.vegalite.schema'
+95506 INFO: Analyzing hidden import 'pyarrow._acero'
+95506 INFO: Analyzing hidden import 'pyarrow._flight'
+95506 INFO: Analyzing hidden import 'pyarrow._json'
+95507 INFO: Analyzing hidden import 'pyarrow._orc'
+95507 INFO: Analyzing hidden import 'pyarrow._parquet_encryption'
+95507 INFO: Analyzing hidden import 'pyarrow._pyarrow_cpp_tests'
+95508 INFO: Analyzing hidden import 'pyarrow._substrait'
+95508 INFO: Analyzing hidden import 'pyarrow.acero'
+95519 INFO: Analyzing hidden import 'pyarrow.benchmark'
+95524 INFO: Analyzing hidden import 'pyarrow.cffi'
+95630 INFO: Processing standard module hook 'hook-pycparser.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+95764 INFO: Processing standard module hook 'hook-setuptools.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+95785 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+95790 INFO: Processing pre-find-module-path hook 'hook-distutils.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+96504 INFO: Processing standard module hook 'hook-distutils.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+96541 INFO: Processing standard module hook 'hook-distutils.util.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+96564 INFO: Processing standard module hook 'hook-_osx_support.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+97559 INFO: Analyzing hidden import 'pyarrow.conftest'
+97606 INFO: Analyzing hidden import 'pyarrow.interchange.dataframe'
+97616 INFO: Analyzing hidden import 'pyarrow.json'
+97621 INFO: Analyzing hidden import 'pyarrow.jvm'
+97632 INFO: Analyzing hidden import 'pyarrow.tests'
+97632 INFO: Analyzing hidden import 'pyarrow.tests.arrow_16597'
+97640 INFO: Analyzing hidden import 'pyarrow.tests.arrow_39313'
+97641 INFO: Analyzing hidden import 'pyarrow.tests.arrow_7980'
+97648 INFO: Analyzing hidden import 'pyarrow.tests.conftest'
+97660 INFO: Analyzing hidden import 'pyarrow.tests.interchange'
+97661 INFO: Analyzing hidden import 'pyarrow.tests.interchange.test_conversion'
+97691 INFO: Analyzing hidden import 'pyarrow.tests.interchange.test_interchange_spec'
+97722 INFO: Processing standard module hook 'hook-tzdata.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+98433 INFO: Analyzing hidden import 'pyarrow.tests.pandas_examples'
+98443 INFO: Analyzing hidden import 'pyarrow.tests.pandas_threaded_import'
+98450 INFO: Analyzing hidden import 'pyarrow.tests.parquet'
+98455 INFO: Analyzing hidden import 'pyarrow.tests.parquet.common'
+98523 INFO: Analyzing hidden import 'pyarrow.tests.parquet.conftest'
+98533 INFO: Analyzing hidden import 'pyarrow.tests.parquet.encryption'
+98549 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_basic'
+98574 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_compliant_nested_type'
+98582 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_data_types'
+98600 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_dataset'
+98627 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_datetime'
+98641 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_encryption'
+98657 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_metadata'
+98678 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_pandas'
+98695 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_parquet_file'
+98721 INFO: Analyzing hidden import 'pyarrow.tests.parquet.test_parquet_writer'
+98735 INFO: Analyzing hidden import 'pyarrow.tests.read_record_batch'
+98741 INFO: Analyzing hidden import 'pyarrow.tests.test_acero'
+98757 INFO: Analyzing hidden import 'pyarrow.tests.test_adhoc_memory_leak'
+98763 INFO: Analyzing hidden import 'pyarrow.tests.test_array'
+98910 INFO: Analyzing hidden import 'pyarrow.tests.test_builder'
+98920 INFO: Analyzing hidden import 'pyarrow.tests.test_cffi'
+98938 INFO: Analyzing hidden import 'pyarrow.tests.test_compute'
+99066 INFO: Analyzing hidden import 'pyarrow.tests.test_convert_builtin'
+99124 INFO: Analyzing hidden import 'pyarrow.tests.test_cpp_internals'
+99131 INFO: Analyzing hidden import 'pyarrow.tests.test_csv'
+99174 INFO: Analyzing hidden import 'pyarrow.tests.test_cuda'
+99199 INFO: Analyzing hidden import 'pyarrow.tests.test_cuda_numba_interop'
+99210 INFO: Analyzing hidden import 'pyarrow.tests.test_cython'
+99220 INFO: Analyzing hidden import 'pyarrow.tests.test_dataset'
+99523 INFO: Analyzing hidden import 'pyarrow.tests.test_dataset_encryption'
+99538 INFO: Analyzing hidden import 'pyarrow.tests.test_deprecations'
+99539 INFO: Analyzing hidden import 'pyarrow.tests.test_device'
+99547 INFO: Analyzing hidden import 'pyarrow.tests.test_dlpack'
+99556 INFO: Analyzing hidden import 'pyarrow.tests.test_exec_plan'
+99613 INFO: Analyzing hidden import 'pyarrow.tests.test_feather'
+99633 INFO: Analyzing hidden import 'pyarrow.tests.test_flight'
+99690 INFO: Analyzing hidden import 'pyarrow.tests.test_flight_async'
+99698 INFO: Analyzing hidden import 'pyarrow.tests.test_gandiva'
+99715 INFO: Analyzing hidden import 'pyarrow.tests.test_gdb'
+99731 INFO: Analyzing hidden import 'pyarrow.tests.test_ipc'
+99763 INFO: Analyzing hidden import 'pyarrow.tests.test_json'
+99779 INFO: Analyzing hidden import 'pyarrow.tests.test_jvm'
+99792 INFO: Analyzing hidden import 'pyarrow.tests.test_memory'
+99803 INFO: Analyzing hidden import 'pyarrow.tests.test_misc'
+99813 INFO: Analyzing hidden import 'pyarrow.tests.test_orc'
+99830 INFO: Analyzing hidden import 'pyarrow.tests.test_pandas'
+99982 INFO: Analyzing hidden import 'pyarrow.tests.test_scalars'
+100011 INFO: Analyzing hidden import 'pyarrow.tests.test_schema'
+100032 INFO: Analyzing hidden import 'pyarrow.tests.test_sparse_tensor'
+100047 INFO: Analyzing hidden import 'pyarrow.tests.test_strategies'
+100055 INFO: Analyzing hidden import 'pyarrow.tests.test_substrait'
+100105 INFO: Analyzing hidden import 'pyarrow.tests.test_table'
+100185 INFO: Analyzing hidden import 'pyarrow.tests.test_tensor'
+100196 INFO: Analyzing hidden import 'pyarrow.tests.test_types'
+100230 INFO: Analyzing hidden import 'pyarrow.tests.test_udf'
+100251 INFO: Analyzing hidden import 'pyarrow.tests.test_util'
+100260 INFO: Analyzing hidden import 'pyarrow.tests.test_without_numpy'
+100266 INFO: Analyzing hidden import 'pyarrow.tests.wsgi_examples'
+100268 INFO: Analyzing hidden import 'fastembed.embedding'
+100270 INFO: Analyzing hidden import 'fastembed.late_interaction.token_embeddings'
+100277 INFO: Analyzing hidden import 'fastembed.postprocess'
+100293 INFO: Analyzing hidden import 'chromadb.api.async_fastapi'
+100320 INFO: Analyzing hidden import 'chromadb.api.fastapi'
+100341 INFO: Analyzing hidden import 'chromadb.api.rust'
+100409 INFO: Analyzing hidden import 'chromadb.api.segment'
+100474 INFO: Analyzing hidden import 'chromadb.app'
+100533 INFO: Analyzing hidden import 'chromadb.auth.basic_authn'
+100547 INFO: Analyzing hidden import 'chromadb.cli'
+100547 INFO: Analyzing hidden import 'chromadb.cli.cli'
+100554 INFO: Analyzing hidden import 'chromadb.cli.utils'
+100561 INFO: Analyzing hidden import 'chromadb.db.base'
+100701 INFO: Analyzing hidden import 'chromadb.db.impl'
+100701 INFO: Analyzing hidden import 'chromadb.db.impl.sqlite'
+100837 INFO: Analyzing hidden import 'chromadb.migrations'
+100838 INFO: Analyzing hidden import 'chromadb.proto'
+100838 INFO: Analyzing hidden import 'chromadb.proto.convert'
+100858 INFO: Analyzing hidden import 'chromadb.proto.utils'
+100866 INFO: Analyzing hidden import 'chromadb.quota.simple_quota_enforcer'
+100868 INFO: Analyzing hidden import 'chromadb.rate_limit.simple_rate_limit'
+100871 INFO: Analyzing hidden import 'chromadb.segment.distributed'
+100878 INFO: Analyzing hidden import 'chromadb.segment.impl'
+100879 INFO: Analyzing hidden import 'chromadb.segment.impl.manager'
+100879 INFO: Analyzing hidden import 'chromadb.segment.impl.manager.cache'
+100880 INFO: Analyzing hidden import 'chromadb.segment.impl.manager.cache.cache'
+100889 INFO: Analyzing hidden import 'chromadb.segment.impl.manager.distributed'
+100906 INFO: Analyzing hidden import 'chromadb.segment.impl.manager.local'
+100983 INFO: Analyzing hidden import 'chromadb.telemetry.opentelemetry.grpc'
+100991 INFO: Analyzing hidden import 'chromadb.telemetry.product.posthog'
+100996 INFO: Analyzing hidden import 'chromadb.test'
+100997 INFO: Analyzing hidden import 'chromadb.test.client'
+100997 INFO: Analyzing hidden import 'chromadb.test.client.create_http_client_with_basic_auth'
+101004 INFO: Analyzing hidden import 'chromadb.test.client.test_cloud_client'
+101015 INFO: Analyzing hidden import 'chromadb.test.client.test_create_http_client'
+101022 INFO: Analyzing hidden import 'chromadb.test.client.test_database_tenant'
+101060 INFO: Processing standard module hook 'hook-uvicorn.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+101811 INFO: Processing standard module hook 'hook-websockets.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+102718 INFO: Analyzing hidden import 'chromadb.test.client.test_database_tenant_auth'
+102725 INFO: Analyzing hidden import 'chromadb.test.client.test_multiple_clients_concurrency'
+102733 INFO: Analyzing hidden import 'chromadb.test.test_api'
+102852 INFO: Analyzing hidden import 'chromadb.test.test_chroma'
+102863 INFO: Analyzing hidden import 'chromadb.test.test_cli'
+102974 INFO: Analyzing hidden import 'chromadb.test.test_client'
+102988 INFO: Analyzing hidden import 'chromadb.test.test_config'
+103004 INFO: Analyzing hidden import 'chromadb.test.test_multithreaded'
+103016 INFO: Analyzing hidden import 'chromadb.utils.data_loaders'
+103024 INFO: Analyzing hidden import 'chromadb.utils.delete_file'
+103031 INFO: Analyzing hidden import 'chromadb.utils.messageid'
+103035 INFO: Analyzing hidden import 'chromadb.utils.rendezvous_hash'
+103043 INFO: Analyzing hidden import 'chromadb.utils.results'
+103051 INFO: Analyzing hidden import 'chromadb.utils.statistics'
+103063 INFO: Analyzing hidden import 'streamlit_quill'
+103071 INFO: Analyzing hidden import 'src'
+103072 INFO: Analyzing hidden import 'src.app'
+103073 INFO: Analyzing hidden import 'src.app.TTRPGChatBot'
+103119 INFO: Processing standard module hook 'hook-docx.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+104005 INFO: Analyzing hidden import 'src.app.CampaignSummarizer'
+104010 INFO: Analyzing hidden import 'src.app.NoteEditor'
+104017 INFO: Analyzing hidden import 'src.utils.NavigationHandler'
+104018 INFO: Analyzing hidden import 'chromadb.segment.impl.metadata.sqlite'
+104036 INFO: Processing module hooks (post-graph stage)...
+104730 INFO: Processing standard module hook 'hook-lxml.isoschematron.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+104861 WARNING: Hidden import "pycparser.lextab" not found!
+104861 WARNING: Hidden import "pycparser.yacctab" not found!
+105500 WARNING: Hidden import "importlib_resources.trees" not found!
+105917 INFO: Processing standard module hook 'hook-PIL.SpiderImagePlugin.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+106015 INFO: Processing pre-safe-import-module hook 'hook-win32com.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\pre_safe_import_module'
+110164 INFO: Processing standard module hook 'hook-setuptools._vendor.importlib_metadata.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+110366 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+111242 INFO: Processing standard module hook 'hook-sqlalchemy.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks'
+111609 WARNING: Hidden import "pysqlite2" not found!
+111610 WARNING: Hidden import "MySQLdb" not found!
+112269 INFO: Processing standard module hook 'hook-lxml.objectify.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+112335 INFO: Performing binary vs. data reclassification (3120 entries)
+124794 INFO: Looking for ctypes DLLs
+124889 INFO: Analyzing run-time hooks ...
+124911 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+124920 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+124927 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+124935 INFO: Including run-time hook 'pyi_rth_cryptography_openssl.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\_pyinstaller_hooks_contrib\\rthooks'
+124941 INFO: Including run-time hook 'pyi_rth_pkgres.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+124950 INFO: Including run-time hook 'pyi_rth_setuptools.py' from 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+125118 INFO: Creating base_library.zip...
+125140 INFO: Looking for dynamic libraries
+2026-05-19 23:37:47.908 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-05-19 23:37:56.155 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+140008 INFO: Extra DLL search directories (AddDllDirectory): ['C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\numpy.libs', 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\pandas.libs', 'C:\\projects\\LocalAIAgent\\venv\\lib\\site-packages\\pyarrow.libs']
+140008 INFO: Extra DLL search directories (PATH): []
+143146 INFO: Warnings written to C:\projects\LocalAIAgent\build\TTRPGChatbot\warn-TTRPGChatbot.txt
+143761 INFO: Graph cross-reference written to C:\projects\LocalAIAgent\build\TTRPGChatbot\xref-TTRPGChatbot.html
+143994 INFO: checking PYZ
+143994 INFO: Building PYZ because PYZ-00.toc is non existent
+143994 INFO: Building PYZ (ZlibArchive) C:\projects\LocalAIAgent\build\TTRPGChatbot\PYZ-00.pyz
+146740 INFO: Building PYZ (ZlibArchive) C:\projects\LocalAIAgent\build\TTRPGChatbot\PYZ-00.pyz completed successfully.
+146848 INFO: checking PKG
+146848 INFO: Building PKG because PKG-00.toc is non existent
+146848 INFO: Building PKG (CArchive) TTRPGChatbot.pkg
+146899 INFO: Building PKG (CArchive) TTRPGChatbot.pkg completed successfully.
+146900 INFO: Bootloader C:\projects\LocalAIAgent\venv\lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\run.exe
+146900 INFO: checking EXE
+146900 INFO: Building EXE because EXE-00.toc is non existent
+146900 INFO: Building EXE from EXE-00.toc
+146901 INFO: Copying bootloader EXE to C:\projects\LocalAIAgent\build\TTRPGChatbot\TTRPGChatbot.exe
+146960 INFO: Copying icon to EXE
+146990 INFO: Copying 0 resources to EXE
+146990 INFO: Embedding manifest in EXE
+147019 INFO: Appending PKG archive to EXE
+147075 INFO: Fixing EXE headers
+147393 INFO: Building EXE from EXE-00.toc completed successfully.
+147417 INFO: checking COLLECT
+147417 INFO: Building COLLECT because COLLECT-00.toc is non existent
+147417 INFO: Building COLLECT COLLECT-00.toc
+151500 INFO: Building COLLECT COLLECT-00.toc completed successfully.
+151569 INFO: Build complete! The results are available in: C:\projects\LocalAIAgent\dist

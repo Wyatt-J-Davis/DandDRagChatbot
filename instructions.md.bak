@@ -1,0 +1,224 @@
+Previous commits:
+2a20049e48a5b0fc30bb2fbce799833d3a50ee9a
+2026-05-27
+Issue 14: Remove original story file now that done/ copy is authoritative
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+3f5e0627d235d1540497e52b8cd74b5d5077b0fd
+2026-05-27
+Issue 14: Designate note-taker from party member list
+
+Files changed:
+- ui/lib/state/app_state_notifier.dart: added String? _noteTaker field;
+  String? get noteTaker; void setNoteTaker(String? name) with unchanged-guard
+  pattern consistent with setSelectedModel / setTemperature
+- ui/lib/widgets/party_member_input.dart: replaced plain Text(name) list
+  items with RadioListTile<String>; value=name, groupValue=noteTaker,
+  onChanged delegates to appState.setNoteTaker; title uses bold TextStyle
+  when name == noteTaker, null otherwise; dense+zeroPadding to keep
+  compact inline with the sidebar
+- ui/test/state/app_state_notifier_test.dart: added noteTaker group with
+  6 tests covering: null initially, set, notify, no-op on same value,
+  clear with null, replace previous
+- ui/test/widgets/party_member_input_test.dart: added 5 note-taker widget
+  tests covering: RadioListTile present per member, tap designates note-taker,
+  selecting new replaces old, note-taker shown in bold, non-note-taker not bold
+- user-stories/done/14-designate-note-taker.md: issue complete
+
+Key decisions:
+- RadioListTile<String> chosen over bare Radio<String> — single widget
+  carries both the radio control and the label, reducing boilerplate and
+  making find.widgetWithText(RadioListTile<String>, name) straightforward
+  in tests
+- Bold style applied only via the title Text style (not via ListTile
+  selected colour) so the visual distinction is textual and doesn't
+  conflict with the Radio's own selected-state rendering
+- setNoteTaker lives in AppStateNotifier (single source of truth) and
+  accepts null to allow future deselection; the widget never calls it
+  with null because RadioListTile only fires onChanged with the value,
+  not null
+
+All 108 Flutter tests pass; flutter build windows --debug succeeds.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+2a4dabca5f3cc469d376e88ca04c3fe67b14d636
+2026-05-27
+Issue 13: Remove duplicate story file left from previous commit
+
+The implementation was already complete in the prior commit (cd12c8d).
+user-stories/13-add-party-member.md (unchecked) was not deleted when
+user-stories/done/13-add-party-member.md (checked) was created; this
+commit removes the stale duplicate.
+
+Files changed:
+- user-stories/13-add-party-member.md: deleted (duplicate; done/ copy is authoritative)
+
+All 97 Flutter tests pass.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+cd12c8d6f472eb19e96e63e654fe8b386f6c3027
+2026-05-27
+Issue 13: Add party member to list
+
+Files changed:
+- ui/lib/state/app_state_notifier.dart: added List<String> _partyMembers;
+  getter partyMembers returns List.unmodifiable; addPartyMember(String name)
+  trims input, no-ops on empty/whitespace, appends and notifyListeners
+- ui/lib/widgets/party_member_input.dart: new StatefulWidget; holds a
+  TextEditingController; Row with Expanded TextField + ElevatedButton(Add);
+  _submit() delegates to appState.addPartyMember then clears controller when
+  the trimmed name was non-empty; ListenableBuilder renders current partyMembers
+  as Text widgets below the input
+- ui/lib/widgets/main_shell.dart: imported party_member_input.dart; added
+  PartyMemberInput to _buildSidebarChild Column on Q&A page (index 0), below
+  TemperatureSlider with a 12px SizedBox gap
+- ui/test/state/app_state_notifier_test.dart: added partyMembers group with
+  6 tests covering: empty initially, append, notify, ignore empty, ignore
+  whitespace, trim, multiple members
+- ui/test/widgets/party_member_input_test.dart: new; 9 widget tests covering:
+  TextField present, Add button present, tap Add adds to notifier, clears
+  field, shows name in list, empty no-op, whitespace no-op, pre-existing
+  members shown, list updates on notify
+- ui/test/widgets/main_shell_test.dart: added import; 3 integration tests:
+  PartyMemberInput visible on Q&A, absent on Summary, absent on Note Editor
+- user-stories/done/13-add-party-member.md: issue complete
+
+Key decisions:
+- PartyMemberInput is StatefulWidget (owns TextEditingController) while
+  list display is driven by ListenableBuilder on AppStateNotifier — no local
+  list state needed
+- addPartyMember no-op guard lives in AppStateNotifier (single source of truth
+  for list validity), not in the widget
+- Widget placed on Q&A page only (index 0), consistent with model selector and
+  temperature slider placement
+
+All 97 Flutter tests pass; flutter build windows --debug succeeds.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+bd3205f96e994f22a115a0408de5472db358a95b
+2026-05-27
+Issue 12: Model + temperature persistence to user_data.json
+
+Files changed:
+- ui/lib/services/user_preferences_service.dart: new UserPreferences value
+  class and UserPreferencesService; load() reads user_data.json and returns
+  defaults when file is absent or malformed; save() writes model (omitted
+  when null) and temperature as JSON; return type Future<void> with synchronous
+  writeAsStringSync so callers can await without needing runAsync
+- ui/lib/state/app_state_notifier.dart: added prefsService optional param;
+  _persist() fire-and-forgets save after setSelectedModel / setTemperature;
+  added initialModel / initialTemperature constructor params so main() can
+  pass loaded values in
+- ui/lib/widgets/main_shell.dart: accepts optional UserPreferencesService;
+  initState adds _savePreferences listener when service provided; also calls
+  _applyStoredPreferences() to hydrate AppStateNotifier from disk on startup;
+  dispose removes listener
+- ui/lib/main.dart: loads UserPreferencesService and awaits initial prefs
+  before runApp; passes prefsService and initialPrefs to TTRPGChatbotApp;
+  TTRPGChatbotApp initializes AppStateNotifier with loaded model/temperature
+- ui/test/services/user_preferences_service_test.dart: new; 10 unit tests
+  covering load defaults, stored model, stored temperature, missing keys,
+  malformed JSON, and round-trip saves for model+temperature, null model,
+  and boundary values 0.0 / 1.0
+- ui/test/state/app_state_notifier_test.dart: added initialisation-from-prefs
+  group (3 tests) and persistence group (5 tests) using _FakePrefsService;
+  covers model+temperature saved, no-op guards, combined snapshot
+- ui/test/widgets/main_shell_test.dart: added _FakePrefsService helper class;
+  replaced runAsync+pumpWidget file-I/O tests with fake-service variants to
+  avoid runAsync/pumpWidget deadlock; 2 new integration tests: loads saved
+  temperature on startup; saves preferences when AppStateNotifier changes
+- user-stories/done/12-model-temperature-persistence.md: issue complete
+
+Key decisions:
+- save() uses writeAsStringSync (not writeAsString) so the Future<void>
+  return resolves synchronously; this lets tests assert the saved state
+  immediately after a state change without needing runAsync
+- Persistence tests in main_shell_test use _FakePrefsService (in-memory) to
+  avoid the Flutter test runAsync+pumpWidget deadlock that arises when real
+  file I/O is started inside initState during pumpWidget
+- _applyStoredPreferences() is kept in MainShell so the widget is
+  self-contained for testing; in production main() also initializes
+  AppStateNotifier from prefs before widget creation (harmless double-apply
+  with no-op guards)
+
+All 78 Flutter tests pass; flutter build windows --debug succeeds.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+
+User Story:
+# Issue 15: Remove party member from list
+
+## What to build
+
+Add a delete button to each party member list item so the user can remove members from the roster.
+
+## Acceptance criteria
+
+- [ ] Each list item has a visible delete/remove button
+- [ ] Tapping the button removes that member from the list in `AppStateNotifier`
+- [ ] If the removed member was the note-taker, the note-taker designation is cleared
+- [ ] The list updates immediately without requiring a page refresh
+
+## Blocked by
+
+- Issue 13: Add party member to list
+
+# AFK Development Session
+
+You have been given the last 5 commit messages and a single user story to implement.
+
+## Your Task
+
+Implement the user story provided above. Work on nothing else.
+
+If the story is marked `HITL`, output `<promise>NO MORE TASKS</promise>` and stop.
+
+Follow these steps exactly:
+
+## 1. Explore
+
+Review the commit messages to understand recent work. Explore the repo structure so you understand the codebase before touching anything.
+
+## 2. Understand
+
+Read the story fully. If it is blocked by an incomplete dependency, output `<promise>NO MORE TASKS</promise>` and stop.
+
+## 3. Implement (TDD)
+
+Use /tdd to implement the story.
+
+- Write failing tests first.
+- Make them pass.
+- Refactor.
+
+## 4. Feedback loop
+
+Before committing:
+
+1. Run all unit tests — fix any failures.
+2. Smoke-test the app (no compilation errors or runtime exceptions) — fix any issues.
+
+Do not commit until both pass cleanly.
+
+## 5. Commit
+
+Make a single git commit. The message must include:
+
+1. Key decisions made
+2. Files changed
+3. Any blockers or notes for the next iteration
+
+## 6. Close the story
+
+- If the task is **complete**: move the story file to `user-stories/done/`.
+- If the task is **incomplete**: add a note to the story file describing what was done and what remains.
+
+## Final Rules
+
+- **Only work on one story per session.**
+- Do not open PRs or push — the developer handles that.
