@@ -3,6 +3,14 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+class SummaryResult {
+  final String summary;
+  final String? model;
+  final String? generatedAt;
+
+  SummaryResult({required this.summary, this.model, this.generatedAt});
+}
+
 sealed class SummaryEvent {}
 
 final class SummaryProgressEvent extends SummaryEvent {
@@ -61,11 +69,17 @@ class SummaryService {
     }
   }
 
-  Future<String?> fetchSummary() async {
+  Future<SummaryResult?> fetchSummary() async {
     final uri = Uri.http('localhost:$port', '/summary');
     final response = await _httpClient.get(uri);
     if (response.statusCode != 200) return null;
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return data['summary'] as String?;
+    final summary = data['summary'] as String?;
+    if (summary == null) return null;
+    return SummaryResult(
+      summary: summary,
+      model: data['model'] as String?,
+      generatedAt: data['generated_at'] as String?,
+    );
   }
 }

@@ -12,7 +12,7 @@ class _NoOpSummaryService extends SummaryService {
       {required String model, required List<String> partyMembers}) async* {}
 
   @override
-  Future<String?> fetchSummary() async => null;
+  Future<SummaryResult?> fetchSummary() async => null;
 }
 
 class _HangingSummaryService extends SummaryService {
@@ -23,7 +23,7 @@ class _HangingSummaryService extends SummaryService {
   }
 
   @override
-  Future<String?> fetchSummary() async => null;
+  Future<SummaryResult?> fetchSummary() async => null;
 }
 
 class _ProgressAndHangSummaryService extends SummaryService {
@@ -40,7 +40,7 @@ class _ProgressAndHangSummaryService extends SummaryService {
   }
 
   @override
-  Future<String?> fetchSummary() async => null;
+  Future<SummaryResult?> fetchSummary() async => null;
 }
 
 class _ProgressThenDoneSummaryService extends SummaryService {
@@ -55,7 +55,8 @@ class _ProgressThenDoneSummaryService extends SummaryService {
   }
 
   @override
-  Future<String?> fetchSummary() async => 'The campaign summary text.';
+  Future<SummaryResult?> fetchSummary() async =>
+      SummaryResult(summary: 'The campaign summary text.');
 }
 
 class _DoneSummaryService extends SummaryService {
@@ -66,7 +67,8 @@ class _DoneSummaryService extends SummaryService {
   }
 
   @override
-  Future<String?> fetchSummary() async => 'The campaign summary text.';
+  Future<SummaryResult?> fetchSummary() async =>
+      SummaryResult(summary: 'The campaign summary text.');
 }
 
 class _ErrorSummaryService extends SummaryService {
@@ -77,7 +79,7 @@ class _ErrorSummaryService extends SummaryService {
   }
 
   @override
-  Future<String?> fetchSummary() async => null;
+  Future<SummaryResult?> fetchSummary() async => null;
 }
 
 class _TrackingNullFetchService extends SummaryService {
@@ -88,7 +90,7 @@ class _TrackingNullFetchService extends SummaryService {
       {required String model, required List<String> partyMembers}) async* {}
 
   @override
-  Future<String?> fetchSummary() async {
+  Future<SummaryResult?> fetchSummary() async {
     fetchCount++;
     return null;
   }
@@ -100,8 +102,9 @@ class _SummaryWithSectionsFetchService extends SummaryService {
       {required String model, required List<String> partyMembers}) async* {}
 
   @override
-  Future<String?> fetchSummary() async =>
-      '# Introduction\nThe campaign begins.\n\n# The Adventure\nThe heroes set out.';
+  Future<SummaryResult?> fetchSummary() async => SummaryResult(
+      summary:
+          '# Introduction\nThe campaign begins.\n\n# The Adventure\nThe heroes set out.');
 }
 
 class _PlainSummaryFetchService extends SummaryService {
@@ -110,7 +113,25 @@ class _PlainSummaryFetchService extends SummaryService {
       {required String model, required List<String> partyMembers}) async* {}
 
   @override
-  Future<String?> fetchSummary() async => 'Plain summary with no headings.';
+  Future<SummaryResult?> fetchSummary() async =>
+      SummaryResult(summary: 'Plain summary with no headings.');
+}
+
+class _SummaryWithMetadataService extends SummaryService {
+  final String? model;
+  final String? generatedAt;
+  _SummaryWithMetadataService({this.model, this.generatedAt});
+
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model, required List<String> partyMembers}) async* {}
+
+  @override
+  Future<SummaryResult?> fetchSummary() async => SummaryResult(
+        summary: 'The campaign summary text.',
+        model: model,
+        generatedAt: generatedAt,
+      );
 }
 
 Widget buildSubject({SummaryService? summaryService}) {
@@ -334,6 +355,61 @@ void main() {
 
       expect(find.text('Plain summary with no headings.'), findsOneWidget);
       expect(find.byType(ListTile), findsNothing);
+    });
+  });
+
+  group('SummaryPage (metadata display)', () {
+    testWidgets('shows model name in subtitle when summary has model metadata',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          summaryService: _SummaryWithMetadataService(
+              model: 'llama3', generatedAt: '2026-05-27T10:00:00')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Model: llama3'), findsOneWidget);
+    });
+
+    testWidgets('shows generation date in subtitle when summary has generatedAt',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          summaryService: _SummaryWithMetadataService(
+              model: 'llama3', generatedAt: '2026-05-27T10:00:00')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Generated: 2026-05-27'), findsOneWidget);
+    });
+
+    testWidgets('shows only model when generatedAt is null',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          summaryService:
+              _SummaryWithMetadataService(model: 'llama3', generatedAt: null)));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Model: llama3'), findsOneWidget);
+      expect(find.textContaining('Generated:'), findsNothing);
+    });
+
+    testWidgets('shows only date when model is null',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          summaryService: _SummaryWithMetadataService(
+              model: null, generatedAt: '2026-05-27T10:00:00')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Generated: 2026-05-27'), findsOneWidget);
+      expect(find.textContaining('Model:'), findsNothing);
+    });
+
+    testWidgets('shows no metadata subtitle when both model and generatedAt are null',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          summaryService:
+              _SummaryWithMetadataService(model: null, generatedAt: null)));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Model:'), findsNothing);
+      expect(find.textContaining('Generated:'), findsNothing);
     });
   });
 }

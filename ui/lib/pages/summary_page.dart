@@ -37,6 +37,8 @@ class _SummaryPageState extends State<SummaryPage> {
   int _progressValue = 0;
   String _phase = '';
   String? _summary;
+  String? _summaryModel;
+  String? _summaryGeneratedAt;
   String? _error;
   List<_SummarySection> _sections = [];
 
@@ -47,11 +49,13 @@ class _SummaryPageState extends State<SummaryPage> {
   }
 
   Future<void> _loadSummary() async {
-    final summary = await widget.summaryService.fetchSummary();
+    final result = await widget.summaryService.fetchSummary();
     if (!mounted) return;
     setState(() {
-      _summary = summary;
-      _sections = summary != null ? _parseSections(summary) : [];
+      _summary = result?.summary;
+      _summaryModel = result?.model;
+      _summaryGeneratedAt = result?.generatedAt;
+      _sections = result != null ? _parseSections(result.summary) : [];
       _isLoadingInitial = false;
     });
   }
@@ -87,6 +91,26 @@ class _SummaryPageState extends State<SummaryPage> {
     return sections;
   }
 
+  String _formatDate(String isoDate) {
+    try {
+      return DateTime.parse(isoDate).toLocal().toString().split(' ')[0];
+    } catch (_) {
+      return isoDate;
+    }
+  }
+
+  Widget? _buildMetadataSubtitle() {
+    final parts = <String>[
+      if (_summaryModel != null) 'Model: $_summaryModel',
+      if (_summaryGeneratedAt != null) 'Generated: ${_formatDate(_summaryGeneratedAt!)}',
+    ];
+    if (parts.isEmpty) return null;
+    return Text(
+      parts.join('  •  '),
+      style: const TextStyle(fontSize: 13, color: Colors.grey),
+    );
+  }
+
   String _detectPhase(String message) {
     if (message.contains('Summarizing')) return 'Map';
     if (message.contains('Combining')) return 'Reduce';
@@ -119,11 +143,13 @@ class _SummaryPageState extends State<SummaryPage> {
           _phase = _detectPhase(event.message);
         });
       } else if (event is SummaryDoneEvent) {
-        final summary = await widget.summaryService.fetchSummary();
+        final result = await widget.summaryService.fetchSummary();
         if (!mounted) return;
         setState(() {
-          _summary = summary;
-          _sections = summary != null ? _parseSections(summary) : [];
+          _summary = result?.summary;
+          _summaryModel = result?.model;
+          _summaryGeneratedAt = result?.generatedAt;
+          _sections = result != null ? _parseSections(result.summary) : [];
           _isGenerating = false;
         });
       } else if (event is SummaryErrorEvent) {
@@ -150,6 +176,10 @@ class _SummaryPageState extends State<SummaryPage> {
             'Campaign Summary',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
+          if (_summary != null && !_isGenerating) ...[
+            const SizedBox(height: 4),
+            if (_buildMetadataSubtitle() != null) _buildMetadataSubtitle()!,
+          ],
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _isGenerating ? null : _generate,

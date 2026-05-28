@@ -105,19 +105,57 @@ void main() {
       expect(capturedPort, 7777);
     });
 
-    test('fetchSummary returns summary text from GET /summary', () async {
+    test('fetchSummary returns SummaryResult with summary text from GET /summary',
+        () async {
       final client = MockClient((request) async {
         expect(request.url.path, '/summary');
         expect(request.method, 'GET');
         return http.Response(
-            jsonEncode({'summary': 'The campaign summary.', 'model': 'llama3'}),
+            jsonEncode({
+              'summary': 'The campaign summary.',
+              'model': 'llama3',
+              'generated_at': '2026-05-27T10:00:00',
+            }),
             200);
       });
 
       final service = SummaryService(port: 9999, httpClient: client);
       final result = await service.fetchSummary();
 
-      expect(result, 'The campaign summary.');
+      expect(result, isNotNull);
+      expect(result!.summary, 'The campaign summary.');
+    });
+
+    test('fetchSummary returns model and generatedAt fields', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+            jsonEncode({
+              'summary': 'Summary text.',
+              'model': 'llama3',
+              'generated_at': '2026-05-27T10:00:00',
+            }),
+            200);
+      });
+
+      final service = SummaryService(port: 9999, httpClient: client);
+      final result = await service.fetchSummary();
+
+      expect(result!.model, 'llama3');
+      expect(result.generatedAt, '2026-05-27T10:00:00');
+    });
+
+    test('fetchSummary returns null model and generatedAt when fields are missing',
+        () async {
+      final client = MockClient((request) async {
+        return http.Response(jsonEncode({'summary': 'Summary text.'}), 200);
+      });
+
+      final service = SummaryService(port: 9999, httpClient: client);
+      final result = await service.fetchSummary();
+
+      expect(result, isNotNull);
+      expect(result!.model, isNull);
+      expect(result.generatedAt, isNull);
     });
 
     test('fetchSummary returns null when status is not 200', () async {
