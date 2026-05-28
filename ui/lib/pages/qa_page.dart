@@ -29,6 +29,7 @@ class QAPage extends StatefulWidget {
 class _QAPageState extends State<QAPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _inputFocus = FocusNode();
   final List<_ChatMessage> _messages = [];
   bool _isLoading = false;
 
@@ -36,6 +37,7 @@ class _QAPageState extends State<QAPage> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
@@ -109,6 +111,7 @@ class _QAPageState extends State<QAPage> {
     if (mounted && _isLoading) {
       setState(() => _isLoading = false);
     }
+    if (mounted) _inputFocus.requestFocus();
   }
 
   @override
@@ -152,6 +155,8 @@ class _QAPageState extends State<QAPage> {
               Expanded(
                 child: TextField(
                   controller: _controller,
+                  focusNode: _inputFocus,
+                  enabled: !_isLoading,
                   onSubmitted: (_) => _submit(),
                   onChanged: (_) => setState(() {}),
                   decoration:

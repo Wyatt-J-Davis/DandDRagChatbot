@@ -204,6 +204,47 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
+    testWidgets('text field is disabled while waiting for response',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _HangingChatService()));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      expect(tf.enabled, isFalse);
+    });
+
+    testWidgets('text field is re-enabled after answer arrives',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _AnswerChatService('The answer')));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      expect(tf.enabled, isNotNull);
+      expect(tf.enabled, isNot(false));
+    });
+
+    testWidgets('text field is re-enabled after error arrives',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(chatService: _ErrorChatService('Model not found')));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      expect(tf.enabled, isNotNull);
+      expect(tf.enabled, isNot(false));
+    });
+
     testWidgets('four bubbles visible after two question-answer cycles',
         (WidgetTester tester) async {
       await tester.pumpWidget(
