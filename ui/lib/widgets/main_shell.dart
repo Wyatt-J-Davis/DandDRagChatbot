@@ -11,10 +11,12 @@ import '../services/note_file_reader_service.dart';
 import '../services/summary_service.dart';
 import '../services/upload_service.dart';
 import '../services/user_preferences_service.dart';
+import '../services/vectorize_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
 import 'note_import_button.dart';
 import 'notes_upload_button.dart';
+import 'vectorize_button.dart';
 import 'party_member_input.dart';
 import 'sidebar_panel.dart';
 import 'temperature_slider.dart';
@@ -28,6 +30,7 @@ class MainShell extends StatefulWidget {
   final ChatService? chatService;
   final SummaryService? summaryService;
   final NoteFileReaderService? noteFileReaderService;
+  final VectorizeService? vectorizeService;
 
   const MainShell({
     super.key,
@@ -39,6 +42,7 @@ class MainShell extends StatefulWidget {
     this.chatService,
     this.summaryService,
     this.noteFileReaderService,
+    this.vectorizeService,
   });
 
   @override
@@ -173,6 +177,11 @@ class _MainShellState extends State<MainShell> {
                 controller: _noteController,
                 appState: widget.appState,
                 fileReader: widget.noteFileReaderService,
+              ),
+              const SizedBox(height: 12),
+              VectorizeButton(
+                controller: _noteController,
+                vectorizeService: widget.vectorizeService,
               ),
             ],
           ),
