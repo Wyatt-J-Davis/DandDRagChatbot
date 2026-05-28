@@ -80,6 +80,39 @@ class _ErrorSummaryService extends SummaryService {
   Future<String?> fetchSummary() async => null;
 }
 
+class _TrackingNullFetchService extends SummaryService {
+  int fetchCount = 0;
+
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model, required List<String> partyMembers}) async* {}
+
+  @override
+  Future<String?> fetchSummary() async {
+    fetchCount++;
+    return null;
+  }
+}
+
+class _SummaryWithSectionsFetchService extends SummaryService {
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model, required List<String> partyMembers}) async* {}
+
+  @override
+  Future<String?> fetchSummary() async =>
+      '# Introduction\nThe campaign begins.\n\n# The Adventure\nThe heroes set out.';
+}
+
+class _PlainSummaryFetchService extends SummaryService {
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model, required List<String> partyMembers}) async* {}
+
+  @override
+  Future<String?> fetchSummary() async => 'Plain summary with no headings.';
+}
+
 Widget buildSubject({SummaryService? summaryService}) {
   return MaterialApp(
     home: Scaffold(
@@ -223,6 +256,84 @@ void main() {
       final button =
           tester.widget<ElevatedButton>(find.byType(ElevatedButton));
       expect(button.onPressed, isNotNull);
+    });
+  });
+
+  group('SummaryPage (on-load fetch and TOC)', () {
+    testWidgets('fetches summary from service on page load',
+        (WidgetTester tester) async {
+      final service = _TrackingNullFetchService();
+      await tester.pumpWidget(buildSubject(summaryService: service));
+      await tester.pumpAndSettle();
+
+      expect(service.fetchCount, 1);
+    });
+
+    testWidgets('shows "no summary" prompt when fetchSummary returns null',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _TrackingNullFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('No summary yet'), findsOneWidget);
+    });
+
+    testWidgets('"no summary" prompt not shown while generating',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _HangingSummaryService()));
+      await tester.tap(find.text('Generate Summary'));
+      await tester.pump();
+
+      expect(find.textContaining('No summary yet'), findsNothing);
+    });
+
+    testWidgets('shows section headings when summary has headings',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _SummaryWithSectionsFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Introduction'), findsWidgets);
+      expect(find.text('The Adventure'), findsWidgets);
+    });
+
+    testWidgets('shows a ListTile per section heading in the table of contents',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _SummaryWithSectionsFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListTile), findsNWidgets(2));
+    });
+
+    testWidgets('tapping a TOC entry does not throw',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _SummaryWithSectionsFetchService()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(ListTile).first);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('summary content is inside a SingleChildScrollView',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _SummaryWithSectionsFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SingleChildScrollView), findsOneWidget);
+    });
+
+    testWidgets('summary without headings is displayed as plain text without TOC',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _PlainSummaryFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Plain summary with no headings.'), findsOneWidget);
+      expect(find.byType(ListTile), findsNothing);
     });
   });
 }
