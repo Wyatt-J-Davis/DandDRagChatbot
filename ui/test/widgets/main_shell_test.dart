@@ -1,6 +1,7 @@
 ﻿import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -77,6 +78,8 @@ Widget buildSubject({
   FilePickerService? pickerService,
 }) {
   return MaterialApp(
+    localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
+    supportedLocales: FlutterQuillLocalizations.supportedLocales,
     home: MainShell(
       appState: appState ?? AppStateNotifier(),
       modelService: modelService ?? _stubModelService(),
@@ -117,14 +120,14 @@ void main() {
       expect(find.text('Q&A Page'), findsNothing);
     });
 
-    testWidgets('tapping Note Editor destination shows Note Editor page stub',
+    testWidgets('tapping Note Editor destination shows Note Editor page',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
 
       await tester.tap(find.text('Note Editor'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Note Editor Page'), findsOneWidget);
+      expect(find.byType(QuillEditor), findsOneWidget);
       expect(find.text('Q&A Page'), findsNothing);
     });
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 
 import 'loading_screen.dart';
 import 'services/backend_service.dart';
@@ -55,6 +56,8 @@ class TTRPGChatbotApp extends StatelessWidget {
     return MaterialApp(
       title: 'TTRPG Campaign Chatbot',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
+      supportedLocales: FlutterQuillLocalizations.supportedLocales,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
