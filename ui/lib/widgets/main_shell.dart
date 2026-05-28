@@ -6,6 +6,7 @@ import '../pages/summary_page.dart';
 import '../services/chat_service.dart';
 import '../services/file_picker_service.dart';
 import '../services/model_service.dart';
+import '../services/summary_service.dart';
 import '../services/upload_service.dart';
 import '../services/user_preferences_service.dart';
 import '../state/app_state_notifier.dart';
@@ -22,6 +23,7 @@ class MainShell extends StatefulWidget {
   final FilePickerService? pickerService;
   final UploadService? uploadService;
   final ChatService? chatService;
+  final SummaryService? summaryService;
 
   const MainShell({
     super.key,
@@ -31,6 +33,7 @@ class MainShell extends StatefulWidget {
     this.pickerService,
     this.uploadService,
     this.chatService,
+    this.summaryService,
   });
 
   @override
@@ -98,7 +101,10 @@ class _MainShellState extends State<MainShell> {
           chatService: widget.chatService,
         );
       case 1:
-        return const SummaryPage();
+        return SummaryPage(
+          appState: widget.appState,
+          summaryService: widget.summaryService,
+        );
       case 2:
         return const NoteEditorPage();
       default:

@@ -14,6 +14,7 @@ import 'package:ttrpg_chatbot/services/file_picker_service.dart';
 import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
 import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
 import 'package:ttrpg_chatbot/pages/qa_page.dart';
+import 'package:ttrpg_chatbot/pages/summary_page.dart';
 
 class _FakePrefsService extends UserPreferencesService {
   UserPreferences _stored;
@@ -105,14 +106,14 @@ void main() {
       expect(find.byType(QAPage), findsOneWidget);
     });
 
-    testWidgets('tapping Summary destination shows Summary page stub',
+    testWidgets('tapping Summary destination shows Summary page',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
 
       await tester.tap(find.text('Summary'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Summary Page'), findsOneWidget);
+      expect(find.byType(SummaryPage), findsOneWidget);
       expect(find.text('Q&A Page'), findsNothing);
     });
 
@@ -138,7 +139,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(QAPage), findsOneWidget);
-      expect(find.text('Summary Page'), findsNothing);
+      expect(find.byType(SummaryPage), findsNothing);
     });
 
     testWidgets('NavigationRail is visible on all pages',
