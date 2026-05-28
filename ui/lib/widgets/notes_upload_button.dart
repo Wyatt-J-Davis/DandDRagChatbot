@@ -47,6 +47,9 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
           _isUploading = false;
           _uploadSuccess = true;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notes uploaded successfully')),
+        );
       } else if (event is UploadErrorEvent) {
         setState(() {
           _isUploading = false;

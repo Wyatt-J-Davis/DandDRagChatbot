@@ -160,6 +160,9 @@ class _SummaryPageState extends State<SummaryPage> {
           _isGenerating = false;
           if (result != null) _everHadSummary = true;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Summary generated successfully')),
+        );
       } else if (event is SummaryErrorEvent) {
         setState(() {
           _error = event.message;

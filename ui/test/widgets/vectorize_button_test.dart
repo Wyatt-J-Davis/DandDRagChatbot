@@ -136,6 +136,36 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsNothing);
     });
 
+    testWidgets('shows toast snackbar on successful vectorization',
+        (tester) async {
+      final service = _FakeVectorizeService(
+        (_) => Stream.value(VectorizeDoneEvent()),
+      );
+      await tester.pumpWidget(buildSubject(
+        controller: controller,
+        service: service,
+      ));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Notes vectorized successfully'), findsOneWidget);
+    });
+
+    testWidgets('no toast snackbar on vectorization error', (tester) async {
+      final service = _FakeVectorizeService(
+        (_) => Stream.value(VectorizeErrorEvent(message: 'DB down')),
+      );
+      await tester.pumpWidget(buildSubject(
+        controller: controller,
+        service: service,
+      ));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
     testWidgets('sends plain text extracted from Quill delta', (tester) async {
       String? capturedText;
       final service = _FakeVectorizeService((text) {

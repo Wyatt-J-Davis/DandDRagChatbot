@@ -421,5 +421,35 @@ void main() {
       expect(find.text('Vectorization complete'), findsNothing);
       expect(find.text('Vectorize'), findsOneWidget);
     });
+
+    testWidgets('shows toast snackbar on successful upload',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(events: [UploadDoneEvent()]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Notes uploaded successfully'), findsOneWidget);
+    });
+
+    testWidgets('no toast snackbar on upload error',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(
+          events: [UploadErrorEvent(message: 'Server error')]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsNothing);
+    });
   });
 }

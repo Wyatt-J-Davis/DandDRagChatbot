@@ -45,6 +45,9 @@ class _VectorizeButtonState extends State<VectorizeButton> {
           _isVectorizing = false;
           _success = true;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notes vectorized successfully')),
+        );
       } else if (event is VectorizeErrorEvent) {
         setState(() {
           _isVectorizing = false;

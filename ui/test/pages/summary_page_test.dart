@@ -321,6 +321,27 @@ void main() {
           tester.widget<ElevatedButton>(find.byType(ElevatedButton));
       expect(button.onPressed, isNotNull);
     });
+
+    testWidgets('shows toast snackbar on successful summary generation',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _DoneSummaryService()));
+      await tester.tap(find.text('Generate Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Summary generated successfully'), findsOneWidget);
+    });
+
+    testWidgets('no toast snackbar on summary error',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _ErrorSummaryService()));
+      await tester.tap(find.text('Generate Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsNothing);
+    });
   });
 
   group('SummaryPage (on-load fetch and TOC)', () {
