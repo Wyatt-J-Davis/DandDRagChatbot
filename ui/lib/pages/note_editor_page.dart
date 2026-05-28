@@ -3,8 +3,15 @@ import 'package:flutter_quill/flutter_quill.dart';
 
 class NoteEditorPage extends StatefulWidget {
   final QuillController? controller;
+  final bool darkMode;
+  final VoidCallback? onToggleDarkMode;
 
-  const NoteEditorPage({super.key, this.controller});
+  const NoteEditorPage({
+    super.key,
+    this.controller,
+    this.darkMode = false,
+    this.onToggleDarkMode,
+  });
 
   @override
   State<NoteEditorPage> createState() => _NoteEditorPageState();
@@ -29,14 +36,29 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final editorBg =
+        widget.darkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final editorFg = widget.darkMode ? Colors.white : Colors.black87;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Notes',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              const Text(
+                'Notes',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: Icon(
+                    widget.darkMode ? Icons.light_mode : Icons.dark_mode),
+                tooltip: widget.darkMode ? 'Light mode' : 'Dark mode',
+                onPressed: widget.onToggleDarkMode,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           QuillSimpleToolbar(
@@ -66,7 +88,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           ),
           const Divider(height: 1),
           Expanded(
-            child: QuillEditor.basic(controller: _controller),
+            child: DefaultTextStyle(
+              style: TextStyle(color: editorFg),
+              child: Container(
+                key: const ValueKey('editor_background'),
+                color: editorBg,
+                child: QuillEditor.basic(controller: _controller),
+              ),
+            ),
           ),
         ],
       ),

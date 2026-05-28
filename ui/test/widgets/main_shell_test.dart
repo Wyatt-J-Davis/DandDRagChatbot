@@ -354,6 +354,25 @@ void main() {
 
       expect(find.byType(NotesUploadButton), findsNothing);
     });
+
+    testWidgets('note editor dark mode toggle persists across navigation',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Dark mode'));
+      await tester.pump();
+
+      await tester.tap(find.text('Q&A'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Light mode'), findsOneWidget);
+    });
   });
 }
 

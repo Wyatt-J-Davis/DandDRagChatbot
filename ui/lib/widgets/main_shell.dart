@@ -42,6 +42,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
+  bool _noteEditorDarkMode = false;
 
   late Future<List<String>> _modelsFuture;
 
@@ -106,7 +107,11 @@ class _MainShellState extends State<MainShell> {
           summaryService: widget.summaryService,
         );
       case 2:
-        return const NoteEditorPage();
+        return NoteEditorPage(
+          darkMode: _noteEditorDarkMode,
+          onToggleDarkMode: () =>
+              setState(() => _noteEditorDarkMode = !_noteEditorDarkMode),
+        );
       default:
         return QAPage(
           appState: widget.appState,
