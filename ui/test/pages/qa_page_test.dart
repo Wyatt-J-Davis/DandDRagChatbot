@@ -272,6 +272,70 @@ void main() {
       expect(chips.length, 1);
     });
 
+    testWidgets('tapping a reference chip opens a dialog',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          chatService: _SourcedAnswerChatService(['chunk a'])));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(ActionChip));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
+
+    testWidgets('dialog displays the source chunk text',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          chatService: _SourcedAnswerChatService(['The goblin king rules here.'])));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(ActionChip));
+      await tester.pumpAndSettle();
+
+      expect(find.text('The goblin king rules here.'), findsOneWidget);
+    });
+
+    testWidgets('dialog close button dismisses the dialog',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          chatService: _SourcedAnswerChatService(['chunk a'])));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(ActionChip));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('dialog content is scrollable',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          chatService: _SourcedAnswerChatService(['chunk a'])));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(ActionChip));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SingleChildScrollView), findsOneWidget);
+    });
+
     testWidgets('prior messages remain visible after second submission',
         (WidgetTester tester) async {
       await tester.pumpWidget(

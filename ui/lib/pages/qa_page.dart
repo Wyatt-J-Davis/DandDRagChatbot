@@ -51,6 +51,21 @@ class _QAPageState extends State<QAPage> {
     });
   }
 
+  void _showSourceDialog(BuildContext context, String sourceText) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        content: SingleChildScrollView(child: Text(sourceText)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
@@ -117,7 +132,10 @@ class _QAPageState extends State<QAPage> {
                         spacing: 4,
                         children: [
                           for (var i = 0; i < msg.sources.length; i++)
-                            ReferenceChip(index: i + 1),
+                            ReferenceChip(
+                              index: i + 1,
+                              onTap: () => _showSourceDialog(context, msg.sources[i]),
+                            ),
                         ],
                       ),
                     ),
