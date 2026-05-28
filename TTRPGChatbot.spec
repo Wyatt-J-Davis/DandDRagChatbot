@@ -1,44 +1,28 @@
 import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
-# TTRPGChatbot.spec  —  PyInstaller build configuration
+# TTRPGChatbot.spec  —  PyInstaller build configuration for the FastAPI backend
 #
 # Build with:
 #   python3 -m PyInstaller TTRPGChatbot.spec
 #
-# Output: dist/TTRPGChatbot/TTRPGChatbot.exe  (plus supporting files)
+# Output: dist\ttrpg_backend\ttrpg_backend.exe  (plus supporting files)
 
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
-
-# ── Streamlit static assets (JS, CSS, icons, etc.) ────────────────────────
-st_datas, st_binaries, st_hiddenimports = collect_all("streamlit")
-
-# ── Altair — Streamlit's chart rendering dependency ───────────────────────
-alt_datas, alt_binaries, alt_hiddenimports = collect_all("altair")
-
-# ── pyarrow — required by Streamlit's data serialisation ──────────────────
-# Filter out arrow_flight (gRPC network transport) — not needed locally.
-arrow_datas, arrow_binaries_all, arrow_hiddenimports = collect_all("pyarrow")
-arrow_binaries = [
-    (src, dst) for src, dst in arrow_binaries_all
-    if "flight" not in src.lower()
-]
 
 # ── fastembed — ONNX-based embeddings, no PyTorch required ────────────────
 fe_datas, fe_binaries, fe_hiddenimports = collect_all("fastembed")
 
-# ── langchain_community — only collect data files; importing the full
-#    package via collect_all pulls in every optional integration (incl. torch).
-#    FastEmbedEmbeddings is declared as a hidden import instead.
+# ── langchain_community — only data files; importing the full package via
+#    collect_all pulls in every optional integration (including torch).
 lcc_datas = collect_data_files("langchain_community")
 
 # ── chromadb — uses dynamic imports for telemetry and segment backends ────
 chroma_datas, chroma_binaries, chroma_hiddenimports = collect_all("chromadb")
 
-# ── streamlit_quill — Streamlit component; frontend assets must be bundled ─
-sq_datas, sq_binaries, sq_hiddenimports = collect_all("streamlit_quill")
-
 # ── Additional hidden imports that PyInstaller's static analyser misses ───
 extra_hiddenimports = [
     # ---- project source ----
+    "api",
+    "api.main",
     "src",
     "src.app",
     "src.app.TTRPGChatBot",
@@ -50,6 +34,33 @@ extra_hiddenimports = [
     "src.utils.NavigationHandler",
     "src.utils.SummaryHandler",
     "src.utils.TextEditorHandler",
+    # ---- FastAPI / ASGI stack ----
+    "fastapi",
+    "fastapi.middleware",
+    "fastapi.middleware.cors",
+    "uvicorn",
+    "uvicorn.main",
+    "uvicorn.config",
+    "uvicorn.logging",
+    "uvicorn.loops",
+    "uvicorn.loops.auto",
+    "uvicorn.protocols",
+    "uvicorn.protocols.http",
+    "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.websockets",
+    "uvicorn.protocols.websockets.auto",
+    "uvicorn.lifespan",
+    "uvicorn.lifespan.on",
+    "starlette",
+    "starlette.middleware",
+    "starlette.middleware.cors",
+    "starlette.responses",
+    "starlette.routing",
+    "pydantic",
+    "h11",
+    "httptools",
+    "watchfiles",
+    "websockets",
     # ---- langchain stack ----
     "langchain_core",
     "langchain_core.prompts",
@@ -81,59 +92,46 @@ extra_hiddenimports = [
     # ---- data ----
     "pandas",
     "numpy",
-    # ---- Streamlit extras ----
-    "streamlit_lottie",
-    "streamlit_quill",
     # ---- LLM client ----
     "ollama",
     # ---- stdlib ----
     "uuid",
     "json",
     "threading",
-    "webbrowser",
 ]
 
 a = Analysis(
-    ["launcher.py"],
+    ["api_launcher.py"],
     pathex=["."],
     binaries=[
-        *st_binaries,
-        *alt_binaries,
-        *arrow_binaries,        # flight-filtered
         *fe_binaries,
         *chroma_binaries,
-        *sq_binaries,
-        # lcc_binaries omitted — langchain_community has no meaningful binaries
     ],
     datas=[
-        *st_datas,
-        *alt_datas,
-        *arrow_datas,
         *fe_datas,
         *lcc_datas,
         *chroma_datas,
-        *sq_datas,
-        ("streamlit_app.py", "."),
-        ("pages",             "pages"),
-        ("src",               "src"),
-        ("assets",            "assets"),
-        *collect_data_files("streamlit_lottie"),
+        ("src",    "src"),
+        ("api",    "api"),
+        ("assets", "assets"),
     ],
     hiddenimports=[
-        *st_hiddenimports,
-        *alt_hiddenimports,
-        *arrow_hiddenimports,
         *fe_hiddenimports,
         *chroma_hiddenimports,
-        *sq_hiddenimports,
         *extra_hiddenimports,
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Hard-block packages that are no longer used but may be
-        # discovered transitively by PyInstaller's static analysis.
+        # Streamlit and its heavy dependencies are not part of this bundle
+        "streamlit",
+        "altair",
+        "pyarrow",
+        "streamlit_quill",
+        "streamlit_lottie",
+        "tornado",
+        # Heavy ML frameworks not used by the FastAPI backend
         "torch",
         "torchvision",
         "torchaudio",
@@ -158,7 +156,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="TTRPGChatbot",
+    name="ttrpg_backend",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -175,5 +173,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="TTRPGChatbot",
+    name="ttrpg_backend",
 )

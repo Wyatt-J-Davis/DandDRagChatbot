@@ -2,7 +2,7 @@
 setlocal
 
 echo ============================================================
-echo  Building TTRPGChatbot executable
+echo  Building ttrpg_backend executable (FastAPI)
 echo ============================================================
 echo.
 
@@ -30,7 +30,7 @@ if %EXIT_CODE% NEQ 0 (
 
 echo ============================================================
 echo  Build complete
-echo  Executable: dist\TTRPGChatbot\TTRPGChatbot.exe
+echo  Executable: dist\ttrpg_backend\ttrpg_backend.exe
 echo ============================================================
 
 endlocal
