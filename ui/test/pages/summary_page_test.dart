@@ -134,6 +134,49 @@ class _SummaryWithMetadataService extends SummaryService {
       );
 }
 
+class _LoadedThenHangService extends SummaryService {
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model, required List<String> partyMembers}) {
+    return StreamController<SummaryEvent>().stream;
+  }
+
+  @override
+  Future<SummaryResult?> fetchSummary() async =>
+      SummaryResult(summary: 'Existing summary.');
+}
+
+class _LoadedThenProgressAndHangService extends SummaryService {
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model, required List<String> partyMembers}) {
+    final controller = StreamController<SummaryEvent>();
+    controller.add(SummaryProgressEvent(progress: 50, message: 'Summarizing...'));
+    return controller.stream;
+  }
+
+  @override
+  Future<SummaryResult?> fetchSummary() async =>
+      SummaryResult(summary: 'Existing summary.');
+}
+
+class _LoadedThenDoneService extends SummaryService {
+  int _fetchCount = 0;
+
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model, required List<String> partyMembers}) async* {
+    yield SummaryDoneEvent();
+  }
+
+  @override
+  Future<SummaryResult?> fetchSummary() async {
+    _fetchCount++;
+    if (_fetchCount == 1) return SummaryResult(summary: 'Old summary.');
+    return SummaryResult(summary: 'New summary.');
+  }
+}
+
 Widget buildSubject({SummaryService? summaryService}) {
   return MaterialApp(
     home: Scaffold(
@@ -262,8 +305,8 @@ void main() {
       await tester.tap(find.text('Generate Summary'));
       await tester.pumpAndSettle();
 
-      final button =
-          tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+      final button = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Generate Summary'));
       expect(button.onPressed, isNotNull);
     });
 
@@ -410,6 +453,62 @@ void main() {
 
       expect(find.textContaining('Model:'), findsNothing);
       expect(find.textContaining('Generated:'), findsNothing);
+    });
+  });
+
+  group('SummaryPage (regenerate button)', () {
+    testWidgets('Regenerate button not visible when no summary exists',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _TrackingNullFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Regenerate'), findsNothing);
+    });
+
+    testWidgets('Regenerate button visible when a summary is loaded',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _LoadedThenHangService()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Regenerate'), findsOneWidget);
+    });
+
+    testWidgets('Regenerate button is disabled while generating',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _LoadedThenHangService()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Regenerate'));
+      await tester.pump();
+
+      final button = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Regenerate'));
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('tapping Regenerate shows progress messages',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _LoadedThenProgressAndHangService()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Regenerate'));
+      await tester.pump();
+
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.text('Summarizing...'), findsOneWidget);
+    });
+
+    testWidgets('after regeneration done, new summary is displayed',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _LoadedThenDoneService()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Regenerate'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New summary.'), findsOneWidget);
     });
   });
 }

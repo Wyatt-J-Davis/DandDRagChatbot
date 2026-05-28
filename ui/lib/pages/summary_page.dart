@@ -33,6 +33,7 @@ class SummaryPage extends StatefulWidget {
 class _SummaryPageState extends State<SummaryPage> {
   bool _isLoadingInitial = true;
   bool _isGenerating = false;
+  bool _everHadSummary = false;
   String _progressMessage = '';
   int _progressValue = 0;
   String _phase = '';
@@ -57,6 +58,7 @@ class _SummaryPageState extends State<SummaryPage> {
       _summaryGeneratedAt = result?.generatedAt;
       _sections = result != null ? _parseSections(result.summary) : [];
       _isLoadingInitial = false;
+      if (result != null) _everHadSummary = true;
     });
   }
 
@@ -151,6 +153,7 @@ class _SummaryPageState extends State<SummaryPage> {
           _summaryGeneratedAt = result?.generatedAt;
           _sections = result != null ? _parseSections(result.summary) : [];
           _isGenerating = false;
+          if (result != null) _everHadSummary = true;
         });
       } else if (event is SummaryErrorEvent) {
         setState(() {
@@ -181,9 +184,20 @@ class _SummaryPageState extends State<SummaryPage> {
             if (_buildMetadataSubtitle() != null) _buildMetadataSubtitle()!,
           ],
           const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _isGenerating ? null : _generate,
-            child: const Text('Generate Summary'),
+          Row(
+            children: [
+              ElevatedButton(
+                onPressed: _isGenerating ? null : _generate,
+                child: const Text('Generate Summary'),
+              ),
+              if (_everHadSummary) ...[
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _isGenerating ? null : _generate,
+                  child: const Text('Regenerate'),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 16),
           if (_isGenerating) ...[
