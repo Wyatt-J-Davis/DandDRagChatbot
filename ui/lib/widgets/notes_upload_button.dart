@@ -8,12 +8,16 @@ class NotesUploadButton extends StatefulWidget {
   final AppStateNotifier appState;
   final FilePickerService pickerService;
   final UploadService uploadService;
+  final VoidCallback? onSseStart;
+  final VoidCallback? onSseDone;
 
   const NotesUploadButton({
     super.key,
     required this.appState,
     required this.pickerService,
     required this.uploadService,
+    this.onSseStart,
+    this.onSseDone,
   });
 
   @override
@@ -33,6 +37,7 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
       _uploadError = null;
       _uploadSuccess = false;
     });
+    widget.onSseStart?.call();
     await for (final event in widget.uploadService.uploadNotes(path)) {
       if (!mounted) return;
       if (event is UploadProgressEvent) {
@@ -49,6 +54,7 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
         });
       }
     }
+    widget.onSseDone?.call();
   }
 
   @override
@@ -91,11 +97,11 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
                 LinearProgressIndicator(value: _uploadProgress / 100),
               if (_uploadSuccess) ...[
                 const SizedBox(height: 4),
-                const Row(
-                  children: [
+                Row(
+                  children: const [
                     Icon(Icons.check_circle, color: Colors.green, size: 16),
                     SizedBox(width: 4),
-                    Text('Vectorization complete'),
+                    Flexible(child: Text('Vectorization complete')),
                   ],
                 ),
               ],

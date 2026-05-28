@@ -6,11 +6,15 @@ import '../services/vectorize_service.dart';
 class VectorizeButton extends StatefulWidget {
   final QuillController controller;
   final VectorizeService vectorizeService;
+  final VoidCallback? onSseStart;
+  final VoidCallback? onSseDone;
 
   VectorizeButton({
     super.key,
     required this.controller,
     VectorizeService? vectorizeService,
+    this.onSseStart,
+    this.onSseDone,
   }) : vectorizeService = vectorizeService ?? VectorizeService();
 
   @override
@@ -31,6 +35,7 @@ class _VectorizeButtonState extends State<VectorizeButton> {
       _error = null;
       _success = false;
     });
+    widget.onSseStart?.call();
     await for (final event in widget.vectorizeService.vectorize(text)) {
       if (!mounted) return;
       if (event is VectorizeProgressEvent) {
@@ -47,6 +52,7 @@ class _VectorizeButtonState extends State<VectorizeButton> {
         });
       }
     }
+    widget.onSseDone?.call();
   }
 
   @override
@@ -65,11 +71,11 @@ class _VectorizeButtonState extends State<VectorizeButton> {
         ],
         if (_success) ...[
           const SizedBox(height: 4),
-          const Row(
-            children: [
+          Row(
+            children: const [
               Icon(Icons.check_circle, color: Colors.green, size: 16),
               SizedBox(width: 4),
-              Text('Vectorization complete'),
+              Flexible(child: Text('Vectorization complete')),
             ],
           ),
         ],

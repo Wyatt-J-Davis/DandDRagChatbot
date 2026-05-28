@@ -19,11 +19,15 @@ class _SummarySection {
 class SummaryPage extends StatefulWidget {
   final AppStateNotifier appState;
   final SummaryService summaryService;
+  final VoidCallback? onSseStart;
+  final VoidCallback? onSseDone;
 
   SummaryPage({
     super.key,
     required this.appState,
     SummaryService? summaryService,
+    this.onSseStart,
+    this.onSseDone,
   }) : summaryService = summaryService ?? SummaryService();
 
   @override
@@ -132,6 +136,7 @@ class _SummaryPageState extends State<SummaryPage> {
       _progressValue = 0;
       _phase = '';
     });
+    widget.onSseStart?.call();
 
     await for (final event in widget.summaryService.generate(
       model: widget.appState.selectedModel ?? '',
@@ -163,8 +168,9 @@ class _SummaryPageState extends State<SummaryPage> {
       }
     }
 
-    if (mounted && _isGenerating) {
-      setState(() => _isGenerating = false);
+    if (mounted) {
+      if (_isGenerating) setState(() => _isGenerating = false);
+      widget.onSseDone?.call();
     }
   }
 

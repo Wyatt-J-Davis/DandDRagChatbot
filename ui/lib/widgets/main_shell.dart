@@ -52,6 +52,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
   bool _noteEditorDarkMode = false;
+  bool _sseActive = false;
   late final QuillController _noteController;
 
   late Future<List<String>> _modelsFuture;
@@ -73,6 +74,9 @@ class _MainShellState extends State<MainShell> {
       label: Text('Note Editor'),
     ),
   ];
+
+  void _onSseStart() => setState(() => _sseActive = true);
+  void _onSseDone() => setState(() => _sseActive = false);
 
   @override
   void initState() {
@@ -117,6 +121,8 @@ class _MainShellState extends State<MainShell> {
         return SummaryPage(
           appState: widget.appState,
           summaryService: widget.summaryService,
+          onSseStart: _onSseStart,
+          onSseDone: _onSseDone,
         );
       case 2:
         return NoteEditorPage(
@@ -162,6 +168,8 @@ class _MainShellState extends State<MainShell> {
                 appState: widget.appState,
                 pickerService: widget.pickerService ?? FilePickerService(),
                 uploadService: widget.uploadService ?? UploadService(),
+                onSseStart: _onSseStart,
+                onSseDone: _onSseDone,
               ),
             ],
           ),
@@ -182,6 +190,8 @@ class _MainShellState extends State<MainShell> {
               VectorizeButton(
                 controller: _noteController,
                 vectorizeService: widget.vectorizeService,
+                onSseStart: _onSseStart,
+                onSseDone: _onSseDone,
               ),
             ],
           ),
@@ -196,12 +206,18 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) =>
-                setState(() => _selectedIndex = index),
-            labelType: NavigationRailLabelType.all,
-            destinations: _destinations,
+          IgnorePointer(
+            ignoring: _sseActive,
+            child: Opacity(
+              opacity: _sseActive ? 0.38 : 1.0,
+              child: NavigationRail(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: (index) =>
+                    setState(() => _selectedIndex = index),
+                labelType: NavigationRailLabelType.all,
+                destinations: _destinations,
+              ),
+            ),
           ),
           const VerticalDivider(thickness: 1, width: 1),
           SidebarPanel(child: _buildSidebarChild()),

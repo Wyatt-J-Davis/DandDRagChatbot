@@ -1,4 +1,5 @@
-﻿import 'dart:io';
+﻿import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -6,7 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:ttrpg_chatbot/services/model_service.dart';
+import 'package:ttrpg_chatbot/services/summary_service.dart';
+import 'package:ttrpg_chatbot/services/upload_service.dart';
 import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
+import 'package:ttrpg_chatbot/services/vectorize_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
@@ -73,11 +77,46 @@ class _FakePickerService extends FilePickerService {
   @override
   Future<String?> pickNotesFile() async => null;
 }
+
+class _BlockingUploadService extends UploadService {
+  final StreamController<UploadEvent> controller =
+      StreamController<UploadEvent>();
+
+  @override
+  Stream<UploadEvent> uploadNotes(String _) => controller.stream;
+}
+
+class _BlockingVectorizeService extends VectorizeService {
+  final StreamController<VectorizeEvent> controller =
+      StreamController<VectorizeEvent>();
+
+  @override
+  Stream<VectorizeEvent> vectorize(String _) => controller.stream;
+}
+
+class _BlockingSummaryService extends SummaryService {
+  final StreamController<SummaryEvent> controller =
+      StreamController<SummaryEvent>();
+
+  @override
+  Stream<SummaryEvent> generate({
+    required String model,
+    required List<String> partyMembers,
+  }) =>
+      controller.stream;
+
+  @override
+  Future<SummaryResult?> fetchSummary() async => null;
+}
+
 Widget buildSubject({
   AppStateNotifier? appState,
   ModelService? modelService,
   UserPreferencesService? prefsService,
   FilePickerService? pickerService,
+  UploadService? uploadService,
+  SummaryService? summaryService,
+  VectorizeService? vectorizeService,
 }) {
   return MaterialApp(
     localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
@@ -87,6 +126,9 @@ Widget buildSubject({
       modelService: modelService ?? _stubModelService(),
       prefsService: prefsService,
       pickerService: pickerService ?? _FakePickerService(),
+      uploadService: uploadService,
+      summaryService: summaryService,
+      vectorizeService: vectorizeService,
     ),
   );
 }
@@ -430,6 +472,159 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Light mode'), findsOneWidget);
+    });
+
+    group('navigation lock during SSE', () {
+      testWidgets(
+          'destinations are disabled while upload SSE is active',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier();
+        appState.setSelectedNotesPath(r'C:\notes.txt');
+        final uploadService = _BlockingUploadService();
+
+        await tester.pumpWidget(buildSubject(
+          appState: appState,
+          uploadService: uploadService,
+        ));
+        await tester.pump();
+
+        await tester.tap(find.text('Vectorize'));
+        await tester.pump();
+
+        await tester.tap(find.text('Summary'));
+        await tester.pump();
+
+        expect(find.byType(QAPage), findsOneWidget);
+
+        uploadService.controller.close();
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets(
+          'destinations are re-enabled after upload SSE completes',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier();
+        appState.setSelectedNotesPath(r'C:\notes.txt');
+        final uploadService = _BlockingUploadService();
+        final summaryService = _BlockingSummaryService();
+
+        await tester.pumpWidget(buildSubject(
+          appState: appState,
+          uploadService: uploadService,
+          summaryService: summaryService,
+        ));
+        await tester.pump();
+
+        await tester.tap(find.text('Vectorize'));
+        await tester.pump();
+
+        uploadService.controller.add(UploadDoneEvent());
+        await uploadService.controller.close();
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Summary'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SummaryPage), findsOneWidget);
+      });
+
+      testWidgets(
+          'destinations are disabled while vectorize SSE is active',
+          (WidgetTester tester) async {
+        final vectorizeService = _BlockingVectorizeService();
+
+        await tester.pumpWidget(buildSubject(
+          vectorizeService: vectorizeService,
+        ));
+
+        await tester.tap(find.text('Note Editor'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Vectorize'));
+        await tester.pump();
+
+        await tester.tap(find.text('Q&A'));
+        await tester.pump();
+
+        expect(find.byType(QuillEditor), findsOneWidget);
+
+        vectorizeService.controller.close();
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets(
+          'destinations are re-enabled after vectorize SSE completes',
+          (WidgetTester tester) async {
+        final vectorizeService = _BlockingVectorizeService();
+
+        await tester.pumpWidget(buildSubject(
+          vectorizeService: vectorizeService,
+        ));
+
+        await tester.tap(find.text('Note Editor'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Vectorize'));
+        await tester.pump();
+
+        vectorizeService.controller.add(VectorizeDoneEvent());
+        await vectorizeService.controller.close();
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Q&A'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(QAPage), findsOneWidget);
+      });
+
+      testWidgets(
+          'destinations are disabled while summary generation SSE is active',
+          (WidgetTester tester) async {
+        final summaryService = _BlockingSummaryService();
+
+        await tester.pumpWidget(buildSubject(
+          summaryService: summaryService,
+        ));
+
+        await tester.tap(find.text('Summary'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Generate Summary'));
+        await tester.pump();
+
+        await tester.tap(find.text('Q&A'));
+        await tester.pump();
+
+        expect(find.byType(SummaryPage), findsOneWidget);
+
+        summaryService.controller.close();
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets(
+          'destinations are re-enabled after summary generation SSE completes',
+          (WidgetTester tester) async {
+        final summaryService = _BlockingSummaryService();
+
+        await tester.pumpWidget(buildSubject(
+          summaryService: summaryService,
+        ));
+
+        await tester.tap(find.text('Summary'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Generate Summary'));
+        await tester.pump();
+
+        summaryService.controller.add(SummaryErrorEvent(message: 'err'));
+        await summaryService.controller.close();
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Q&A'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(QAPage), findsOneWidget);
+      });
     });
   });
 }
