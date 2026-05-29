@@ -22,4 +22,21 @@ class PartyService {
         .where((name) => name.trim().isNotEmpty)
         .toList();
   }
+
+  Future<void> savePartyMembers(List<String> members, String? noteTaker) async {
+    final uri = Uri.http('localhost:$port', '/party');
+    final body = jsonEncode({
+      'party_members': members
+          .map((name) => {'name': name, 'note_taker': name == noteTaker})
+          .toList(),
+    });
+    final response = await _httpClient.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: body,
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to save party: ${response.statusCode}');
+    }
+  }
 }

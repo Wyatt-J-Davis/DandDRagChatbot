@@ -50,13 +50,14 @@ class TTRPGChatbotApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final partyService = PartyService();
     final appState = AppStateNotifier(
       initialModel: initialPrefs?.model,
       initialTemperature: initialPrefs?.temperature ?? 0.5,
+      partyService: partyService,
     );
     final modelService = ModelService();
     final statusService = StatusService();
-    final partyService = PartyService();
     final noteContentService = NoteContentService();
     final noteExportService = NoteExportService();
 

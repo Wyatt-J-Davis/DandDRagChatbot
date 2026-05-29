@@ -1,12 +1,14 @@
 ﻿import 'package:flutter/foundation.dart';
 
 import '../services/chat_service.dart';
+import '../services/party_service.dart';
 import '../services/user_preferences_service.dart';
 
 export '../services/chat_service.dart' show ChatMessage, ChatSender;
 
 class AppStateNotifier extends ChangeNotifier {
   final UserPreferencesService? _prefsService;
+  final PartyService? _partyService;
 
   String? _selectedModel;
   double _temperature;
@@ -20,9 +22,11 @@ class AppStateNotifier extends ChangeNotifier {
     String? initialModel,
     double initialTemperature = 0.5,
     UserPreferencesService? prefsService,
+    PartyService? partyService,
   })  : _selectedModel = initialModel,
         _temperature = initialTemperature,
-        _prefsService = prefsService;
+        _prefsService = prefsService,
+        _partyService = partyService;
 
   String? get selectedModel => _selectedModel;
   double get temperature => _temperature;
@@ -55,12 +59,14 @@ class AppStateNotifier extends ChangeNotifier {
     if (name.trim().isEmpty) return;
     _partyMembers.add(name.trim());
     notifyListeners();
+    _persistParty();
   }
 
   void removePartyMember(String name) {
     _partyMembers.remove(name);
     if (_noteTaker == name) _noteTaker = null;
     notifyListeners();
+    _persistParty();
   }
 
   void setPartyMembers(List<String> members) {
@@ -90,6 +96,11 @@ class AppStateNotifier extends ChangeNotifier {
     if (_noteTaker == name) return;
     _noteTaker = name;
     notifyListeners();
+    _persistParty();
+  }
+
+  void _persistParty() {
+    _partyService?.savePartyMembers(List.unmodifiable(_partyMembers), _noteTaker);
   }
 
   void _persist() {

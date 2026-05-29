@@ -1,6 +1,7 @@
 ﻿import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ttrpg_chatbot/services/party_service.dart';
 import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 
@@ -14,6 +15,20 @@ class _FakePrefsService extends UserPreferencesService {
 
   @override
   Future<void> save(UserPreferences prefs) async => saved.add(prefs);
+}
+
+class _FakePartyService extends PartyService {
+  final List<({List<String> members, String? noteTaker})> saved = [];
+
+  _FakePartyService() : super(port: 0);
+
+  @override
+  Future<List<String>> fetchPartyMembers() async => [];
+
+  @override
+  Future<void> savePartyMembers(List<String> members, String? noteTaker) async {
+    saved.add((members: List.unmodifiable(members), noteTaker: noteTaker));
+  }
 }
 
 void main() {
@@ -326,6 +341,59 @@ void main() {
       notifier.addListener(() => callCount++);
       notifier.setHasNotes(true);
       expect(callCount, 0);
+    });
+  });
+
+  group('party persistence', () {
+    test('addPartyMember saves members to party service', () async {
+      final fake = _FakePartyService();
+      final notifier = AppStateNotifier(partyService: fake);
+      notifier.addPartyMember('Aria');
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.saved, isNotEmpty);
+      expect(fake.saved.last.members, ['Aria']);
+      expect(fake.saved.last.noteTaker, isNull);
+    });
+
+    test('removePartyMember saves updated members to party service', () async {
+      final fake = _FakePartyService();
+      final notifier = AppStateNotifier(partyService: fake);
+      notifier.addPartyMember('Aria');
+      notifier.addPartyMember('Borin');
+      notifier.removePartyMember('Aria');
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.saved.last.members, ['Borin']);
+    });
+
+    test('setNoteTaker saves noteTaker to party service', () async {
+      final fake = _FakePartyService();
+      final notifier = AppStateNotifier(partyService: fake);
+      notifier.addPartyMember('Aria');
+      notifier.setNoteTaker('Aria');
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.saved.last.noteTaker, 'Aria');
+      expect(fake.saved.last.members, ['Aria']);
+    });
+
+    test('setNoteTaker with null saves null noteTaker', () async {
+      final fake = _FakePartyService();
+      final notifier = AppStateNotifier(partyService: fake);
+      notifier.addPartyMember('Aria');
+      notifier.setNoteTaker('Aria');
+      notifier.setNoteTaker(null);
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.saved.last.noteTaker, isNull);
+    });
+
+    test('removePartyMember that is noteTaker saves null noteTaker', () async {
+      final fake = _FakePartyService();
+      final notifier = AppStateNotifier(partyService: fake);
+      notifier.addPartyMember('Aria');
+      notifier.setNoteTaker('Aria');
+      notifier.removePartyMember('Aria');
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.saved.last.noteTaker, isNull);
+      expect(fake.saved.last.members, isEmpty);
     });
   });
 

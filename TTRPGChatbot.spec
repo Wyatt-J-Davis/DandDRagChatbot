@@ -6,10 +6,11 @@ import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 #
 # Output: dist\ttrpg_backend\ttrpg_backend.exe  (plus supporting files)
 
-from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
 
 # ── fastembed — ONNX-based embeddings, no PyTorch required ────────────────
 fe_datas, fe_binaries, fe_hiddenimports = collect_all("fastembed")
+fe_datas += copy_metadata("fastembed")
 
 # ── langchain_community — only data files; importing the full package via
 #    collect_all pulls in every optional integration (including torch).
