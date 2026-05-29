@@ -17,6 +17,7 @@ import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
 import 'package:ttrpg_chatbot/widgets/party_member_input.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
 import 'package:ttrpg_chatbot/services/note_content_service.dart';
+import 'package:ttrpg_chatbot/services/status_service.dart';
 import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
 import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
 import 'package:ttrpg_chatbot/widgets/vectorize_button.dart';
@@ -109,6 +110,19 @@ class _BlockingSummaryService extends SummaryService {
   Future<SummaryResult?> fetchSummary() async => null;
 }
 
+class _FakeStatusService extends StatusService {
+  final bool hasNotes;
+  int fetchCount = 0;
+
+  _FakeStatusService({this.hasNotes = false});
+
+  @override
+  Future<bool> fetchHasNotes() async {
+    fetchCount++;
+    return hasNotes;
+  }
+}
+
 class _FakeNoteContentService extends NoteContentService {
   int fetchCount = 0;
   final String _content;
@@ -131,6 +145,7 @@ Widget buildSubject({
   SummaryService? summaryService,
   VectorizeService? vectorizeService,
   NoteContentService? noteContentService,
+  StatusService? statusService,
 }) {
   return MaterialApp(
     localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
@@ -144,6 +159,7 @@ Widget buildSubject({
       summaryService: summaryService,
       vectorizeService: vectorizeService,
       noteContentService: noteContentService,
+      statusService: statusService,
     ),
   );
 }
@@ -622,6 +638,28 @@ void main() {
       await tester.pump();
 
       expect(service.fetchCount, 1);
+    });
+
+    testWidgets('calls StatusService.fetchHasNotes on startup when service provided',
+        (WidgetTester tester) async {
+      final statusService = _FakeStatusService(hasNotes: false);
+
+      await tester.pumpWidget(buildSubject(statusService: statusService));
+      await tester.pump();
+
+      expect(statusService.fetchCount, 1);
+    });
+
+    testWidgets('sets appState.hasNotes true when StatusService reports notes present',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      final statusService = _FakeStatusService(hasNotes: true);
+
+      await tester.pumpWidget(buildSubject(
+          appState: appState, statusService: statusService));
+      await tester.pump();
+
+      expect(appState.hasNotes, isTrue);
     });
   });
 }

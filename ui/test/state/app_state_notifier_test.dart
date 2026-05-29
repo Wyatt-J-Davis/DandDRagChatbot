@@ -299,6 +299,36 @@ void main() {
     });
   });
 
+  group('hasNotes', () {
+    test('hasNotes is false initially', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.hasNotes, isFalse);
+    });
+
+    test('setHasNotes updates hasNotes', () {
+      final notifier = AppStateNotifier();
+      notifier.setHasNotes(true);
+      expect(notifier.hasNotes, isTrue);
+    });
+
+    test('setHasNotes notifies listeners', () {
+      final notifier = AppStateNotifier();
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.setHasNotes(true);
+      expect(callCount, 1);
+    });
+
+    test('setHasNotes does not notify when value unchanged', () {
+      final notifier = AppStateNotifier();
+      notifier.setHasNotes(true);
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.setHasNotes(true);
+      expect(callCount, 0);
+    });
+  });
+
   group('selectedNotesPath', () {
     test('selectedNotesPath is null initially', () {
       final notifier = AppStateNotifier();

@@ -624,6 +624,30 @@ class TestNotesExportTxtEndpoint:
         assert "editor_notes.txt" in response.headers["content-disposition"]
 
 
+class TestStatusEndpoint:
+    def _client_with_persistence(self, has_notes: bool):
+        persistence = MagicMock()
+        persistence.has_notes.return_value = has_notes
+        app = create_app()
+        app.dependency_overrides[get_persistence_handler] = lambda: persistence
+        return TestClient(app)
+
+    def test_returns_200(self):
+        client = self._client_with_persistence(has_notes=False)
+        response = client.get("/status")
+        assert response.status_code == 200
+
+    def test_has_notes_false_when_no_raw_notes_file(self):
+        client = self._client_with_persistence(has_notes=False)
+        response = client.get("/status")
+        assert response.json() == {"has_notes": False}
+
+    def test_has_notes_true_when_raw_notes_file_present(self):
+        client = self._client_with_persistence(has_notes=True)
+        response = client.get("/status")
+        assert response.json() == {"has_notes": True}
+
+
 class TestNotesExportDocxEndpoint:
     def test_returns_200_with_docx_content_type(self, tmp_path, monkeypatch):
         notes_file = tmp_path / "editor_notes.txt"

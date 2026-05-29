@@ -11,6 +11,7 @@ import '../services/note_content_service.dart';
 import '../services/summary_service.dart';
 import '../services/upload_service.dart';
 import '../services/user_preferences_service.dart';
+import '../services/status_service.dart';
 import '../services/vectorize_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
@@ -30,6 +31,7 @@ class MainShell extends StatefulWidget {
   final SummaryService? summaryService;
   final VectorizeService? vectorizeService;
   final NoteContentService? noteContentService;
+  final StatusService? statusService;
 
   const MainShell({
     super.key,
@@ -42,6 +44,7 @@ class MainShell extends StatefulWidget {
     this.summaryService,
     this.vectorizeService,
     this.noteContentService,
+    this.statusService,
   });
 
   @override
@@ -87,6 +90,7 @@ class _MainShellState extends State<MainShell> {
       _applyStoredPreferences();
     }
     _loadNotes();
+    _loadStatus();
   }
 
   @override
@@ -108,6 +112,15 @@ class _MainShellState extends State<MainShell> {
       model: widget.appState.selectedModel,
       temperature: widget.appState.temperature,
     ));
+  }
+
+  Future<void> _loadStatus() async {
+    if (widget.statusService == null) return;
+    try {
+      final hasNotes = await widget.statusService!.fetchHasNotes();
+      if (!mounted) return;
+      widget.appState.setHasNotes(hasNotes);
+    } catch (_) {}
   }
 
   Future<void> _loadNotes() async {

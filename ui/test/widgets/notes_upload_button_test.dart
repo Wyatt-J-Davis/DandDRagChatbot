@@ -336,8 +336,9 @@ void main() {
       await tester.tap(find.text('Vectorize'));
       await tester.pumpAndSettle();
 
+      // After a successful upload hasNotes=true so label is 'Re-upload Notes'
       final button = tester.widget<ElevatedButton>(
-          find.widgetWithText(ElevatedButton, 'Upload Notes'));
+          find.widgetWithText(ElevatedButton, 'Re-upload Notes'));
       expect(button.onPressed, isNotNull);
     });
 
@@ -415,7 +416,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Vectorization complete'), findsOneWidget);
 
-      await tester.tap(find.text('Upload Notes'));
+      // After first upload hasNotes=true, so button reads 'Re-upload Notes'
+      await tester.tap(find.text('Re-upload Notes'));
       await tester.pumpAndSettle();
 
       expect(find.text('Vectorization complete'), findsNothing);
@@ -474,6 +476,39 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(successCalled, isTrue);
+    });
+
+    // Issue 53: label changes with hasNotes flag
+
+    testWidgets('shows Upload Notes when hasNotes is false',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      await tester.pumpWidget(buildSubject(appState: appState));
+      expect(find.text('Upload Notes'), findsOneWidget);
+      expect(find.text('Re-upload Notes'), findsNothing);
+    });
+
+    testWidgets('shows Re-upload Notes when hasNotes is true',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setHasNotes(true);
+      await tester.pumpWidget(buildSubject(appState: appState));
+      expect(find.text('Re-upload Notes'), findsOneWidget);
+      expect(find.text('Upload Notes'), findsNothing);
+    });
+
+    testWidgets('sets hasNotes to true on successful upload',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(events: [UploadDoneEvent()]);
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(appState.hasNotes, isTrue);
     });
 
     testWidgets('onUploadSuccess callback is NOT called on upload error',

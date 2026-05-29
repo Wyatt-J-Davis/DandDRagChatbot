@@ -99,6 +99,10 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok"}
 
+    @application.get("/status")
+    def status(persistence: NotePersistenceHandler = Depends(get_persistence_handler)):
+        return {"has_notes": persistence.has_notes()}
+
     @application.get("/models")
     def models(handler: LLMHandler = Depends(get_llm_handler)):
         return [m.model for m in handler.get_available_models()]

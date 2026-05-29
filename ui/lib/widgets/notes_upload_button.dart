@@ -49,6 +49,7 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
           _isUploading = false;
           _uploadSuccess = true;
         });
+        widget.appState.setHasNotes(true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Notes uploaded successfully')),
         );
@@ -88,7 +89,8 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
                         });
                       }
                     },
-              child: const Text('Upload Notes'),
+              child: Text(
+                  widget.appState.hasNotes ? 'Re-upload Notes' : 'Upload Notes'),
             ),
             if (filename != null) ...[
               const SizedBox(height: 4),

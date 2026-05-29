@@ -10,6 +10,7 @@ class AppStateNotifier extends ChangeNotifier {
   final List<String> _partyMembers = [];
   String? _noteTaker;
   String? _selectedNotesPath;
+  bool _hasNotes = false;
 
   AppStateNotifier({
     String? initialModel,
@@ -24,6 +25,7 @@ class AppStateNotifier extends ChangeNotifier {
   List<String> get partyMembers => List.unmodifiable(_partyMembers);
   String? get noteTaker => _noteTaker;
   String? get selectedNotesPath => _selectedNotesPath;
+  bool get hasNotes => _hasNotes;
 
   void setSelectedModel(String? model) {
     if (_selectedModel == model) return;
@@ -54,6 +56,12 @@ class AppStateNotifier extends ChangeNotifier {
   void setSelectedNotesPath(String? path) {
     if (_selectedNotesPath == path) return;
     _selectedNotesPath = path;
+    notifyListeners();
+  }
+
+  void setHasNotes(bool value) {
+    if (_hasNotes == value) return;
+    _hasNotes = value;
     notifyListeners();
   }
 
