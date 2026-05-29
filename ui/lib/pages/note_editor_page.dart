@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
+import '../state/operation_manager.dart';
+import '../widgets/vectorize_button.dart';
+
 class NoteEditorPage extends StatefulWidget {
   final QuillController? controller;
   final bool darkMode;
   final VoidCallback? onToggleDarkMode;
   final ScrollController? scrollController;
+  final OperationManager? operationManager;
 
   const NoteEditorPage({
     super.key,
@@ -13,6 +17,7 @@ class NoteEditorPage extends StatefulWidget {
     this.darkMode = false,
     this.onToggleDarkMode,
     this.scrollController,
+    this.operationManager,
   });
 
   @override
@@ -62,6 +67,13 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               ),
             ],
           ),
+          if (widget.operationManager != null) ...[
+            const SizedBox(height: 8),
+            VectorizeButton(
+              controller: _controller,
+              operationManager: widget.operationManager!,
+            ),
+          ],
           const SizedBox(height: 16),
           QuillSimpleToolbar(
             controller: _controller,

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -15,14 +15,11 @@ import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
 import 'package:ttrpg_chatbot/services/vectorize_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
-import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
-import 'package:ttrpg_chatbot/widgets/party_member_input.dart';
+import 'package:ttrpg_chatbot/widgets/settings_popup.dart';
+import 'package:ttrpg_chatbot/widgets/vectorize_button.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
 import 'package:ttrpg_chatbot/services/note_content_service.dart';
 import 'package:ttrpg_chatbot/services/status_service.dart';
-import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
-import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
-import 'package:ttrpg_chatbot/widgets/vectorize_button.dart';
 import 'package:ttrpg_chatbot/pages/qa_page.dart';
 import 'package:ttrpg_chatbot/pages/summary_page.dart';
 
@@ -268,227 +265,39 @@ void main() {
       expect(find.byType(NavigationRail), findsOneWidget);
     });
 
-    testWidgets('SidebarPanel is visible inside the shell',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
+    group('settings icon', () {
+      testWidgets('settings icon is visible in NavigationRail',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.byTooltip('Settings'), findsOneWidget);
+      });
 
-      expect(find.byType(SidebarPanel), findsOneWidget);
-    });
+      testWidgets('settings icon is visible on all three pages',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.byTooltip('Settings'), findsOneWidget);
 
-    testWidgets('SidebarPanel is visible on all pages',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
+        await tester.tap(find.text('Summary'));
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('Settings'), findsOneWidget);
 
-      expect(find.byType(SidebarPanel), findsOneWidget);
+        await tester.tap(find.text('Note Editor'));
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('Settings'), findsOneWidget);
+      });
 
-      await tester.tap(find.text('Summary'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SidebarPanel), findsOneWidget);
-
-      await tester.tap(find.text('Note Editor'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SidebarPanel), findsOneWidget);
-    });
-
-    testWidgets('SidebarPanel is positioned between NavigationRail and content',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-      await tester.pump();
-
-      final navRailRect = tester.getRect(find.byType(NavigationRail));
-      final sidebarRect = tester.getRect(find.byType(SidebarPanel));
-      final contentRight = tester.getRect(find.byType(QAPage)).right;
-
-      expect(sidebarRect.left, greaterThanOrEqualTo(navRailRect.right));
-      expect(contentRight, greaterThan(sidebarRect.right));
-    });
-
-    testWidgets(
-        'ModelSelectorDropdown is shown in SidebarPanel on Q&A page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(
-        buildSubject(
+      testWidgets('tapping settings icon opens SettingsPopup dialog',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(
           modelService: _stubModelService(models: ['llama3']),
-        ),
-      );
-      await tester.pump();
+        ));
+        await tester.pump();
 
-      expect(find.byType(DropdownButton<String>), findsOneWidget);
-    });
+        await tester.tap(find.byTooltip('Settings'));
+        await tester.pumpAndSettle();
 
-    testWidgets(
-        'ModelSelectorDropdown is not shown in SidebarPanel on Summary page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Summary'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(DropdownButton<String>), findsNothing);
-    });
-
-    testWidgets('TemperatureSlider is shown in SidebarPanel on Q&A page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-      await tester.pump();
-
-      expect(find.byType(TemperatureSlider), findsOneWidget);
-    });
-
-    testWidgets('TemperatureSlider is not shown on Summary page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Summary'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(TemperatureSlider), findsNothing);
-    });
-
-    testWidgets('TemperatureSlider is not shown on Note Editor page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Note Editor'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(TemperatureSlider), findsNothing);
-    });
-
-    testWidgets('shows error state then dropdown after tapping Retry',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(
-        buildSubject(
-          modelService: _stubRetryModelService(models: ['llama3']),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // First fetch fails â€” error message and retry button are shown.
-      expect(find.text('No models found. Is Ollama running?'), findsOneWidget);
-      expect(find.text('Retry'), findsOneWidget);
-      expect(find.byType(DropdownButton<String>), findsNothing);
-
-      // Tap Retry â€” second fetch succeeds.
-      await tester.tap(find.text('Retry'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(DropdownButton<String>), findsOneWidget);
-      expect(find.text('No models found. Is Ollama running?'), findsNothing);
-    });
-
-    testWidgets('loads saved temperature from UserPreferencesService on startup',
-        (WidgetTester tester) async {
-      final fakePrefs = _FakePrefsService(
-        const UserPreferences(model: null, temperature: 0.8),
-      );
-      final appState = AppStateNotifier();
-
-      await tester.pumpWidget(
-        buildSubject(appState: appState, prefsService: fakePrefs),
-      );
-      await tester.pump();
-
-      expect(appState.temperature, closeTo(0.8, 0.001));
-    });
-
-    testWidgets('saves preferences when AppStateNotifier changes',
-        (WidgetTester tester) async {
-      final fakePrefs = _FakePrefsService(const UserPreferences());
-      final appState = AppStateNotifier();
-
-      await tester.pumpWidget(
-        buildSubject(appState: appState, prefsService: fakePrefs),
-      );
-      await tester.pump();
-
-      appState.setTemperature(0.9);
-
-      expect(fakePrefs.saved, isNotEmpty);
-      expect(fakePrefs.saved.last.temperature, closeTo(0.9, 0.001));
-    });
-
-    testWidgets('PartyMemberInput is shown in SidebarPanel on Q&A page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-      await tester.pump();
-
-      expect(find.byType(PartyMemberInput), findsOneWidget);
-    });
-
-    testWidgets('PartyMemberInput is not shown on Summary page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Summary'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(PartyMemberInput), findsNothing);
-    });
-
-    testWidgets('PartyMemberInput is not shown on Note Editor page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Note Editor'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(PartyMemberInput), findsNothing);
-    });
-    testWidgets('NotesUploadButton is shown in SidebarPanel on Q&A page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-      await tester.pump();
-
-      expect(find.byType(NotesUploadButton), findsOneWidget);
-    });
-
-    testWidgets('NotesUploadButton is not shown on Summary page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Summary'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(NotesUploadButton), findsNothing);
-    });
-
-    testWidgets('NotesUploadButton is not shown on Note Editor page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Note Editor'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(NotesUploadButton), findsNothing);
-    });
-
-    testWidgets('VectorizeButton is shown in SidebarPanel on Note Editor page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Note Editor'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(VectorizeButton), findsOneWidget);
-    });
-
-    testWidgets('VectorizeButton is not shown on Q&A page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-      await tester.pump();
-
-      expect(find.byType(VectorizeButton), findsNothing);
-    });
-
-    testWidgets('VectorizeButton is not shown on Summary page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Summary'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(VectorizeButton), findsNothing);
+        expect(find.byType(SettingsPopup), findsOneWidget);
+      });
     });
 
     testWidgets('note editor dark mode toggle persists across navigation',
@@ -510,6 +319,16 @@ void main() {
       expect(find.byTooltip('Light mode'), findsOneWidget);
     });
 
+    testWidgets('VectorizeButton is shown on Note Editor page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(VectorizeButton), findsOneWidget);
+    });
+
     group('operations survive page switches', () {
       testWidgets(
           'navigation is allowed while upload SSE is active',
@@ -524,7 +343,16 @@ void main() {
         ));
         await tester.pump();
 
-        await tester.tap(find.text('Vectorize'));
+        // Open settings and start upload via Vectorize button
+        await tester.tap(find.byTooltip('Settings'));
+        await tester.pump();
+
+        await tester.ensureVisible(find.text('Vectorize'));
+        await tester.tap(find.text('Vectorize'), warnIfMissed: false);
+        await tester.pump();
+
+        // Close the dialog
+        await tester.tapAt(const Offset(10, 10));
         await tester.pump();
 
         // Navigation must succeed while upload is in progress
@@ -534,7 +362,7 @@ void main() {
         expect(find.byType(SummaryPage), findsOneWidget);
 
         uploadService.controller.close();
-        await tester.pumpAndSettle();
+        await tester.pump();
       });
 
       testWidgets(
@@ -559,7 +387,7 @@ void main() {
         expect(find.byType(QAPage), findsOneWidget);
 
         vectorizeService.controller.close();
-        await tester.pumpAndSettle();
+        await tester.pump();
       });
 
       testWidgets(
@@ -598,10 +426,8 @@ void main() {
         ));
         await tester.pump();
 
-        // Use the QAPage text field (last TextField — sidebar PartyMemberInput
-        // has one too, which comes first in the widget tree)
-        await tester.enterText(
-            find.byType(TextField).last, 'What is the dragon?');
+        // The Q&A page has the only text field on screen (sidebar removed)
+        await tester.enterText(find.byType(TextField), 'What is the dragon?');
         await tester.pump();
         await tester.tap(find.byIcon(Icons.send));
         await tester.pumpAndSettle();
@@ -675,6 +501,37 @@ void main() {
       expect(appState.partyMembers, ['Aria', 'Borin']);
     });
 
+    testWidgets('loads saved temperature from UserPreferencesService on startup',
+        (WidgetTester tester) async {
+      final fakePrefs = _FakePrefsService(
+        const UserPreferences(model: null, temperature: 0.8),
+      );
+      final appState = AppStateNotifier();
+
+      await tester.pumpWidget(
+        buildSubject(appState: appState, prefsService: fakePrefs),
+      );
+      await tester.pump();
+
+      expect(appState.temperature, closeTo(0.8, 0.001));
+    });
+
+    testWidgets('saves preferences when AppStateNotifier changes',
+        (WidgetTester tester) async {
+      final fakePrefs = _FakePrefsService(const UserPreferences());
+      final appState = AppStateNotifier();
+
+      await tester.pumpWidget(
+        buildSubject(appState: appState, prefsService: fakePrefs),
+      );
+      await tester.pump();
+
+      appState.setTemperature(0.9);
+
+      expect(fakePrefs.saved, isNotEmpty);
+      expect(fakePrefs.saved.last.temperature, closeTo(0.9, 0.001));
+    });
+
     testWidgets('restores darkMode from UserPreferencesService on startup',
         (WidgetTester tester) async {
       final fakePrefs = _FakePrefsService(
@@ -691,4 +548,3 @@ void main() {
     });
   });
 }
-

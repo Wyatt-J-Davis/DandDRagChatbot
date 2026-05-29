@@ -16,12 +16,7 @@ import '../services/status_service.dart';
 import '../services/vectorize_service.dart';
 import '../state/app_state_notifier.dart';
 import '../state/operation_manager.dart';
-import 'model_selector_dropdown.dart';
-import 'notes_upload_button.dart';
-import 'vectorize_button.dart';
-import 'party_member_input.dart';
-import 'sidebar_panel.dart';
-import 'temperature_slider.dart';
+import 'settings_popup.dart';
 
 class MainShell extends StatefulWidget {
   final AppStateNotifier appState;
@@ -93,7 +88,9 @@ class _MainShellState extends State<MainShell> {
         _currentScrollOffset = _editorScrollController.offset;
       }
     });
-    _modelsFuture = widget.modelService.fetchModels();
+    _modelsFuture = widget.modelService
+        .fetchModels()
+        .catchError((_) => <String>[]);
     _operationManager = OperationManager(
       appState: widget.appState,
       chatService: widget.chatService,
@@ -196,6 +193,7 @@ class _MainShellState extends State<MainShell> {
           controller: _noteController,
           darkMode: _noteEditorDarkMode,
           scrollController: _editorScrollController,
+          operationManager: _operationManager,
           onToggleDarkMode: () {
             setState(() => _noteEditorDarkMode = !_noteEditorDarkMode);
             _savePreferences();
@@ -211,49 +209,31 @@ class _MainShellState extends State<MainShell> {
 
   void _retryFetchModels() {
     setState(() {
-      _modelsFuture = widget.modelService.fetchModels();
+      _modelsFuture = widget.modelService
+          .fetchModels()
+          .catchError((_) => <String>[]);
     });
   }
 
-  Widget? _buildSidebarChild() {
-    switch (_selectedIndex) {
-      case 0:
-        return Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ModelSelectorDropdown(
-                modelsFuture: _modelsFuture,
-                appState: widget.appState,
-                onRetry: _retryFetchModels,
-              ),
-              const SizedBox(height: 12),
-              TemperatureSlider(appState: widget.appState),
-              const SizedBox(height: 12),
-              PartyMemberInput(appState: widget.appState),
-              const SizedBox(height: 12),
-              NotesUploadButton(
-                appState: widget.appState,
-                pickerService: widget.pickerService ?? FilePickerService(),
-                operationManager: _operationManager,
-                onUploadSuccess: _loadNotes,
-              ),
-            ],
+  void _openSettings() {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        child: SizedBox(
+          width: 380,
+          child: SingleChildScrollView(
+            child: SettingsPopup(
+              appState: widget.appState,
+              operationManager: _operationManager,
+              modelsFuture: _modelsFuture,
+              onModelRetry: _retryFetchModels,
+              pickerService: widget.pickerService ?? FilePickerService(),
+              onUploadSuccess: _loadNotes,
+            ),
           ),
-        );
-      case 2:
-        return Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: VectorizeButton(
-            controller: _noteController,
-            operationManager: _operationManager,
-          ),
-        );
-      default:
-        return null;
-    }
+        ),
+      ),
+    );
   }
 
   @override
@@ -267,9 +247,12 @@ class _MainShellState extends State<MainShell> {
                 setState(() => _selectedIndex = index),
             labelType: NavigationRailLabelType.all,
             destinations: _destinations,
+            trailing: IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: 'Settings',
+              onPressed: _openSettings,
+            ),
           ),
-          const VerticalDivider(thickness: 1, width: 1),
-          SidebarPanel(child: _buildSidebarChild()),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(child: _buildPage()),
         ],

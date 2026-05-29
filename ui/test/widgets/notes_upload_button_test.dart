@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
 import 'package:ttrpg_chatbot/services/upload_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
@@ -91,10 +92,10 @@ void main() {
     testWidgets('no filename shown before picking a file',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
-      // Only the button text should be present; no extra text widget.
+      // Only the button text and notes indicator should be present; no filename.
       expect(find.byType(Text).evaluate().where((e) {
         final t = e.widget as Text;
-        return t.data != 'Upload Notes';
+        return t.data != 'Upload Notes' && t.data != 'No notes loaded';
       }), isEmpty);
     });
 
@@ -209,7 +210,7 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
 
       uploadService.controller.close();
-      await tester.pumpAndSettle();
+      await tester.pump();
     });
 
     testWidgets('LinearProgressIndicator not shown before upload starts',
@@ -235,7 +236,7 @@ void main() {
       expect(find.text('Vectorize'), findsNothing);
 
       uploadService.controller.close();
-      await tester.pumpAndSettle();
+      await tester.pump();
     });
 
     testWidgets('Upload Notes button is disabled while upload is in progress',
@@ -254,7 +255,7 @@ void main() {
       expect(button.onPressed, isNull);
 
       uploadService.controller.close();
-      await tester.pumpAndSettle();
+      await tester.pump();
     });
 
     testWidgets('success message shown after upload completes',
@@ -377,7 +378,7 @@ void main() {
       expect(find.text('Vectorization complete'), findsNothing);
 
       blockingService.controller.close();
-      await tester.pumpAndSettle();
+      await tester.pump();
     });
 
     testWidgets('re-vectorizing after success calls uploadService again',
@@ -540,6 +541,40 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(successCalled, isFalse);
+    });
+
+    // Notes loaded indicator tests
+
+    testWidgets('shows No notes loaded indicator by default',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      expect(find.text('No notes loaded'), findsOneWidget);
+    });
+
+    testWidgets('shows Notes loaded indicator when hasNotes is true',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setHasNotes(true);
+      await tester.pumpWidget(buildSubject(appState: appState));
+      expect(find.text('Notes loaded'), findsOneWidget);
+      expect(find.text('No notes loaded'), findsNothing);
+    });
+
+    testWidgets('shows Lottie widget while upload is in progress',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _BlockingUploadService();
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump();
+
+      expect(find.byType(Lottie), findsOneWidget);
+
+      uploadService.controller.close();
+      await tester.pump();
     });
   });
 }

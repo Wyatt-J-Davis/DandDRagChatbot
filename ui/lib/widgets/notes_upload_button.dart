@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../services/file_picker_service.dart';
 import '../state/app_state_notifier.dart';
@@ -111,6 +112,8 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
           child: Text(
               widget.appState.hasNotes ? 'Re-upload Notes' : 'Upload Notes'),
         ),
+        const SizedBox(height: 4),
+        Text(widget.appState.hasNotes ? 'Notes loaded' : 'No notes loaded'),
         if (filename != null) ...[
           const SizedBox(height: 4),
           Text(filename, overflow: TextOverflow.ellipsis),
@@ -121,8 +124,17 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
                   widget.operationManager.startUpload(path: path!),
               child: const Text('Vectorize'),
             ),
-          if (isUploading)
+          if (isUploading) ...[
+            const SizedBox(height: 8),
+            Lottie.asset(
+              'assets/Magical_Effect_Loading.json',
+              width: 80,
+              height: 80,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 4),
             LinearProgressIndicator(value: progress / 100),
+          ],
           if (_showSuccess) ...[
             const SizedBox(height: 4),
             Row(

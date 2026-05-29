@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/pages/note_editor_page.dart';
+import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
+import 'package:ttrpg_chatbot/state/operation_manager.dart';
+import 'package:ttrpg_chatbot/widgets/vectorize_button.dart';
 
 Widget buildPage({
   QuillController? controller,
   bool darkMode = false,
   VoidCallback? onToggleDarkMode,
+  OperationManager? operationManager,
 }) =>
     MaterialApp(
       localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
@@ -16,6 +20,7 @@ Widget buildPage({
           controller: controller,
           darkMode: darkMode,
           onToggleDarkMode: onToggleDarkMode,
+          operationManager: operationManager,
         ),
       ),
     );
@@ -129,6 +134,23 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byIcon(Icons.light_mode), findsOneWidget);
         expect(find.byIcon(Icons.dark_mode), findsNothing);
+      });
+    });
+
+    group('VectorizeButton', () {
+      testWidgets('shown when operationManager is provided', (tester) async {
+        final appState = AppStateNotifier();
+        final om = OperationManager(appState: appState);
+        await tester.pumpWidget(buildPage(operationManager: om));
+        await tester.pumpAndSettle();
+        expect(find.byType(VectorizeButton), findsOneWidget);
+      });
+
+      testWidgets('not shown when operationManager is null (default)',
+          (tester) async {
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+        expect(find.byType(VectorizeButton), findsNothing);
       });
     });
   });
