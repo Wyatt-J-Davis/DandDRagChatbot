@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 import 'package:ttrpg_chatbot/pages/qa_page.dart';
 import 'package:ttrpg_chatbot/services/chat_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
@@ -68,6 +69,35 @@ class _HangingChatService extends ChatService {
     required double temperature,
   }) {
     return StreamController<ChatEvent>().stream;
+  }
+}
+
+class _LongAnswerChatService extends ChatService {
+  final String answer;
+  _LongAnswerChatService(this.answer);
+
+  @override
+  Stream<ChatEvent> chat({
+    required String question,
+    required String model,
+    required double temperature,
+  }) async* {
+    yield ChatAnswerEvent(answer: answer, sources: []);
+  }
+}
+
+class _SourcedLongAnswerChatService extends ChatService {
+  final String answer;
+  final List<ChatSource> sources;
+  _SourcedLongAnswerChatService(this.answer, this.sources);
+
+  @override
+  Stream<ChatEvent> chat({
+    required String question,
+    required String model,
+    required double temperature,
+  }) async* {
+    yield ChatAnswerEvent(answer: answer, sources: sources);
   }
 }
 
@@ -206,7 +236,10 @@ void main() {
       await tester.enterText(find.byType(TextField), 'question');
       await tester.pump();
       await tester.tap(find.byType(IconButton));
-      await tester.pumpAndSettle();
+      // 500ms per pump so the 18-char typewriter (18×20ms=360ms) completes
+      // in a single pump iteration — pumpAndSettle with 100ms/iter only drives
+      // ~300ms (scroll animation duration) before hasScheduledFrame goes false.
+      await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
       final bubbles = tester.widgetList<ChatBubble>(find.byType(ChatBubble));
       expect(bubbles.any((b) => b.sender == ChatSender.assistant), isTrue);
@@ -463,6 +496,101 @@ void main() {
       expect(find.text('First question'), findsOneWidget);
       expect(find.text('Second question'), findsOneWidget);
       expect(find.text('The answer'), findsNWidgets(2));
+    });
+
+    group('thinking animation', () {
+      testWidgets('star-magic Lottie visible while bot is thinking',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(
+            buildSubject(chatService: _HangingChatService()));
+        await tester.enterText(find.byType(TextField), 'question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+
+        expect(find.byType(Lottie), findsOneWidget);
+      });
+
+      testWidgets('star-magic Lottie not visible when idle',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.byType(Lottie), findsNothing);
+      });
+
+      testWidgets('star-magic Lottie disappears after answer arrives',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(
+            buildSubject(chatService: _AnswerChatService('Hello')));
+        await tester.enterText(find.byType(TextField), 'question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(Lottie), findsNothing);
+      });
+    });
+
+    group('typewriter effect', () {
+      testWidgets('answer bubble shows partial text immediately after arriving',
+          (WidgetTester tester) async {
+        const fullAnswer = 'ABCDEFGHIJ';
+        await tester.pumpWidget(
+            buildSubject(chatService: _LongAnswerChatService(fullAnswer)));
+        await tester.enterText(find.byType(TextField), 'question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+        // Answer arrived, typewriter started — advance exactly 2 ticks (40ms)
+        await tester.pump(const Duration(milliseconds: 40));
+
+        expect(find.text('AB'), findsOneWidget);
+        expect(find.text(fullAnswer), findsNothing);
+      });
+
+      testWidgets('answer bubble shows full text after typing completes',
+          (WidgetTester tester) async {
+        const fullAnswer = 'ABCDE';
+        await tester.pumpWidget(
+            buildSubject(chatService: _LongAnswerChatService(fullAnswer)));
+        await tester.enterText(find.byType(TextField), 'question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pumpAndSettle();
+
+        expect(find.text(fullAnswer), findsOneWidget);
+      });
+
+      testWidgets('reference chips suppressed while typing',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(
+            chatService: _SourcedLongAnswerChatService(
+          'ABCDEFGHIJ',
+          [const ChatSource(content: 'src', date: null)],
+        )));
+        await tester.enterText(find.byType(TextField), 'question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+        // Typewriter has only revealed a few chars
+        await tester.pump(const Duration(milliseconds: 40));
+
+        expect(find.byType(ReferenceChip), findsNothing);
+      });
+
+      testWidgets('reference chips appear after typing completes',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(
+            chatService: _SourcedLongAnswerChatService(
+          'ABCDE',
+          [const ChatSource(content: 'src', date: null)],
+        )));
+        await tester.enterText(find.byType(TextField), 'question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ReferenceChip), findsOneWidget);
+      });
     });
   });
 }

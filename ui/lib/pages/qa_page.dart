@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../services/chat_service.dart';
 import '../state/app_state_notifier.dart';
 import '../state/operation_manager.dart';
+import '../state/typewriter_controller.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/reference_chip.dart';
 
@@ -26,6 +28,9 @@ class _QAPageState extends State<QAPage> {
   final FocusNode _inputFocus = FocusNode();
   OperationStatus _previousChatStatus = OperationStatus.idle;
 
+  TypewriterController? _typewriterController;
+  int? _typingMessageIndex;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +46,8 @@ class _QAPageState extends State<QAPage> {
     _controller.dispose();
     _scrollController.dispose();
     _inputFocus.dispose();
+    _typewriterController?.removeListener(_onTypewriterTick);
+    _typewriterController?.dispose();
     super.dispose();
   }
 
@@ -54,6 +61,14 @@ class _QAPageState extends State<QAPage> {
   void _onManagerChange() {
     if (!mounted) return;
     final status = widget.operationManager.chatStatus;
+    if (status == OperationStatus.done &&
+        _previousChatStatus == OperationStatus.running) {
+      final messages = widget.appState.chatHistory;
+      final lastIndex = messages.length - 1;
+      if (lastIndex >= 0 && messages[lastIndex].sender == ChatSender.assistant) {
+        _startTypewriter(messages[lastIndex].text, lastIndex);
+      }
+    }
     if (status != OperationStatus.running &&
         _previousChatStatus == OperationStatus.running) {
       _inputFocus.requestFocus();
@@ -61,6 +76,30 @@ class _QAPageState extends State<QAPage> {
     _previousChatStatus = status;
     setState(() {});
     _scrollToBottom();
+  }
+
+  void _startTypewriter(String text, int messageIndex) {
+    _typewriterController?.removeListener(_onTypewriterTick);
+    _typewriterController?.dispose();
+    _typewriterController = null;
+    _typingMessageIndex = null;
+
+    if (text.isEmpty) return;
+
+    _typewriterController = TypewriterController(fullText: text);
+    _typingMessageIndex = messageIndex;
+    _typewriterController!.addListener(_onTypewriterTick);
+    _typewriterController!.start();
+  }
+
+  void _onTypewriterTick() {
+    if (!mounted) return;
+    if (_typewriterController?.isDone == true) {
+      _typewriterController!.removeListener(_onTypewriterTick);
+      setState(() => _typingMessageIndex = null);
+    } else {
+      setState(() {});
+    }
   }
 
   void _scrollToBottom() {
@@ -166,11 +205,16 @@ class _QAPageState extends State<QAPage> {
             itemCount: messages.length,
             itemBuilder: (context, index) {
               final msg = messages[index];
+              final isTyping = index == _typingMessageIndex;
+              final displayText = isTyping
+                  ? (_typewriterController?.displayedText ?? '')
+                  : msg.text;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ChatBubble(message: msg.text, sender: msg.sender),
-                  if (msg.sender == ChatSender.assistant &&
+                  ChatBubble(message: displayText, sender: msg.sender),
+                  if (!isTyping &&
+                      msg.sender == ChatSender.assistant &&
                       msg.sources.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(left: 8, bottom: 4),
@@ -192,7 +236,15 @@ class _QAPageState extends State<QAPage> {
             },
           ),
         ),
-        if (isLoading) const LinearProgressIndicator(),
+        if (isLoading)
+          Center(
+            child: Lottie.asset(
+              'assets/star-magic.json',
+              width: 80,
+              height: 80,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: _buildInputRow(isLoading),

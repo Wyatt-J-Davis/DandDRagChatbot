@@ -450,7 +450,8 @@ void main() {
         await tester.enterText(find.byType(TextField), 'What is the dragon?');
         await tester.pump();
         await tester.tap(find.byIcon(Icons.send));
-        await tester.pumpAndSettle();
+        // 500ms per pump covers the 18-char typewriter (18×20ms=360ms)
+        await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
         expect(find.text('What is the dragon?'), findsOneWidget);
         expect(find.text('The dragon is red.'), findsOneWidget);
