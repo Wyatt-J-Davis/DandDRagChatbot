@@ -37,6 +37,7 @@ dependencies:
   http: ^1.2.0
   file_picker: ^11.0.2
   flutter_quill: ^11.5.1
+  lottie: ^3.1.0
 
 dev_dependencies:
   flutter_test:
@@ -60,16 +61,9 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
-
-  # An image asset can refer to one or more resolution-specific "variants", see
-  # https://flutter.dev/to/resolution-aware-images
-
-  # For details regarding adding assets from package dependencies, see
-  # https://flutter.dev/to/asset-from-package
+  assets:
+    - assets/Magical_Effect_Loading.json
+    - assets/star-magic.json
 
   # To add custom fonts to your application, add a fonts section here,
   # in this "flutter" section. Each entry in this list should have a
