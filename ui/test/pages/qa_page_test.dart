@@ -88,6 +88,38 @@ Widget buildSubject({ChatService? chatService}) {
 
 void main() {
   group('QAPage', () {
+    group('welcome state', () {
+      testWidgets('empty chat shows wizard emoji', (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.text('🧙'), findsOneWidget);
+      });
+
+      testWidgets('empty chat has no message list', (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.byType(ListView), findsNothing);
+      });
+
+      testWidgets('wizard emoji disappears once first message is sent',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.enterText(find.byType(TextField), 'Hello');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+        expect(find.text('🧙'), findsNothing);
+      });
+
+      testWidgets('message list appears once first message is sent',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.enterText(find.byType(TextField), 'Hello');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+        expect(find.byType(ListView), findsOneWidget);
+      });
+    });
+
     testWidgets('text field is visible', (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
       expect(find.byType(TextField), findsOneWidget);

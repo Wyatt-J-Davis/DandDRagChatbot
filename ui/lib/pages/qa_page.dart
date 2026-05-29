@@ -107,10 +107,56 @@ class _QAPageState extends State<QAPage> {
     );
   }
 
+  Widget _buildInputRow(bool isLoading) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _controller,
+            focusNode: _inputFocus,
+            enabled: !isLoading,
+            onSubmitted: (_) => _submit(),
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(hintText: 'Ask a question…'),
+          ),
+        ),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _controller,
+          builder: (context, value, _) {
+            return IconButton(
+              icon: const Icon(Icons.send),
+              onPressed:
+                  (value.text.trim().isEmpty || isLoading) ? null : _submit,
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final messages = widget.appState.chatHistory;
     final isLoading = widget.operationManager.isChatRunning;
+
+    if (messages.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🧙', style: TextStyle(fontSize: 72)),
+            const SizedBox(height: 24),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildInputRow(isLoading),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       children: [
@@ -149,32 +195,7 @@ class _QAPageState extends State<QAPage> {
         if (isLoading) const LinearProgressIndicator(),
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _inputFocus,
-                  enabled: !isLoading,
-                  onSubmitted: (_) => _submit(),
-                  onChanged: (_) => setState(() {}),
-                  decoration:
-                      const InputDecoration(hintText: 'Ask a question…'),
-                ),
-              ),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _controller,
-                builder: (context, value, _) {
-                  return IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed: (value.text.trim().isEmpty || isLoading)
-                        ? null
-                        : _submit,
-                  );
-                },
-              ),
-            ],
-          ),
+          child: _buildInputRow(isLoading),
         ),
       ],
     );

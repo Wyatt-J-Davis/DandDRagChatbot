@@ -207,6 +207,26 @@ void main() {
       expect(find.text('Note Editor'), findsOneWidget);
     });
 
+    group('navigation icons', () {
+      testWidgets('Q&A destination uses orb-style icon',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.byIcon(Icons.lens), findsAtLeast(1));
+      });
+
+      testWidgets('Summary destination uses auto_awesome icon',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.byIcon(Icons.auto_awesome), findsAtLeast(1));
+      });
+
+      testWidgets('Note Editor destination uses history_edu icon',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.byIcon(Icons.history_edu), findsAtLeast(1));
+      });
+    });
+
     testWidgets('shows Q&A page by default', (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pump(); // let model future resolve

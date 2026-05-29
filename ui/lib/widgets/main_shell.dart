@@ -62,18 +62,15 @@ class _MainShellState extends State<MainShell> {
 
   static const List<NavigationRailDestination> _destinations = [
     NavigationRailDestination(
-      icon: Icon(Icons.chat_outlined),
-      selectedIcon: Icon(Icons.chat),
+      icon: Icon(Icons.lens),
       label: Text('Q&A'),
     ),
     NavigationRailDestination(
-      icon: Icon(Icons.summarize_outlined),
-      selectedIcon: Icon(Icons.summarize),
+      icon: Icon(Icons.auto_awesome),
       label: Text('Summary'),
     ),
     NavigationRailDestination(
-      icon: Icon(Icons.edit_note_outlined),
-      selectedIcon: Icon(Icons.edit_note),
+      icon: Icon(Icons.history_edu),
       label: Text('Note Editor'),
     ),
   ];
