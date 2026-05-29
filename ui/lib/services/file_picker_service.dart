@@ -8,4 +8,14 @@ class FilePickerService {
     );
     return result?.files.single.path;
   }
+
+  Future<String?> pickSavePath({required String fileName}) async {
+    final ext = fileName.split('.').last;
+    return FilePicker.saveFile(
+      dialogTitle: 'Save notes as...',
+      fileName: fileName,
+      allowedExtensions: [ext],
+      type: FileType.custom,
+    );
+  }
 }

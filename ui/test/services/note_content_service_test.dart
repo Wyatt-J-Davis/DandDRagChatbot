@@ -52,4 +52,45 @@ void main() {
       expect(captured!.url.path, '/notes');
     });
   });
+
+  group('saveNotes', () {
+    test('POSTs content to /notes and returns true on 200', () async {
+      http.Request? captured;
+      final client = MockClient((req) async {
+        captured = req;
+        return http.Response('{"status": "ok"}', 200);
+      });
+      final service = NoteContentService(port: 9999, httpClient: client);
+
+      final result = await service.saveNotes('My campaign notes.');
+
+      expect(result, isTrue);
+      expect(captured, isNotNull);
+      expect(captured!.method, 'POST');
+      expect(captured!.url.path, '/notes');
+      expect(captured!.url.port, 9999);
+    });
+
+    test('sends content in request body', () async {
+      http.Request? captured;
+      final client = MockClient((req) async {
+        captured = req;
+        return http.Response('{"status": "ok"}', 200);
+      });
+      final service = NoteContentService(port: 9999, httpClient: client);
+
+      await service.saveNotes('Session notes here.');
+
+      expect(captured!.body, contains('Session notes here.'));
+    });
+
+    test('returns false on non-200 response', () async {
+      final client = MockClient((_) async => http.Response('error', 500));
+      final service = NoteContentService(port: 9999, httpClient: client);
+
+      final result = await service.saveNotes('content');
+
+      expect(result, isFalse);
+    });
+  });
 }

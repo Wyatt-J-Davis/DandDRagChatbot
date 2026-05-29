@@ -18,4 +18,14 @@ class NoteContentService {
     }
     return '';
   }
+
+  Future<bool> saveNotes(String content) async {
+    final uri = Uri.http('localhost:$port', '/notes');
+    final response = await _httpClient.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'content': content}),
+    );
+    return response.statusCode == 200;
+  }
 }

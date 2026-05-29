@@ -5,6 +5,8 @@ import 'package:flutter_quill/flutter_quill.dart';
 
 import 'services/backend_service.dart';
 import 'services/model_service.dart';
+import 'services/note_content_service.dart';
+import 'services/note_export_service.dart';
 import 'services/party_service.dart';
 import 'services/status_service.dart';
 import 'services/user_preferences_service.dart';
@@ -55,6 +57,8 @@ class TTRPGChatbotApp extends StatelessWidget {
     final modelService = ModelService();
     final statusService = StatusService();
     final partyService = PartyService();
+    final noteContentService = NoteContentService();
+    final noteExportService = NoteExportService();
 
     return MaterialApp(
       title: 'TTRPG Campaign Chatbot',
@@ -76,6 +80,8 @@ class TTRPGChatbotApp extends StatelessWidget {
           prefsService: prefsService,
           statusService: statusService,
           partyService: partyService,
+          noteContentService: noteContentService,
+          noteExportService: noteExportService,
         ),
       ),
     );

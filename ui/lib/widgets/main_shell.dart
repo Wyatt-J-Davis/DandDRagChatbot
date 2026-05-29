@@ -8,6 +8,7 @@ import '../services/chat_service.dart';
 import '../services/file_picker_service.dart';
 import '../services/model_service.dart';
 import '../services/note_content_service.dart';
+import '../services/note_export_service.dart';
 import '../services/party_service.dart';
 import '../services/summary_service.dart';
 import '../services/upload_service.dart';
@@ -28,6 +29,7 @@ class MainShell extends StatefulWidget {
   final SummaryService? summaryService;
   final VectorizeService? vectorizeService;
   final NoteContentService? noteContentService;
+  final NoteExportService? noteExportService;
   final StatusService? statusService;
   final PartyService? partyService;
 
@@ -42,6 +44,7 @@ class MainShell extends StatefulWidget {
     this.summaryService,
     this.vectorizeService,
     this.noteContentService,
+    this.noteExportService,
     this.statusService,
     this.partyService,
   });
@@ -191,6 +194,9 @@ class _MainShellState extends State<MainShell> {
           darkMode: _noteEditorDarkMode,
           scrollController: _editorScrollController,
           operationManager: _operationManager,
+          noteContentService: widget.noteContentService,
+          noteExportService: widget.noteExportService,
+          filePickerService: widget.pickerService,
           onToggleDarkMode: () {
             setState(() => _noteEditorDarkMode = !_noteEditorDarkMode);
             _savePreferences();
