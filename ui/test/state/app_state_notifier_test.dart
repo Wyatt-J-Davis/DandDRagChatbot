@@ -329,6 +329,45 @@ void main() {
     });
   });
 
+  group('setPartyMembers', () {
+    test('replaces all party members', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('OldMember');
+      notifier.setPartyMembers(['Aria', 'Borin']);
+      expect(notifier.partyMembers, ['Aria', 'Borin']);
+    });
+
+    test('notifies listeners', () {
+      final notifier = AppStateNotifier();
+      int callCount = 0;
+      notifier.addListener(() => callCount++);
+      notifier.setPartyMembers(['Aria']);
+      expect(callCount, 1);
+    });
+
+    test('trims whitespace and ignores empty names', () {
+      final notifier = AppStateNotifier();
+      notifier.setPartyMembers(['  Aria  ', '', '  ', 'Borin']);
+      expect(notifier.partyMembers, ['Aria', 'Borin']);
+    });
+
+    test('clears noteTaker when that member is no longer in the list', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('Aria');
+      notifier.setNoteTaker('Aria');
+      notifier.setPartyMembers(['Borin']);
+      expect(notifier.noteTaker, isNull);
+    });
+
+    test('keeps noteTaker when that member is still in the list', () {
+      final notifier = AppStateNotifier();
+      notifier.addPartyMember('Aria');
+      notifier.setNoteTaker('Aria');
+      notifier.setPartyMembers(['Aria', 'Borin']);
+      expect(notifier.noteTaker, 'Aria');
+    });
+  });
+
   group('selectedNotesPath', () {
     test('selectedNotesPath is null initially', () {
       final notifier = AppStateNotifier();

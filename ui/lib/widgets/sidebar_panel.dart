@@ -11,7 +11,7 @@ class SidebarPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: panelWidth,
-      child: ColoredBox(
+      child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         child: child,
       ),

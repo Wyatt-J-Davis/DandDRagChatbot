@@ -84,6 +84,66 @@ void main() {
         final prefs = await service.load();
         expect(prefs.temperature, 1.0);
       });
+
+      test('round-trips darkMode true', () async {
+        await service.save(const UserPreferences(darkMode: true));
+        final prefs = await service.load();
+        expect(prefs.darkMode, isTrue);
+      });
+
+      test('round-trips darkMode false', () async {
+        await service.save(const UserPreferences(darkMode: false));
+        final prefs = await service.load();
+        expect(prefs.darkMode, isFalse);
+      });
+
+      test('round-trips scrollOffset', () async {
+        await service.save(const UserPreferences(scrollOffset: 123.4));
+        final prefs = await service.load();
+        expect(prefs.scrollOffset, closeTo(123.4, 0.01));
+      });
+
+      test('round-trips all four fields together', () async {
+        await service.save(const UserPreferences(
+          model: 'llama3',
+          temperature: 0.7,
+          darkMode: true,
+          scrollOffset: 42.0,
+        ));
+        final prefs = await service.load();
+        expect(prefs.model, 'llama3');
+        expect(prefs.temperature, closeTo(0.7, 0.001));
+        expect(prefs.darkMode, isTrue);
+        expect(prefs.scrollOffset, closeTo(42.0, 0.01));
+      });
+    });
+
+    group('darkMode', () {
+      test('returns false when darkMode key is missing', () async {
+        prefsFile.writeAsStringSync(json.encode({'model': 'llama3', 'temperature': 0.5}));
+        final prefs = await service.load();
+        expect(prefs.darkMode, isFalse);
+      });
+
+      test('returns stored darkMode true', () async {
+        prefsFile.writeAsStringSync(json.encode({'darkMode': true}));
+        final prefs = await service.load();
+        expect(prefs.darkMode, isTrue);
+      });
+    });
+
+    group('scrollOffset', () {
+      test('returns 0.0 when scrollOffset key is missing', () async {
+        prefsFile.writeAsStringSync(json.encode({'model': 'llama3'}));
+        final prefs = await service.load();
+        expect(prefs.scrollOffset, 0.0);
+      });
+
+      test('returns stored scrollOffset', () async {
+        prefsFile.writeAsStringSync(json.encode({'scrollOffset': 200.5}));
+        final prefs = await service.load();
+        expect(prefs.scrollOffset, closeTo(200.5, 0.01));
+      });
     });
   });
 }

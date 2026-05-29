@@ -33,7 +33,7 @@ void main() {
 
       expect(
         find.byWidgetPredicate(
-          (w) => w is ColoredBox && w.color == cs.surfaceContainerLow,
+          (w) => w is Material && w.color == cs.surfaceContainerLow,
         ),
         findsOneWidget,
       );

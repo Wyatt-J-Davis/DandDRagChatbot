@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:ttrpg_chatbot/services/model_service.dart';
+import 'package:ttrpg_chatbot/services/party_service.dart';
 import 'package:ttrpg_chatbot/services/summary_service.dart';
 import 'package:ttrpg_chatbot/services/upload_service.dart';
 import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
@@ -136,6 +137,19 @@ class _FakeNoteContentService extends NoteContentService {
   }
 }
 
+class _FakePartyService extends PartyService {
+  int fetchCount = 0;
+  final List<String> _members;
+
+  _FakePartyService([this._members = const []]);
+
+  @override
+  Future<List<String>> fetchPartyMembers() async {
+    fetchCount++;
+    return List<String>.from(_members);
+  }
+}
+
 Widget buildSubject({
   AppStateNotifier? appState,
   ModelService? modelService,
@@ -146,6 +160,7 @@ Widget buildSubject({
   VectorizeService? vectorizeService,
   NoteContentService? noteContentService,
   StatusService? statusService,
+  PartyService? partyService,
 }) {
   return MaterialApp(
     localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
@@ -160,6 +175,7 @@ Widget buildSubject({
       vectorizeService: vectorizeService,
       noteContentService: noteContentService,
       statusService: statusService,
+      partyService: partyService,
     ),
   );
 }
@@ -660,6 +676,43 @@ void main() {
       await tester.pump();
 
       expect(appState.hasNotes, isTrue);
+    });
+
+    testWidgets('calls PartyService.fetchPartyMembers on startup when service provided',
+        (WidgetTester tester) async {
+      final partyService = _FakePartyService();
+
+      await tester.pumpWidget(buildSubject(partyService: partyService));
+      await tester.pump();
+
+      expect(partyService.fetchCount, 1);
+    });
+
+    testWidgets('sets appState.partyMembers from PartyService response',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      final partyService = _FakePartyService(['Aria', 'Borin']);
+
+      await tester.pumpWidget(buildSubject(
+          appState: appState, partyService: partyService));
+      await tester.pump();
+
+      expect(appState.partyMembers, ['Aria', 'Borin']);
+    });
+
+    testWidgets('restores darkMode from UserPreferencesService on startup',
+        (WidgetTester tester) async {
+      final fakePrefs = _FakePrefsService(
+        const UserPreferences(darkMode: true),
+      );
+
+      await tester.pumpWidget(buildSubject(prefsService: fakePrefs));
+      await tester.pump();
+
+      await tester.tap(find.text('Note Editor'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Light mode'), findsOneWidget);
     });
   });
 }

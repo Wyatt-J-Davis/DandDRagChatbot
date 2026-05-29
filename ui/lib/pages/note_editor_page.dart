@@ -5,12 +5,14 @@ class NoteEditorPage extends StatefulWidget {
   final QuillController? controller;
   final bool darkMode;
   final VoidCallback? onToggleDarkMode;
+  final ScrollController? scrollController;
 
   const NoteEditorPage({
     super.key,
     this.controller,
     this.darkMode = false,
     this.onToggleDarkMode,
+    this.scrollController,
   });
 
   @override
@@ -93,7 +95,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               child: Container(
                 key: const ValueKey('editor_background'),
                 color: editorBg,
-                child: QuillEditor.basic(controller: _controller),
+                child: QuillEditor.basic(
+                  controller: _controller,
+                  scrollController: widget.scrollController,
+                ),
               ),
             ),
           ),

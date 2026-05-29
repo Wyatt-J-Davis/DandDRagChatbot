@@ -8,6 +8,7 @@ import '../services/chat_service.dart';
 import '../services/file_picker_service.dart';
 import '../services/model_service.dart';
 import '../services/note_content_service.dart';
+import '../services/party_service.dart';
 import '../services/summary_service.dart';
 import '../services/upload_service.dart';
 import '../services/user_preferences_service.dart';
@@ -32,6 +33,7 @@ class MainShell extends StatefulWidget {
   final VectorizeService? vectorizeService;
   final NoteContentService? noteContentService;
   final StatusService? statusService;
+  final PartyService? partyService;
 
   const MainShell({
     super.key,
@@ -45,6 +47,7 @@ class MainShell extends StatefulWidget {
     this.vectorizeService,
     this.noteContentService,
     this.statusService,
+    this.partyService,
   });
 
   @override
@@ -56,6 +59,8 @@ class _MainShellState extends State<MainShell> {
   bool _noteEditorDarkMode = false;
   bool _sseActive = false;
   late final QuillController _noteController;
+  late final ScrollController _editorScrollController;
+  double _currentScrollOffset = 0.0;
 
   late Future<List<String>> _modelsFuture;
 
@@ -84,6 +89,12 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _noteController = QuillController.basic();
+    _editorScrollController = ScrollController();
+    _editorScrollController.addListener(() {
+      if (_editorScrollController.hasClients) {
+        _currentScrollOffset = _editorScrollController.offset;
+      }
+    });
     _modelsFuture = widget.modelService.fetchModels();
     if (widget.prefsService != null) {
       widget.appState.addListener(_savePreferences);
@@ -91,10 +102,13 @@ class _MainShellState extends State<MainShell> {
     }
     _loadNotes();
     _loadStatus();
+    _loadParty();
   }
 
   @override
   void dispose() {
+    _savePreferences();
+    _editorScrollController.dispose();
     _noteController.dispose();
     widget.appState.removeListener(_savePreferences);
     super.dispose();
@@ -103,6 +117,10 @@ class _MainShellState extends State<MainShell> {
   Future<void> _applyStoredPreferences() async {
     final prefs = await widget.prefsService!.load();
     if (!mounted) return;
+    // Set local state before appState setters to avoid saving partial values
+    // when notifyListeners fires _savePreferences mid-restore.
+    setState(() => _noteEditorDarkMode = prefs.darkMode);
+    _currentScrollOffset = prefs.scrollOffset;
     widget.appState.setSelectedModel(prefs.model);
     widget.appState.setTemperature(prefs.temperature);
   }
@@ -111,7 +129,18 @@ class _MainShellState extends State<MainShell> {
     widget.prefsService?.save(UserPreferences(
       model: widget.appState.selectedModel,
       temperature: widget.appState.temperature,
+      darkMode: _noteEditorDarkMode,
+      scrollOffset: _currentScrollOffset,
     ));
+  }
+
+  Future<void> _loadParty() async {
+    if (widget.partyService == null) return;
+    try {
+      final members = await widget.partyService!.fetchPartyMembers();
+      if (!mounted) return;
+      widget.appState.setPartyMembers(members);
+    } catch (_) {}
   }
 
   Future<void> _loadStatus() async {
@@ -134,6 +163,15 @@ class _MainShellState extends State<MainShell> {
       text,
       const TextSelection.collapsed(offset: 0),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_editorScrollController.hasClients) return;
+      if (_currentScrollOffset <= 0) return;
+      final maxExtent = _editorScrollController.position.maxScrollExtent;
+      if (maxExtent > 0) {
+        _editorScrollController.jumpTo(
+            _currentScrollOffset.clamp(0.0, maxExtent));
+      }
+    });
   }
 
   Widget _buildPage() {
@@ -154,8 +192,11 @@ class _MainShellState extends State<MainShell> {
         return NoteEditorPage(
           controller: _noteController,
           darkMode: _noteEditorDarkMode,
-          onToggleDarkMode: () =>
-              setState(() => _noteEditorDarkMode = !_noteEditorDarkMode),
+          scrollController: _editorScrollController,
+          onToggleDarkMode: () {
+            setState(() => _noteEditorDarkMode = !_noteEditorDarkMode);
+            _savePreferences();
+          },
         );
       default:
         return QAPage(

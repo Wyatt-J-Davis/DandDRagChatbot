@@ -53,6 +53,17 @@ class AppStateNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setPartyMembers(List<String> members) {
+    _partyMembers.clear();
+    _partyMembers.addAll(
+      members.map((n) => n.trim()).where((n) => n.isNotEmpty),
+    );
+    if (_noteTaker != null && !_partyMembers.contains(_noteTaker)) {
+      _noteTaker = null;
+    }
+    notifyListeners();
+  }
+
   void setSelectedNotesPath(String? path) {
     if (_selectedNotesPath == path) return;
     _selectedNotesPath = path;
