@@ -41,7 +41,7 @@ void main() {
     test('emits ChatAnswerEvent with answer and sources on done event',
         () async {
       final client = MockClient.streaming((request, _) async => _sseResponse([
-            '{"done":true,"answer":"42","sources":["source A","source B"]}',
+            '{"done":true,"answer":"42","sources":[{"content":"source A","date":"2023-10-27"},{"content":"source B","date":"2024-03-15"}]}',
           ]));
 
       final service = ChatService(port: 9999, httpClient: client);
@@ -52,7 +52,25 @@ void main() {
       expect(events, [isA<ChatAnswerEvent>()]);
       final answer = events[0] as ChatAnswerEvent;
       expect(answer.answer, '42');
-      expect(answer.sources, ['source A', 'source B']);
+      expect(answer.sources.length, 2);
+      expect(answer.sources[0].content, 'source A');
+      expect(answer.sources[0].date, '2023-10-27');
+      expect(answer.sources[1].content, 'source B');
+      expect(answer.sources[1].date, '2024-03-15');
+    });
+
+    test('ChatSource date is null when backend date is "Unknown"', () async {
+      final client = MockClient.streaming((request, _) async => _sseResponse([
+            '{"done":true,"answer":"ok","sources":[{"content":"chunk","date":"Unknown"}]}',
+          ]));
+
+      final service = ChatService(port: 9999, httpClient: client);
+      final events = await service
+          .chat(question: 'q', model: 'm', temperature: 0.5)
+          .toList();
+
+      final answer = events[0] as ChatAnswerEvent;
+      expect(answer.sources[0].date, isNull);
     });
 
     test('emits ChatErrorEvent on error done event', () async {

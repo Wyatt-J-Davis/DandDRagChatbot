@@ -199,7 +199,10 @@ def create_app() -> FastAPI:
                         "the question needs to be reworded, or spelling needs to be reviewed."
                     )
 
-                sources = [doc.page_content for doc in notes]
+                sources = [
+                    {"content": doc.page_content, "date": doc.metadata.get("Date", "Unknown")}
+                    for doc in notes
+                ]
                 yield _sse_event({"done": True, "answer": answer, "sources": sources})
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})

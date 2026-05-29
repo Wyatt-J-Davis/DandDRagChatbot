@@ -46,7 +46,7 @@ class _ErrorChatService extends ChatService {
 }
 
 class _SourcedAnswerChatService extends ChatService {
-  final List<String> sources;
+  final List<ChatSource> sources;
   _SourcedAnswerChatService(this.sources);
 
   @override
@@ -266,7 +266,10 @@ void main() {
     testWidgets('reference chips appear when answer has sources',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject(
-          chatService: _SourcedAnswerChatService(['chunk a', 'chunk b'])));
+          chatService: _SourcedAnswerChatService([
+            const ChatSource(content: 'chunk a', date: null),
+            const ChatSource(content: 'chunk b', date: null),
+          ])));
       await tester.enterText(find.byType(TextField), 'question');
       await tester.pump();
       await tester.tap(find.byType(IconButton));
@@ -275,10 +278,29 @@ void main() {
       expect(find.byType(ReferenceChip), findsNWidgets(2));
     });
 
-    testWidgets('chip labels are "Source 1", "Source 2", etc.',
+    testWidgets('chip labels show date when source has a date',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject(
-          chatService: _SourcedAnswerChatService(['chunk a', 'chunk b'])));
+          chatService: _SourcedAnswerChatService([
+            const ChatSource(content: 'chunk a', date: '2023-10-27'),
+            const ChatSource(content: 'chunk b', date: '2024-03-15'),
+          ])));
+      await tester.enterText(find.byType(TextField), 'question');
+      await tester.pump();
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2023-10-27'), findsOneWidget);
+      expect(find.text('2024-03-15'), findsOneWidget);
+    });
+
+    testWidgets('chip labels fall back to "Source N" when date is null',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject(
+          chatService: _SourcedAnswerChatService([
+            const ChatSource(content: 'chunk a', date: null),
+            const ChatSource(content: 'chunk b', date: null),
+          ])));
       await tester.enterText(find.byType(TextField), 'question');
       await tester.pump();
       await tester.tap(find.byType(IconButton));
@@ -303,7 +325,9 @@ void main() {
     testWidgets('no reference chips for user messages',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject(
-          chatService: _SourcedAnswerChatService(['chunk a'])));
+          chatService: _SourcedAnswerChatService([
+            const ChatSource(content: 'chunk a', date: null),
+          ])));
       await tester.enterText(find.byType(TextField), 'question');
       await tester.pump();
       await tester.tap(find.byType(IconButton));
@@ -316,7 +340,9 @@ void main() {
     testWidgets('tapping a reference chip opens a dialog',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject(
-          chatService: _SourcedAnswerChatService(['chunk a'])));
+          chatService: _SourcedAnswerChatService([
+            const ChatSource(content: 'chunk a', date: null),
+          ])));
       await tester.enterText(find.byType(TextField), 'question');
       await tester.pump();
       await tester.tap(find.byType(IconButton));
@@ -331,7 +357,9 @@ void main() {
     testWidgets('dialog displays the source chunk text',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject(
-          chatService: _SourcedAnswerChatService(['The goblin king rules here.'])));
+          chatService: _SourcedAnswerChatService([
+            const ChatSource(content: 'The goblin king rules here.', date: null),
+          ])));
       await tester.enterText(find.byType(TextField), 'question');
       await tester.pump();
       await tester.tap(find.byType(IconButton));
@@ -346,7 +374,9 @@ void main() {
     testWidgets('dialog close button dismisses the dialog',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject(
-          chatService: _SourcedAnswerChatService(['chunk a'])));
+          chatService: _SourcedAnswerChatService([
+            const ChatSource(content: 'chunk a', date: null),
+          ])));
       await tester.enterText(find.byType(TextField), 'question');
       await tester.pump();
       await tester.tap(find.byType(IconButton));
@@ -365,7 +395,9 @@ void main() {
     testWidgets('dialog content is scrollable',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject(
-          chatService: _SourcedAnswerChatService(['chunk a'])));
+          chatService: _SourcedAnswerChatService([
+            const ChatSource(content: 'chunk a', date: null),
+          ])));
       await tester.enterText(find.byType(TextField), 'question');
       await tester.pump();
       await tester.tap(find.byType(IconButton));

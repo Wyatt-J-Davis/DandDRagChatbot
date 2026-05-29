@@ -3,6 +3,12 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+class ChatSource {
+  final String content;
+  final String? date;
+  const ChatSource({required this.content, this.date});
+}
+
 sealed class ChatEvent {}
 
 final class ChatProgressEvent extends ChatEvent {
@@ -12,7 +18,7 @@ final class ChatProgressEvent extends ChatEvent {
 
 final class ChatAnswerEvent extends ChatEvent {
   final String answer;
-  final List<String> sources;
+  final List<ChatSource> sources;
   ChatAnswerEvent({required this.answer, required this.sources});
 }
 
@@ -58,7 +64,14 @@ class ChatService {
           yield ChatAnswerEvent(
             answer: payload['answer']?.toString() ?? '',
             sources: (payload['sources'] as List<dynamic>?)
-                    ?.map((e) => e.toString())
+                    ?.map((e) {
+                      final map = e as Map<String, dynamic>;
+                      final rawDate = map['date']?.toString();
+                      return ChatSource(
+                        content: map['content']?.toString() ?? '',
+                        date: (rawDate == null || rawDate == 'Unknown') ? null : rawDate,
+                      );
+                    })
                     .toList() ??
                 [],
           );

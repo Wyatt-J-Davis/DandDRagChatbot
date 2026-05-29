@@ -186,9 +186,10 @@ class TestUploadNotesEndpoint:
         persistence.persist.assert_not_called()
 
 
-def _make_mock_doc(content: str) -> MagicMock:
+def _make_mock_doc(content: str, date: str = "2023-10-27") -> MagicMock:
     doc = MagicMock()
     doc.page_content = content
+    doc.metadata = {"Date": date}
     return doc
 
 
@@ -243,7 +244,37 @@ class TestChatEndpoint:
         client = self._client_with_handlers(llm, db)
         response = client.post("/chat", json=self._CHAT_BODY)
         events = _parse_sse_events(response.text)
-        assert events[-1]["sources"] == ["Chunk A", "Chunk B"]
+        sources = events[-1]["sources"]
+        assert [s["content"] for s in sources] == ["Chunk A", "Chunk B"]
+
+    def test_sources_include_date_metadata(self):
+        llm = MagicMock()
+        llm.invoke_model.return_value = "Answer"
+        db = MagicMock()
+        db.retrieve_notes.return_value = [
+            _make_mock_doc("Chunk A", date="2023-10-27"),
+            _make_mock_doc("Chunk B", date="2024-03-15"),
+        ]
+        client = self._client_with_handlers(llm, db)
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        sources = events[-1]["sources"]
+        assert sources[0]["date"] == "2023-10-27"
+        assert sources[1]["date"] == "2024-03-15"
+
+    def test_sources_fallback_to_unknown_when_date_absent(self):
+        llm = MagicMock()
+        llm.invoke_model.return_value = "Answer"
+        db = MagicMock()
+        doc = MagicMock()
+        doc.page_content = "Some chunk"
+        doc.metadata = {}
+        db.retrieve_notes.return_value = [doc]
+        client = self._client_with_handlers(llm, db)
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        sources = events[-1]["sources"]
+        assert sources[0]["date"] == "Unknown"
 
     def test_error_emits_sse_error_event_not_http_500(self):
         llm = MagicMock()

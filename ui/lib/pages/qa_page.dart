@@ -8,7 +8,7 @@ import '../widgets/reference_chip.dart';
 class _ChatMessage {
   final ChatSender sender;
   final String text;
-  final List<String> sources;
+  final List<ChatSource> sources;
   const _ChatMessage({required this.sender, required this.text, this.sources = const []});
 }
 
@@ -53,7 +53,8 @@ class _QAPageState extends State<QAPage> {
     });
   }
 
-  void _showSourceDialog(BuildContext context, String sourceText) {
+  void _showSourceDialog(BuildContext context, ChatSource source) {
+    final sourceText = source.content;
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
@@ -137,6 +138,7 @@ class _QAPageState extends State<QAPage> {
                           for (var i = 0; i < msg.sources.length; i++)
                             ReferenceChip(
                               index: i + 1,
+                              date: msg.sources[i].date,
                               onTap: () => _showSourceDialog(context, msg.sources[i]),
                             ),
                         ],
