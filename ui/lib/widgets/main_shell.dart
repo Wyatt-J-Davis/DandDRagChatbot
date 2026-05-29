@@ -15,6 +15,7 @@ import '../services/user_preferences_service.dart';
 import '../services/status_service.dart';
 import '../services/vectorize_service.dart';
 import '../state/app_state_notifier.dart';
+import '../state/operation_manager.dart';
 import 'model_selector_dropdown.dart';
 import 'notes_upload_button.dart';
 import 'vectorize_button.dart';
@@ -57,10 +58,10 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
   bool _noteEditorDarkMode = false;
-  bool _sseActive = false;
   late final QuillController _noteController;
   late final ScrollController _editorScrollController;
   double _currentScrollOffset = 0.0;
+  late final OperationManager _operationManager;
 
   late Future<List<String>> _modelsFuture;
 
@@ -82,9 +83,6 @@ class _MainShellState extends State<MainShell> {
     ),
   ];
 
-  void _onSseStart() => setState(() => _sseActive = true);
-  void _onSseDone() => setState(() => _sseActive = false);
-
   @override
   void initState() {
     super.initState();
@@ -96,6 +94,14 @@ class _MainShellState extends State<MainShell> {
       }
     });
     _modelsFuture = widget.modelService.fetchModels();
+    _operationManager = OperationManager(
+      appState: widget.appState,
+      chatService: widget.chatService,
+      uploadService: widget.uploadService,
+      vectorizeService: widget.vectorizeService,
+      summaryService: widget.summaryService,
+      onUploadSuccess: _loadNotes,
+    );
     if (widget.prefsService != null) {
       widget.appState.addListener(_savePreferences);
       _applyStoredPreferences();
@@ -107,6 +113,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    _operationManager.dispose();
     _savePreferences();
     _editorScrollController.dispose();
     _noteController.dispose();
@@ -117,8 +124,6 @@ class _MainShellState extends State<MainShell> {
   Future<void> _applyStoredPreferences() async {
     final prefs = await widget.prefsService!.load();
     if (!mounted) return;
-    // Set local state before appState setters to avoid saving partial values
-    // when notifyListeners fires _savePreferences mid-restore.
     setState(() => _noteEditorDarkMode = prefs.darkMode);
     _currentScrollOffset = prefs.scrollOffset;
     widget.appState.setSelectedModel(prefs.model);
@@ -179,14 +184,12 @@ class _MainShellState extends State<MainShell> {
       case 0:
         return QAPage(
           appState: widget.appState,
-          chatService: widget.chatService,
+          operationManager: _operationManager,
         );
       case 1:
         return SummaryPage(
           appState: widget.appState,
-          summaryService: widget.summaryService,
-          onSseStart: _onSseStart,
-          onSseDone: _onSseDone,
+          operationManager: _operationManager,
         );
       case 2:
         return NoteEditorPage(
@@ -201,7 +204,7 @@ class _MainShellState extends State<MainShell> {
       default:
         return QAPage(
           appState: widget.appState,
-          chatService: widget.chatService,
+          operationManager: _operationManager,
         );
     }
   }
@@ -234,10 +237,8 @@ class _MainShellState extends State<MainShell> {
               NotesUploadButton(
                 appState: widget.appState,
                 pickerService: widget.pickerService ?? FilePickerService(),
-                uploadService: widget.uploadService ?? UploadService(),
-                onSseStart: _onSseStart,
-                onSseDone: _onSseDone,
-                onUploadSuccess: () { _loadNotes(); },
+                operationManager: _operationManager,
+                onUploadSuccess: _loadNotes,
               ),
             ],
           ),
@@ -247,9 +248,7 @@ class _MainShellState extends State<MainShell> {
           padding: const EdgeInsets.all(12.0),
           child: VectorizeButton(
             controller: _noteController,
-            vectorizeService: widget.vectorizeService,
-            onSseStart: _onSseStart,
-            onSseDone: _onSseDone,
+            operationManager: _operationManager,
           ),
         );
       default:
@@ -262,18 +261,12 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       body: Row(
         children: [
-          IgnorePointer(
-            ignoring: _sseActive,
-            child: Opacity(
-              opacity: _sseActive ? 0.38 : 1.0,
-              child: NavigationRail(
-                selectedIndex: _selectedIndex,
-                onDestinationSelected: (index) =>
-                    setState(() => _selectedIndex = index),
-                labelType: NavigationRailLabelType.all,
-                destinations: _destinations,
-              ),
-            ),
+          NavigationRail(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (index) =>
+                setState(() => _selectedIndex = index),
+            labelType: NavigationRailLabelType.all,
+            destinations: _destinations,
           ),
           const VerticalDivider(thickness: 1, width: 1),
           SidebarPanel(child: _buildSidebarChild()),

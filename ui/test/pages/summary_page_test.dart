@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/pages/summary_page.dart';
 import 'package:ttrpg_chatbot/services/summary_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
+import 'package:ttrpg_chatbot/state/operation_manager.dart';
 
 class _NoOpSummaryService extends SummaryService {
   @override
@@ -41,22 +42,6 @@ class _ProgressAndHangSummaryService extends SummaryService {
 
   @override
   Future<SummaryResult?> fetchSummary() async => null;
-}
-
-class _ProgressThenDoneSummaryService extends SummaryService {
-  final String progressMessage;
-  _ProgressThenDoneSummaryService(this.progressMessage);
-
-  @override
-  Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {
-    yield SummaryProgressEvent(progress: 30, message: progressMessage);
-    yield SummaryDoneEvent();
-  }
-
-  @override
-  Future<SummaryResult?> fetchSummary() async =>
-      SummaryResult(summary: 'The campaign summary text.');
 }
 
 class _DoneSummaryService extends SummaryService {
@@ -178,11 +163,16 @@ class _LoadedThenDoneService extends SummaryService {
 }
 
 Widget buildSubject({SummaryService? summaryService}) {
+  final appState = AppStateNotifier(initialModel: 'llama3');
+  final theService = summaryService ?? _NoOpSummaryService();
   return MaterialApp(
     home: Scaffold(
       body: SummaryPage(
-        appState: AppStateNotifier(initialModel: 'llama3'),
-        summaryService: summaryService ?? _NoOpSummaryService(),
+        appState: appState,
+        operationManager: OperationManager(
+          appState: appState,
+          summaryService: theService,
+        ),
       ),
     ),
   );
@@ -198,8 +188,9 @@ void main() {
 
     testWidgets('button is enabled initially', (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
       final button =
-          tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+          tester.widget<ElevatedButton>(find.byType(ElevatedButton).first);
       expect(button.onPressed, isNotNull);
     });
 
@@ -207,11 +198,12 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _HangingSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pump();
 
       final button =
-          tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+          tester.widget<ElevatedButton>(find.byType(ElevatedButton).first);
       expect(button.onPressed, isNull);
     });
 
@@ -219,6 +211,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _HangingSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pump();
 
@@ -230,6 +223,7 @@ void main() {
       await tester.pumpWidget(buildSubject(
           summaryService: _ProgressAndHangSummaryService(
               'Summarizing section 1 of 3...')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pump();
 
@@ -241,6 +235,7 @@ void main() {
       await tester.pumpWidget(buildSubject(
           summaryService: _ProgressAndHangSummaryService(
               'Summarizing section 1 of 3...')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pump();
 
@@ -252,6 +247,7 @@ void main() {
       await tester.pumpWidget(buildSubject(
           summaryService: _ProgressAndHangSummaryService(
               'Combining summaries (pass 1)...')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pump();
 
@@ -263,6 +259,7 @@ void main() {
       await tester.pumpWidget(buildSubject(
           summaryService: _ProgressAndHangSummaryService(
               'Writing final campaign summary...')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pump();
 
@@ -273,6 +270,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pumpAndSettle();
 
@@ -283,6 +281,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pumpAndSettle();
 
@@ -293,6 +292,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _ErrorSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pumpAndSettle();
 
@@ -302,6 +302,7 @@ void main() {
     testWidgets('after done: button is re-enabled', (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pumpAndSettle();
 
@@ -314,11 +315,12 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _ErrorSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pumpAndSettle();
 
       final button =
-          tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+          tester.widget<ElevatedButton>(find.byType(ElevatedButton).first);
       expect(button.onPressed, isNotNull);
     });
 
@@ -326,6 +328,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pumpAndSettle();
 
@@ -337,6 +340,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _ErrorSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pumpAndSettle();
 
@@ -367,6 +371,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
           buildSubject(summaryService: _HangingSummaryService()));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pump();
 

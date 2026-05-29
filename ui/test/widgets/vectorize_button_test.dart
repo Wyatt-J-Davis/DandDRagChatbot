@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/services/vectorize_service.dart';
+import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
+import 'package:ttrpg_chatbot/state/operation_manager.dart';
 import 'package:ttrpg_chatbot/widgets/vectorize_button.dart';
 
 class _FakeVectorizeService extends VectorizeService {
@@ -18,14 +20,22 @@ class _FakeVectorizeService extends VectorizeService {
 Widget buildSubject({
   required QuillController controller,
   required VectorizeService service,
-}) =>
-    MaterialApp(
-      localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
-      supportedLocales: FlutterQuillLocalizations.supportedLocales,
-      home: Scaffold(
-        body: VectorizeButton(controller: controller, vectorizeService: service),
+}) {
+  final appState = AppStateNotifier();
+  return MaterialApp(
+    localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
+    supportedLocales: FlutterQuillLocalizations.supportedLocales,
+    home: Scaffold(
+      body: VectorizeButton(
+        controller: controller,
+        operationManager: OperationManager(
+          appState: appState,
+          vectorizeService: service,
+        ),
       ),
-    );
+    ),
+  );
+}
 
 void main() {
   group('VectorizeButton', () {

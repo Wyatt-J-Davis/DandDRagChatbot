@@ -1,78 +1,96 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
-import '../services/vectorize_service.dart';
+import '../state/operation_manager.dart';
 
 class VectorizeButton extends StatefulWidget {
   final QuillController controller;
-  final VectorizeService vectorizeService;
-  final VoidCallback? onSseStart;
-  final VoidCallback? onSseDone;
+  final OperationManager operationManager;
 
-  VectorizeButton({
+  const VectorizeButton({
     super.key,
     required this.controller,
-    VectorizeService? vectorizeService,
-    this.onSseStart,
-    this.onSseDone,
-  }) : vectorizeService = vectorizeService ?? VectorizeService();
+    required this.operationManager,
+  });
 
   @override
   State<VectorizeButton> createState() => _VectorizeButtonState();
 }
 
 class _VectorizeButtonState extends State<VectorizeButton> {
-  bool _isVectorizing = false;
-  int _progress = 0;
-  String? _error;
-  bool _success = false;
+  OperationStatus _previousStatus = OperationStatus.idle;
+  bool _showSuccess = false;
 
-  Future<void> _startVectorize() async {
-    final text = widget.controller.document.toPlainText();
-    setState(() {
-      _isVectorizing = true;
-      _progress = 0;
-      _error = null;
-      _success = false;
-    });
-    widget.onSseStart?.call();
-    await for (final event in widget.vectorizeService.vectorize(text)) {
-      if (!mounted) return;
-      if (event is VectorizeProgressEvent) {
-        setState(() => _progress = event.progress);
-      } else if (event is VectorizeDoneEvent) {
-        setState(() {
-          _isVectorizing = false;
-          _success = true;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Notes vectorized successfully')),
-        );
-      } else if (event is VectorizeErrorEvent) {
-        setState(() {
-          _isVectorizing = false;
-          _error = event.message;
-        });
-      }
+  @override
+  void initState() {
+    super.initState();
+    widget.operationManager.addListener(_onManagerChange);
+    _syncState();
+  }
+
+  @override
+  void didUpdateWidget(VectorizeButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.operationManager != widget.operationManager) {
+      oldWidget.operationManager.removeListener(_onManagerChange);
+      widget.operationManager.addListener(_onManagerChange);
+      _syncState();
     }
-    widget.onSseDone?.call();
+  }
+
+  @override
+  void dispose() {
+    widget.operationManager.removeListener(_onManagerChange);
+    super.dispose();
+  }
+
+  void _syncState() {
+    _previousStatus = widget.operationManager.vectorizeStatus;
+    _showSuccess =
+        widget.operationManager.vectorizeStatus == OperationStatus.done;
+  }
+
+  void _onManagerChange() {
+    if (!mounted) return;
+    final status = widget.operationManager.vectorizeStatus;
+    if (status == OperationStatus.done &&
+        _previousStatus == OperationStatus.running) {
+      _showSuccess = true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notes vectorized successfully')),
+      );
+    }
+    if (status == OperationStatus.running) {
+      _showSuccess = false;
+    }
+    _previousStatus = status;
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final isVectorizing = widget.operationManager.isVectorizeRunning;
+    final progress = widget.operationManager.vectorizeProgress;
+    final error = widget.operationManager.vectorizeError;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         ElevatedButton(
-          onPressed: _isVectorizing ? null : _startVectorize,
+          onPressed: isVectorizing
+              ? null
+              : () {
+                  final text = widget.controller.document.toPlainText();
+                  widget.operationManager.startVectorize(text: text);
+                },
           child: const Text('Vectorize'),
         ),
-        if (_isVectorizing) ...[
+        if (isVectorizing) ...[
           const SizedBox(height: 8),
-          LinearProgressIndicator(value: _progress / 100),
+          LinearProgressIndicator(value: progress / 100),
         ],
-        if (_success) ...[
+        if (_showSuccess) ...[
           const SizedBox(height: 4),
           Row(
             children: const [
@@ -82,10 +100,10 @@ class _VectorizeButtonState extends State<VectorizeButton> {
             ],
           ),
         ],
-        if (_error != null) ...[
+        if (error != null && !isVectorizing && !_showSuccess) ...[
           const SizedBox(height: 4),
           Text(
-            _error!,
+            error,
             style: const TextStyle(color: Colors.red),
           ),
         ],

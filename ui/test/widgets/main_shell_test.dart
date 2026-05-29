@@ -6,6 +6,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:ttrpg_chatbot/services/chat_service.dart';
 import 'package:ttrpg_chatbot/services/model_service.dart';
 import 'package:ttrpg_chatbot/services/party_service.dart';
 import 'package:ttrpg_chatbot/services/summary_service.dart';
@@ -150,12 +151,27 @@ class _FakePartyService extends PartyService {
   }
 }
 
+class _AnswerChatService extends ChatService {
+  final String answer;
+  _AnswerChatService([this.answer = 'The answer']);
+
+  @override
+  Stream<ChatEvent> chat({
+    required String question,
+    required String model,
+    required double temperature,
+  }) async* {
+    yield ChatAnswerEvent(answer: answer, sources: []);
+  }
+}
+
 Widget buildSubject({
   AppStateNotifier? appState,
   ModelService? modelService,
   UserPreferencesService? prefsService,
   FilePickerService? pickerService,
   UploadService? uploadService,
+  ChatService? chatService,
   SummaryService? summaryService,
   VectorizeService? vectorizeService,
   NoteContentService? noteContentService,
@@ -171,6 +187,7 @@ Widget buildSubject({
       prefsService: prefsService,
       pickerService: pickerService ?? _FakePickerService(),
       uploadService: uploadService,
+      chatService: chatService,
       summaryService: summaryService,
       vectorizeService: vectorizeService,
       noteContentService: noteContentService,
@@ -493,9 +510,9 @@ void main() {
       expect(find.byTooltip('Light mode'), findsOneWidget);
     });
 
-    group('navigation lock during SSE', () {
+    group('operations survive page switches', () {
       testWidgets(
-          'destinations are disabled while upload SSE is active',
+          'navigation is allowed while upload SSE is active',
           (WidgetTester tester) async {
         final appState = AppStateNotifier();
         appState.setSelectedNotesPath(r'C:\notes.txt');
@@ -510,45 +527,18 @@ void main() {
         await tester.tap(find.text('Vectorize'));
         await tester.pump();
 
+        // Navigation must succeed while upload is in progress
         await tester.tap(find.text('Summary'));
-        await tester.pump();
+        await tester.pumpAndSettle();
 
-        expect(find.byType(QAPage), findsOneWidget);
+        expect(find.byType(SummaryPage), findsOneWidget);
 
         uploadService.controller.close();
         await tester.pumpAndSettle();
       });
 
       testWidgets(
-          'destinations are re-enabled after upload SSE completes',
-          (WidgetTester tester) async {
-        final appState = AppStateNotifier();
-        appState.setSelectedNotesPath(r'C:\notes.txt');
-        final uploadService = _BlockingUploadService();
-        final summaryService = _BlockingSummaryService();
-
-        await tester.pumpWidget(buildSubject(
-          appState: appState,
-          uploadService: uploadService,
-          summaryService: summaryService,
-        ));
-        await tester.pump();
-
-        await tester.tap(find.text('Vectorize'));
-        await tester.pump();
-
-        uploadService.controller.add(UploadDoneEvent());
-        await uploadService.controller.close();
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('Summary'));
-        await tester.pumpAndSettle();
-
-        expect(find.byType(SummaryPage), findsOneWidget);
-      });
-
-      testWidgets(
-          'destinations are disabled while vectorize SSE is active',
+          'navigation is allowed while vectorize SSE is active',
           (WidgetTester tester) async {
         final vectorizeService = _BlockingVectorizeService();
 
@@ -562,42 +552,18 @@ void main() {
         await tester.tap(find.widgetWithText(ElevatedButton, 'Vectorize'));
         await tester.pump();
 
+        // Navigation must succeed while vectorize is in progress
         await tester.tap(find.text('Q&A'));
-        await tester.pump();
+        await tester.pumpAndSettle();
 
-        expect(find.byType(QuillEditor), findsOneWidget);
+        expect(find.byType(QAPage), findsOneWidget);
 
         vectorizeService.controller.close();
         await tester.pumpAndSettle();
       });
 
       testWidgets(
-          'destinations are re-enabled after vectorize SSE completes',
-          (WidgetTester tester) async {
-        final vectorizeService = _BlockingVectorizeService();
-
-        await tester.pumpWidget(buildSubject(
-          vectorizeService: vectorizeService,
-        ));
-
-        await tester.tap(find.text('Note Editor'));
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.widgetWithText(ElevatedButton, 'Vectorize'));
-        await tester.pump();
-
-        vectorizeService.controller.add(VectorizeDoneEvent());
-        await vectorizeService.controller.close();
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('Q&A'));
-        await tester.pumpAndSettle();
-
-        expect(find.byType(QAPage), findsOneWidget);
-      });
-
-      testWidgets(
-          'destinations are disabled while summary generation SSE is active',
+          'navigation is allowed while summary generation SSE is active',
           (WidgetTester tester) async {
         final summaryService = _BlockingSummaryService();
 
@@ -611,38 +577,47 @@ void main() {
         await tester.tap(find.text('Generate Summary'));
         await tester.pump();
 
+        // Navigation must succeed while summary generation is in progress
         await tester.tap(find.text('Q&A'));
-        await tester.pump();
+        await tester.pumpAndSettle();
 
-        expect(find.byType(SummaryPage), findsOneWidget);
+        expect(find.byType(QAPage), findsOneWidget);
 
         summaryService.controller.close();
         await tester.pumpAndSettle();
       });
 
-      testWidgets(
-          'destinations are re-enabled after summary generation SSE completes',
+      testWidgets('chat history persists after navigating away and back',
           (WidgetTester tester) async {
-        final summaryService = _BlockingSummaryService();
+        final appState = AppStateNotifier();
+        final chatService = _AnswerChatService('The dragon is red.');
 
         await tester.pumpWidget(buildSubject(
-          summaryService: summaryService,
+          appState: appState,
+          chatService: chatService,
         ));
-
-        await tester.tap(find.text('Summary'));
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('Generate Summary'));
         await tester.pump();
 
-        summaryService.controller.add(SummaryErrorEvent(message: 'err'));
-        await summaryService.controller.close();
+        // Use the QAPage text field (last TextField — sidebar PartyMemberInput
+        // has one too, which comes first in the widget tree)
+        await tester.enterText(
+            find.byType(TextField).last, 'What is the dragon?');
+        await tester.pump();
+        await tester.tap(find.byIcon(Icons.send));
         await tester.pumpAndSettle();
 
+        expect(find.text('What is the dragon?'), findsOneWidget);
+        expect(find.text('The dragon is red.'), findsOneWidget);
+
+        // Navigate away and back
+        await tester.tap(find.text('Summary'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Q&A'));
         await tester.pumpAndSettle();
 
-        expect(find.byType(QAPage), findsOneWidget);
+        // History must still be present
+        expect(find.text('What is the dragon?'), findsOneWidget);
+        expect(find.text('The dragon is red.'), findsOneWidget);
       });
     });
 

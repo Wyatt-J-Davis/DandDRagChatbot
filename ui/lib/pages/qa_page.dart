@@ -2,25 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../services/chat_service.dart';
 import '../state/app_state_notifier.dart';
+import '../state/operation_manager.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/reference_chip.dart';
 
-class _ChatMessage {
-  final ChatSender sender;
-  final String text;
-  final List<ChatSource> sources;
-  const _ChatMessage({required this.sender, required this.text, this.sources = const []});
-}
-
 class QAPage extends StatefulWidget {
   final AppStateNotifier appState;
-  final ChatService chatService;
+  final OperationManager operationManager;
 
-  QAPage({
+  const QAPage({
     super.key,
     required this.appState,
-    ChatService? chatService,
-  }) : chatService = chatService ?? ChatService();
+    required this.operationManager,
+  });
 
   @override
   State<QAPage> createState() => _QAPageState();
@@ -30,15 +24,43 @@ class _QAPageState extends State<QAPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocus = FocusNode();
-  final List<_ChatMessage> _messages = [];
-  bool _isLoading = false;
+  OperationStatus _previousChatStatus = OperationStatus.idle;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.appState.addListener(_onStateChange);
+    widget.operationManager.addListener(_onManagerChange);
+    _previousChatStatus = widget.operationManager.chatStatus;
+  }
 
   @override
   void dispose() {
+    widget.appState.removeListener(_onStateChange);
+    widget.operationManager.removeListener(_onManagerChange);
     _controller.dispose();
     _scrollController.dispose();
     _inputFocus.dispose();
     super.dispose();
+  }
+
+  void _onStateChange() {
+    if (mounted) {
+      setState(() {});
+      _scrollToBottom();
+    }
+  }
+
+  void _onManagerChange() {
+    if (!mounted) return;
+    final status = widget.operationManager.chatStatus;
+    if (status != OperationStatus.running &&
+        _previousChatStatus == OperationStatus.running) {
+      _inputFocus.requestFocus();
+    }
+    _previousChatStatus = status;
+    setState(() {});
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -54,11 +76,10 @@ class _QAPageState extends State<QAPage> {
   }
 
   void _showSourceDialog(BuildContext context, ChatSource source) {
-    final sourceText = source.content;
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        content: SingleChildScrollView(child: Text(sourceText)),
+        content: SingleChildScrollView(child: Text(source.content)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -69,67 +90,42 @@ class _QAPageState extends State<QAPage> {
     );
   }
 
-  Future<void> _submit() async {
+  void _submit() {
     final text = _controller.text.trim();
-    if (text.isEmpty || _isLoading) return;
+    if (text.isEmpty || widget.operationManager.isChatRunning) return;
 
-    final model = widget.appState.selectedModel ?? '';
-    final temperature = widget.appState.temperature;
-
-    setState(() {
-      _messages.add(_ChatMessage(sender: ChatSender.user, text: text));
-      _controller.clear();
-      _isLoading = true;
-    });
+    widget.appState.addChatMessage(
+      ChatMessage(sender: ChatSender.user, text: text),
+    );
+    _controller.clear();
     _scrollToBottom();
 
-    await for (final event in widget.chatService.chat(
+    widget.operationManager.startChat(
       question: text,
-      model: model,
-      temperature: temperature,
-    )) {
-      if (!mounted) return;
-      if (event is ChatAnswerEvent) {
-        setState(() {
-          _messages.add(_ChatMessage(
-            sender: ChatSender.assistant,
-            text: event.answer,
-            sources: event.sources,
-          ));
-          _isLoading = false;
-        });
-        _scrollToBottom();
-      } else if (event is ChatErrorEvent) {
-        setState(() {
-          _messages.add(_ChatMessage(
-              sender: ChatSender.assistant, text: 'Error: ${event.message}'));
-          _isLoading = false;
-        });
-        _scrollToBottom();
-      }
-    }
-
-    if (mounted && _isLoading) {
-      setState(() => _isLoading = false);
-    }
-    if (mounted) _inputFocus.requestFocus();
+      model: widget.appState.selectedModel ?? '',
+      temperature: widget.appState.temperature,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final messages = widget.appState.chatHistory;
+    final isLoading = widget.operationManager.isChatRunning;
+
     return Column(
       children: [
         Expanded(
           child: ListView.builder(
             controller: _scrollController,
-            itemCount: _messages.length,
+            itemCount: messages.length,
             itemBuilder: (context, index) {
-              final msg = _messages[index];
+              final msg = messages[index];
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ChatBubble(message: msg.text, sender: msg.sender),
-                  if (msg.sender == ChatSender.assistant && msg.sources.isNotEmpty)
+                  if (msg.sender == ChatSender.assistant &&
+                      msg.sources.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(left: 8, bottom: 4),
                       child: Wrap(
@@ -139,7 +135,8 @@ class _QAPageState extends State<QAPage> {
                             ReferenceChip(
                               index: i + 1,
                               date: msg.sources[i].date,
-                              onTap: () => _showSourceDialog(context, msg.sources[i]),
+                              onTap: () =>
+                                  _showSourceDialog(context, msg.sources[i]),
                             ),
                         ],
                       ),
@@ -149,7 +146,7 @@ class _QAPageState extends State<QAPage> {
             },
           ),
         ),
-        if (_isLoading) const LinearProgressIndicator(),
+        if (isLoading) const LinearProgressIndicator(),
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(
@@ -158,7 +155,7 @@ class _QAPageState extends State<QAPage> {
                 child: TextField(
                   controller: _controller,
                   focusNode: _inputFocus,
-                  enabled: !_isLoading,
+                  enabled: !isLoading,
                   onSubmitted: (_) => _submit(),
                   onChanged: (_) => setState(() {}),
                   decoration:
@@ -170,7 +167,7 @@ class _QAPageState extends State<QAPage> {
                 builder: (context, value, _) {
                   return IconButton(
                     icon: const Icon(Icons.send),
-                    onPressed: (value.text.trim().isEmpty || _isLoading)
+                    onPressed: (value.text.trim().isEmpty || isLoading)
                         ? null
                         : _submit,
                   );

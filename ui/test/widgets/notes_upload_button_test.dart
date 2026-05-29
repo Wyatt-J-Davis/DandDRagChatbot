@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
 import 'package:ttrpg_chatbot/services/upload_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
+import 'package:ttrpg_chatbot/state/operation_manager.dart';
 import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
 
 class _FakePickerService extends FilePickerService {
@@ -62,14 +63,19 @@ Widget buildSubject({
   AppStateNotifier? appState,
   FilePickerService? pickerService,
   UploadService? uploadService,
+  VoidCallback? onUploadSuccess,
 }) {
+  final theAppState = appState ?? AppStateNotifier();
   return MaterialApp(
     home: Scaffold(
       body: NotesUploadButton(
-        appState: appState ?? AppStateNotifier(),
+        appState: theAppState,
         pickerService: pickerService ?? _FakePickerService(),
-        uploadService:
-            uploadService ?? _FakeUploadService(events: const []),
+        operationManager: OperationManager(
+          appState: theAppState,
+          uploadService: uploadService ?? _FakeUploadService(events: const []),
+        ),
+        onUploadSuccess: onUploadSuccess,
       ),
     ),
   );
@@ -300,27 +306,17 @@ void main() {
         (WidgetTester tester) async {
       final appState = AppStateNotifier();
       appState.setSelectedNotesPath(r'C:\notes.txt');
-      final controller = StreamController<UploadEvent>();
-      final uploadService = _BlockingUploadService();
-      // Replace controller with one we control
       final customService = _FakeUploadService(
           events: [UploadProgressEvent(progress: 75, message: '75%')]);
       await tester.pumpWidget(
           buildSubject(appState: appState, uploadService: customService));
 
-      // Set path pre-tap via a blocking service to capture mid-state
-      // Use customService which yields progress then stops (no done event)
       await tester.tap(find.text('Vectorize'));
-      await tester.pump(); // process initial setState + first event
+      await tester.pump();
 
       final indicator = tester.widget<LinearProgressIndicator>(
           find.byType(LinearProgressIndicator));
-      // After progress 75, upload is still running (no done event yet)
-      // The indicator value may be 0 or 0.75 depending on timing
       expect(indicator.value, isNotNull);
-
-      controller.close();
-      await tester.pumpAndSettle();
     });
 
     // Re-upload (Issue 20) tests
@@ -360,15 +356,19 @@ void main() {
         (WidgetTester tester) async {
       final appState = AppStateNotifier();
       appState.setSelectedNotesPath(r'C:\notes.txt');
-      final blockingService = _BlockingUploadService();
+
+      final firstAppState = AppStateNotifier();
+      firstAppState.setSelectedNotesPath(r'C:\notes.txt');
       final firstService = _FakeUploadService(events: [UploadDoneEvent()]);
 
-      await tester.pumpWidget(
-          buildSubject(appState: appState, uploadService: firstService));
+      await tester.pumpWidget(buildSubject(
+          appState: firstAppState, uploadService: firstService));
       await tester.tap(find.text('Vectorize'));
       await tester.pumpAndSettle();
       expect(find.text('Vectorization complete'), findsOneWidget);
 
+      // New widget tree with blocking service — clears success state
+      final blockingService = _BlockingUploadService();
       await tester.pumpWidget(
           buildSubject(appState: appState, uploadService: blockingService));
       await tester.tap(find.text('Vectorize'));
@@ -466,7 +466,10 @@ void main() {
           body: NotesUploadButton(
             appState: appState,
             pickerService: _FakePickerService(),
-            uploadService: uploadService,
+            operationManager: OperationManager(
+              appState: appState,
+              uploadService: uploadService,
+            ),
             onUploadSuccess: () => successCalled = true,
           ),
         ),
@@ -524,7 +527,10 @@ void main() {
           body: NotesUploadButton(
             appState: appState,
             pickerService: _FakePickerService(),
-            uploadService: uploadService,
+            operationManager: OperationManager(
+              appState: appState,
+              uploadService: uploadService,
+            ),
             onUploadSuccess: () => successCalled = true,
           ),
         ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-enum ChatSender { user, assistant }
+import '../services/chat_service.dart';
+
+export '../services/chat_service.dart' show ChatSender;
 
 class ChatBubble extends StatelessWidget {
   final String message;

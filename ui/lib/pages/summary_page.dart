@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/summary_service.dart';
 import '../state/app_state_notifier.dart';
+import '../state/operation_manager.dart';
 
 class _SummarySection {
   final String heading;
@@ -18,17 +19,13 @@ class _SummarySection {
 
 class SummaryPage extends StatefulWidget {
   final AppStateNotifier appState;
-  final SummaryService summaryService;
-  final VoidCallback? onSseStart;
-  final VoidCallback? onSseDone;
+  final OperationManager operationManager;
 
-  SummaryPage({
+  const SummaryPage({
     super.key,
     required this.appState,
-    SummaryService? summaryService,
-    this.onSseStart,
-    this.onSseDone,
-  }) : summaryService = summaryService ?? SummaryService();
+    required this.operationManager,
+  });
 
   @override
   State<SummaryPage> createState() => _SummaryPageState();
@@ -36,34 +33,46 @@ class SummaryPage extends StatefulWidget {
 
 class _SummaryPageState extends State<SummaryPage> {
   bool _isLoadingInitial = true;
-  bool _isGenerating = false;
-  bool _everHadSummary = false;
-  String _progressMessage = '';
-  int _progressValue = 0;
-  String _phase = '';
-  String? _summary;
-  String? _summaryModel;
-  String? _summaryGeneratedAt;
-  String? _error;
-  List<_SummarySection> _sections = [];
+  OperationStatus _previousSummaryStatus = OperationStatus.idle;
 
   @override
   void initState() {
     super.initState();
+    widget.operationManager.addListener(_onManagerChange);
+    _previousSummaryStatus = widget.operationManager.summaryStatus;
     _loadSummary();
   }
 
-  Future<void> _loadSummary() async {
-    final result = await widget.summaryService.fetchSummary();
+  @override
+  void dispose() {
+    widget.operationManager.removeListener(_onManagerChange);
+    super.dispose();
+  }
+
+  void _onManagerChange() {
     if (!mounted) return;
-    setState(() {
-      _summary = result?.summary;
-      _summaryModel = result?.model;
-      _summaryGeneratedAt = result?.generatedAt;
-      _sections = result != null ? _parseSections(result.summary) : [];
-      _isLoadingInitial = false;
-      if (result != null) _everHadSummary = true;
-    });
+    final status = widget.operationManager.summaryStatus;
+    if (status == OperationStatus.done &&
+        _previousSummaryStatus == OperationStatus.running) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Summary generated successfully')),
+      );
+    }
+    _previousSummaryStatus = status;
+    setState(() {});
+  }
+
+  Future<void> _loadSummary() async {
+    await widget.operationManager.loadSummary();
+    if (!mounted) return;
+    setState(() => _isLoadingInitial = false);
+  }
+
+  void _generate() {
+    widget.operationManager.startSummary(
+      model: widget.appState.selectedModel ?? '',
+      partyMembers: widget.appState.partyMembers.toList(),
+    );
   }
 
   List<_SummarySection> _parseSections(String text) {
@@ -76,7 +85,7 @@ class _SummaryPageState extends State<SummaryPage> {
     void flush() {
       if (currentHeading == null) return;
       sections.add(_SummarySection(
-        heading: currentHeading!,
+        heading: currentHeading,
         level: currentLevel,
         body: bodyLines.join('\n').trim(),
       ));
@@ -105,10 +114,11 @@ class _SummaryPageState extends State<SummaryPage> {
     }
   }
 
-  Widget? _buildMetadataSubtitle() {
+  Widget? _buildMetadataSubtitle(SummaryResult result) {
     final parts = <String>[
-      if (_summaryModel != null) 'Model: $_summaryModel',
-      if (_summaryGeneratedAt != null) 'Generated: ${_formatDate(_summaryGeneratedAt!)}',
+      if (result.model != null) 'Model: ${result.model}',
+      if (result.generatedAt != null)
+        'Generated: ${_formatDate(result.generatedAt!)}',
     ];
     if (parts.isEmpty) return null;
     return Text(
@@ -117,68 +127,18 @@ class _SummaryPageState extends State<SummaryPage> {
     );
   }
 
-  String _detectPhase(String message) {
-    if (message.contains('Summarizing')) return 'Map';
-    if (message.contains('Combining')) return 'Reduce';
-    if (message.contains('Writing') || message.contains('Generating')) {
-      return 'Synthesis';
-    }
-    return '';
-  }
-
-  Future<void> _generate() async {
-    setState(() {
-      _isGenerating = true;
-      _error = null;
-      _summary = null;
-      _sections = [];
-      _progressMessage = '';
-      _progressValue = 0;
-      _phase = '';
-    });
-    widget.onSseStart?.call();
-
-    await for (final event in widget.summaryService.generate(
-      model: widget.appState.selectedModel ?? '',
-      partyMembers: widget.appState.partyMembers.toList(),
-    )) {
-      if (!mounted) return;
-      if (event is SummaryProgressEvent) {
-        setState(() {
-          _progressValue = event.progress;
-          _progressMessage = event.message;
-          _phase = _detectPhase(event.message);
-        });
-      } else if (event is SummaryDoneEvent) {
-        final result = await widget.summaryService.fetchSummary();
-        if (!mounted) return;
-        setState(() {
-          _summary = result?.summary;
-          _summaryModel = result?.model;
-          _summaryGeneratedAt = result?.generatedAt;
-          _sections = result != null ? _parseSections(result.summary) : [];
-          _isGenerating = false;
-          if (result != null) _everHadSummary = true;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Summary generated successfully')),
-        );
-      } else if (event is SummaryErrorEvent) {
-        setState(() {
-          _error = event.message;
-          _isGenerating = false;
-        });
-      }
-    }
-
-    if (mounted) {
-      if (_isGenerating) setState(() => _isGenerating = false);
-      widget.onSseDone?.call();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isGenerating = widget.operationManager.isSummaryRunning;
+    final summaryResult = widget.operationManager.summaryResult;
+    final hasResult = summaryResult != null;
+    final error = widget.operationManager.summaryError;
+    final progressValue = widget.operationManager.summaryProgress;
+    final progressMessage = widget.operationManager.summaryProgressMessage;
+    final phase = widget.operationManager.summaryPhase;
+    final sections =
+        hasResult ? _parseSections(summaryResult.summary) : <_SummarySection>[];
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -188,58 +148,58 @@ class _SummaryPageState extends State<SummaryPage> {
             'Campaign Summary',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
-          if (_summary != null && !_isGenerating) ...[
+          if (hasResult && !isGenerating) ...[
             const SizedBox(height: 4),
-            if (_buildMetadataSubtitle() != null) _buildMetadataSubtitle()!,
+            if (_buildMetadataSubtitle(summaryResult) != null)
+              _buildMetadataSubtitle(summaryResult)!,
           ],
           const SizedBox(height: 16),
           Row(
             children: [
               ElevatedButton(
-                onPressed: _isGenerating ? null : _generate,
+                onPressed: isGenerating ? null : _generate,
                 child: const Text('Generate Summary'),
               ),
-              if (_everHadSummary) ...[
+              if (hasResult) ...[
                 const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: _isGenerating ? null : _generate,
+                  onPressed: isGenerating ? null : _generate,
                   child: const Text('Regenerate'),
                 ),
               ],
             ],
           ),
           const SizedBox(height: 16),
-          if (_isGenerating) ...[
-            LinearProgressIndicator(value: _progressValue / 100),
+          if (isGenerating) ...[
+            LinearProgressIndicator(value: progressValue / 100),
             const SizedBox(height: 8),
-            if (_phase.isNotEmpty)
-              Chip(label: Text(_phase)),
-            if (_progressMessage.isNotEmpty)
+            if (phase.isNotEmpty) Chip(label: Text(phase)),
+            if (progressMessage.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(_progressMessage),
+                child: Text(progressMessage),
               ),
           ],
-          if (_error != null)
+          if (error != null)
             Text(
-              'Error: $_error',
+              'Error: $error',
               style: const TextStyle(color: Colors.red),
             ),
-          if (!_isLoadingInitial && _summary == null && !_isGenerating)
+          if (!_isLoadingInitial && !hasResult && !isGenerating)
             const Text(
                 'No summary yet. Use "Generate Summary" to create one.'),
-          if (_summary != null && !_isGenerating)
+          if (hasResult && !isGenerating)
             Expanded(
-              child: _sections.isEmpty
-                  ? SingleChildScrollView(child: Text(_summary!))
-                  : _buildSummaryWithToc(),
+              child: sections.isEmpty
+                  ? SingleChildScrollView(child: Text(summaryResult.summary))
+                  : _buildSummaryWithToc(sections),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryWithToc() {
+  Widget _buildSummaryWithToc(List<_SummarySection> sections) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -247,7 +207,7 @@ class _SummaryPageState extends State<SummaryPage> {
           width: 200,
           child: ListView(
             children: [
-              for (final section in _sections)
+              for (final section in sections)
                 ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.only(
@@ -274,7 +234,7 @@ class _SummaryPageState extends State<SummaryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final section in _sections) ...[
+                for (final section in sections) ...[
                   Padding(
                     key: section.key,
                     padding: const EdgeInsets.only(top: 16, bottom: 4),

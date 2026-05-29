@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/pages/qa_page.dart';
 import 'package:ttrpg_chatbot/services/chat_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
+import 'package:ttrpg_chatbot/state/operation_manager.dart';
 import 'package:ttrpg_chatbot/widgets/chat_bubble.dart';
 import 'package:ttrpg_chatbot/widgets/reference_chip.dart';
 
@@ -66,17 +67,20 @@ class _HangingChatService extends ChatService {
     required String model,
     required double temperature,
   }) {
-    // Never emits and never closes — no pending timers.
     return StreamController<ChatEvent>().stream;
   }
 }
 
 Widget buildSubject({ChatService? chatService}) {
+  final appState = AppStateNotifier(initialModel: 'llama3');
   return MaterialApp(
     home: Scaffold(
       body: QAPage(
-        appState: AppStateNotifier(initialModel: 'llama3'),
-        chatService: chatService ?? _NoOpChatService(),
+        appState: appState,
+        operationManager: OperationManager(
+          appState: appState,
+          chatService: chatService ?? _NoOpChatService(),
+        ),
       ),
     ),
   );

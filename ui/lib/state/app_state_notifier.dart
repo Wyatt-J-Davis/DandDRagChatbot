@@ -1,6 +1,9 @@
 ﻿import 'package:flutter/foundation.dart';
 
+import '../services/chat_service.dart';
 import '../services/user_preferences_service.dart';
+
+export '../services/chat_service.dart' show ChatMessage, ChatSender;
 
 class AppStateNotifier extends ChangeNotifier {
   final UserPreferencesService? _prefsService;
@@ -11,6 +14,7 @@ class AppStateNotifier extends ChangeNotifier {
   String? _noteTaker;
   String? _selectedNotesPath;
   bool _hasNotes = false;
+  final List<ChatMessage> _chatHistory = [];
 
   AppStateNotifier({
     String? initialModel,
@@ -26,6 +30,12 @@ class AppStateNotifier extends ChangeNotifier {
   String? get noteTaker => _noteTaker;
   String? get selectedNotesPath => _selectedNotesPath;
   bool get hasNotes => _hasNotes;
+  List<ChatMessage> get chatHistory => List.unmodifiable(_chatHistory);
+
+  void addChatMessage(ChatMessage message) {
+    _chatHistory.add(message);
+    notifyListeners();
+  }
 
   void setSelectedModel(String? model) {
     if (_selectedModel == model) return;

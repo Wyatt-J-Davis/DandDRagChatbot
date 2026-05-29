@@ -368,6 +368,60 @@ void main() {
     });
   });
 
+  group('chatHistory', () {
+    test('chatHistory is empty initially', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.chatHistory, isEmpty);
+    });
+
+    test('addChatMessage appends to chatHistory', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'Hello'));
+      expect(notifier.chatHistory.length, 1);
+      expect(notifier.chatHistory.first.text, 'Hello');
+    });
+
+    test('addChatMessage notifies listeners', () {
+      final notifier = AppStateNotifier();
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'Hello'));
+      expect(calls, 1);
+    });
+
+    test('chatHistory is unmodifiable', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'Hello'));
+      final history = notifier.chatHistory;
+      expect(
+        () => history.add(
+            const ChatMessage(sender: ChatSender.assistant, text: 'x')),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('multiple messages accumulate in order', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.assistant, text: 'a1'));
+      expect(notifier.chatHistory[0].text, 'q1');
+      expect(notifier.chatHistory[1].text, 'a1');
+    });
+
+    test('chatHistory persists across multiple listener rebuilds', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'first'));
+      notifier.setSelectedModel('llama3'); // unrelated state change
+      expect(notifier.chatHistory.length, 1);
+    });
+  });
+
   group('selectedNotesPath', () {
     test('selectedNotesPath is null initially', () {
       final notifier = AppStateNotifier();

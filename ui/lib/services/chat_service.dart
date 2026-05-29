@@ -3,10 +3,23 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+enum ChatSender { user, assistant }
+
 class ChatSource {
   final String content;
   final String? date;
   const ChatSource({required this.content, this.date});
+}
+
+class ChatMessage {
+  final ChatSender sender;
+  final String text;
+  final List<ChatSource> sources;
+  const ChatMessage({
+    required this.sender,
+    required this.text,
+    this.sources = const [],
+  });
 }
 
 sealed class ChatEvent {}
