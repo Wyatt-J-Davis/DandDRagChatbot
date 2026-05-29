@@ -4,7 +4,9 @@ import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
-from api.main import create_app, get_llm_handler, get_db_handler, get_summary_handler
+import pandas as pd
+
+from api.main import create_app, get_llm_handler, get_db_handler, get_persistence_handler, get_summary_handler
 from src.utils.DatabaseHandler import DATABASE_DIR
 
 
@@ -146,6 +148,42 @@ class TestUploadNotesEndpoint:
         client = self._client_with_db(handler)
         client.post("/upload-notes", json={"file_path": "/tmp/notes.txt"})
         handler.clear_database.assert_called_once_with(DATABASE_DIR)
+
+    def test_persists_raw_and_editor_notes_after_successful_upload(self, tmp_path):
+        notes_file = tmp_path / "notes.txt"
+        notes_file.write_text("2023-01-01\nSome campaign notes.", encoding="utf-8")
+
+        df = pd.DataFrame({"Title": ["Entry"], "Date": ["2023-01-01"], "Contents": ["Some campaign notes."]})
+        db_handler = MagicMock()
+        db_handler.generate_database.return_value = iter([100.0])
+        db_handler.last_processed_df = df
+
+        persistence = MagicMock()
+
+        app = create_app()
+        app.dependency_overrides[get_db_handler] = lambda: db_handler
+        app.dependency_overrides[get_persistence_handler] = lambda: persistence
+        client = TestClient(app)
+        client.post("/upload-notes", json={"file_path": str(notes_file)})
+
+        persistence.persist.assert_called_once()
+        call_args = persistence.persist.call_args[0]
+        assert call_args[0] is df
+        assert "2023-01-01" in call_args[1]
+        assert "Some campaign notes." in call_args[1]
+
+    def test_does_not_persist_when_upload_errors(self, tmp_path):
+        persistence = MagicMock()
+        db_handler = MagicMock()
+        db_handler.generate_database.side_effect = RuntimeError("disk full")
+
+        app = create_app()
+        app.dependency_overrides[get_db_handler] = lambda: db_handler
+        app.dependency_overrides[get_persistence_handler] = lambda: persistence
+        client = TestClient(app)
+        client.post("/upload-notes", json={"file_path": str(tmp_path / "notes.txt")})
+
+        persistence.persist.assert_not_called()
 
 
 def _make_mock_doc(content: str) -> MagicMock:
@@ -457,6 +495,38 @@ class TestNotesVectorizeEndpoint:
         wrapper_arg = handler.generate_database.call_args[0][0]
         assert wrapper_arg.name.endswith(".txt")
         assert wrapper_arg.getvalue() == b"My notes."
+
+    def test_persists_raw_and_editor_notes_after_successful_vectorize(self):
+        df = pd.DataFrame({"Title": ["Entry"], "Date": ["2023-01-01"], "Contents": ["Some notes."]})
+        db_handler = MagicMock()
+        db_handler.generate_database.return_value = iter([100.0])
+        db_handler.last_processed_df = df
+
+        persistence = MagicMock()
+
+        app = create_app()
+        app.dependency_overrides[get_db_handler] = lambda: db_handler
+        app.dependency_overrides[get_persistence_handler] = lambda: persistence
+        client = TestClient(app)
+        client.post("/notes/vectorize", json={"content": "Session notes here."})
+
+        persistence.persist.assert_called_once()
+        call_args = persistence.persist.call_args[0]
+        assert call_args[0] is df
+        assert call_args[1] == "Session notes here."
+
+    def test_does_not_persist_when_vectorize_errors(self):
+        persistence = MagicMock()
+        db_handler = MagicMock()
+        db_handler.generate_database.side_effect = RuntimeError("embed error")
+
+        app = create_app()
+        app.dependency_overrides[get_db_handler] = lambda: db_handler
+        app.dependency_overrides[get_persistence_handler] = lambda: persistence
+        client = TestClient(app)
+        client.post("/notes/vectorize", json={"content": "Notes."})
+
+        persistence.persist.assert_not_called()
 
 
 class TestPartyGetEndpoint:

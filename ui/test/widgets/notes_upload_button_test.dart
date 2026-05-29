@@ -451,5 +451,54 @@ void main() {
 
       expect(find.byType(SnackBar), findsNothing);
     });
+
+    testWidgets('onUploadSuccess callback is called when upload succeeds',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _FakeUploadService(events: [UploadDoneEvent()]);
+      var successCalled = false;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: NotesUploadButton(
+            appState: appState,
+            pickerService: _FakePickerService(),
+            uploadService: uploadService,
+            onUploadSuccess: () => successCalled = true,
+          ),
+        ),
+      ));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(successCalled, isTrue);
+    });
+
+    testWidgets('onUploadSuccess callback is NOT called on upload error',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService =
+          _FakeUploadService(events: [UploadErrorEvent(message: 'err')]);
+      var successCalled = false;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: NotesUploadButton(
+            appState: appState,
+            pickerService: _FakePickerService(),
+            uploadService: uploadService,
+            onUploadSuccess: () => successCalled = true,
+          ),
+        ),
+      ));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pumpAndSettle();
+
+      expect(successCalled, isFalse);
+    });
   });
 }

@@ -7,14 +7,13 @@ import '../pages/summary_page.dart';
 import '../services/chat_service.dart';
 import '../services/file_picker_service.dart';
 import '../services/model_service.dart';
-import '../services/note_file_reader_service.dart';
+import '../services/note_content_service.dart';
 import '../services/summary_service.dart';
 import '../services/upload_service.dart';
 import '../services/user_preferences_service.dart';
 import '../services/vectorize_service.dart';
 import '../state/app_state_notifier.dart';
 import 'model_selector_dropdown.dart';
-import 'note_import_button.dart';
 import 'notes_upload_button.dart';
 import 'vectorize_button.dart';
 import 'party_member_input.dart';
@@ -29,8 +28,8 @@ class MainShell extends StatefulWidget {
   final UploadService? uploadService;
   final ChatService? chatService;
   final SummaryService? summaryService;
-  final NoteFileReaderService? noteFileReaderService;
   final VectorizeService? vectorizeService;
+  final NoteContentService? noteContentService;
 
   const MainShell({
     super.key,
@@ -41,8 +40,8 @@ class MainShell extends StatefulWidget {
     this.uploadService,
     this.chatService,
     this.summaryService,
-    this.noteFileReaderService,
     this.vectorizeService,
+    this.noteContentService,
   });
 
   @override
@@ -87,6 +86,7 @@ class _MainShellState extends State<MainShell> {
       widget.appState.addListener(_savePreferences);
       _applyStoredPreferences();
     }
+    _loadNotes();
   }
 
   @override
@@ -108,6 +108,19 @@ class _MainShellState extends State<MainShell> {
       model: widget.appState.selectedModel,
       temperature: widget.appState.temperature,
     ));
+  }
+
+  Future<void> _loadNotes() async {
+    if (widget.noteContentService == null) return;
+    final text = await widget.noteContentService!.fetchNotes();
+    if (!mounted || text.isEmpty) return;
+    final len = _noteController.document.length;
+    _noteController.replaceText(
+      0,
+      len > 0 ? len - 1 : 0,
+      text,
+      const TextSelection.collapsed(offset: 0),
+    );
   }
 
   Widget _buildPage() {
@@ -170,6 +183,7 @@ class _MainShellState extends State<MainShell> {
                 uploadService: widget.uploadService ?? UploadService(),
                 onSseStart: _onSseStart,
                 onSseDone: _onSseDone,
+                onUploadSuccess: () { _loadNotes(); },
               ),
             ],
           ),
@@ -177,23 +191,11 @@ class _MainShellState extends State<MainShell> {
       case 2:
         return Padding(
           padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              NoteImportButton(
-                controller: _noteController,
-                appState: widget.appState,
-                fileReader: widget.noteFileReaderService,
-              ),
-              const SizedBox(height: 12),
-              VectorizeButton(
-                controller: _noteController,
-                vectorizeService: widget.vectorizeService,
-                onSseStart: _onSseStart,
-                onSseDone: _onSseDone,
-              ),
-            ],
+          child: VectorizeButton(
+            controller: _noteController,
+            vectorizeService: widget.vectorizeService,
+            onSseStart: _onSseStart,
+            onSseDone: _onSseDone,
           ),
         );
       default:

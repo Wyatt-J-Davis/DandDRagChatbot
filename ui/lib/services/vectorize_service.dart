@@ -31,7 +31,7 @@ class VectorizeService {
     final uri = Uri.http('localhost:$port', '/notes/vectorize');
     final request = http.Request('POST', uri)
       ..headers['Content-Type'] = 'application/json'
-      ..body = jsonEncode({'text': plainText});
+      ..body = jsonEncode({'content': plainText});
 
     final response = await _httpClient.send(request);
     final lines = response.stream

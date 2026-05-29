@@ -10,6 +10,7 @@ class NotesUploadButton extends StatefulWidget {
   final UploadService uploadService;
   final VoidCallback? onSseStart;
   final VoidCallback? onSseDone;
+  final VoidCallback? onUploadSuccess;
 
   const NotesUploadButton({
     super.key,
@@ -18,6 +19,7 @@ class NotesUploadButton extends StatefulWidget {
     required this.uploadService,
     this.onSseStart,
     this.onSseDone,
+    this.onUploadSuccess,
   });
 
   @override
@@ -50,6 +52,7 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Notes uploaded successfully')),
         );
+        widget.onUploadSuccess?.call();
       } else if (event is UploadErrorEvent) {
         setState(() {
           _isUploading = false;

@@ -16,8 +16,8 @@ import 'package:ttrpg_chatbot/widgets/main_shell.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
 import 'package:ttrpg_chatbot/widgets/party_member_input.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
+import 'package:ttrpg_chatbot/services/note_content_service.dart';
 import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
-import 'package:ttrpg_chatbot/widgets/note_import_button.dart';
 import 'package:ttrpg_chatbot/widgets/temperature_slider.dart';
 import 'package:ttrpg_chatbot/widgets/vectorize_button.dart';
 import 'package:ttrpg_chatbot/pages/qa_page.dart';
@@ -109,6 +109,19 @@ class _BlockingSummaryService extends SummaryService {
   Future<SummaryResult?> fetchSummary() async => null;
 }
 
+class _FakeNoteContentService extends NoteContentService {
+  int fetchCount = 0;
+  final String _content;
+
+  _FakeNoteContentService([this._content = '']);
+
+  @override
+  Future<String> fetchNotes() async {
+    fetchCount++;
+    return _content;
+  }
+}
+
 Widget buildSubject({
   AppStateNotifier? appState,
   ModelService? modelService,
@@ -117,6 +130,7 @@ Widget buildSubject({
   UploadService? uploadService,
   SummaryService? summaryService,
   VectorizeService? vectorizeService,
+  NoteContentService? noteContentService,
 }) {
   return MaterialApp(
     localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
@@ -129,6 +143,7 @@ Widget buildSubject({
       uploadService: uploadService,
       summaryService: summaryService,
       vectorizeService: vectorizeService,
+      noteContentService: noteContentService,
     ),
   );
 }
@@ -399,34 +414,6 @@ void main() {
       expect(find.byType(NotesUploadButton), findsNothing);
     });
 
-    testWidgets('NoteImportButton is shown in SidebarPanel on Note Editor page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Note Editor'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(NoteImportButton), findsOneWidget);
-    });
-
-    testWidgets('NoteImportButton is not shown on Q&A page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-      await tester.pump();
-
-      expect(find.byType(NoteImportButton), findsNothing);
-    });
-
-    testWidgets('NoteImportButton is not shown on Summary page',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(buildSubject());
-
-      await tester.tap(find.text('Summary'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(NoteImportButton), findsNothing);
-    });
-
     testWidgets('VectorizeButton is shown in SidebarPanel on Note Editor page',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
@@ -625,6 +612,16 @@ void main() {
 
         expect(find.byType(QAPage), findsOneWidget);
       });
+    });
+
+    testWidgets('calls NoteContentService.fetchNotes on startup when service provided',
+        (WidgetTester tester) async {
+      final service = _FakeNoteContentService('some notes');
+
+      await tester.pumpWidget(buildSubject(noteContentService: service));
+      await tester.pump();
+
+      expect(service.fetchCount, 1);
     });
   });
 }

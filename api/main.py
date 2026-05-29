@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from src.utils.DatabaseHandler import DatabaseHandler, DATABASE_DIR
 from src.utils.LLMHandler import LLMHandler
+from src.utils.NotePersistenceHandler import NotePersistenceHandler
 from src.utils.SummaryHandler import SummaryHandler
 
 _USER_DATA_FILE = "data/user_data.json"
@@ -37,8 +38,24 @@ def get_db_handler() -> DatabaseHandler:
     return DatabaseHandler()
 
 
+def get_persistence_handler() -> NotePersistenceHandler:
+    return NotePersistenceHandler()
+
+
 def get_summary_handler() -> SummaryHandler:
     return SummaryHandler(get_llm_handler())
+
+
+def _read_file_as_text(file_path: str) -> str:
+    """Read a file and return its content as plain text."""
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".docx":
+        from docx import Document as DocxReader
+        with open(file_path, "rb") as f:
+            doc = DocxReader(io.BytesIO(f.read()))
+        return "\n".join(p.text for p in doc.paragraphs)
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        return f.read()
 
 
 def _sse_event(payload: dict) -> str:
@@ -90,6 +107,7 @@ def create_app() -> FastAPI:
     def upload_notes(
         body: UploadNotesRequest,
         db: DatabaseHandler = Depends(get_db_handler),
+        persistence: NotePersistenceHandler = Depends(get_persistence_handler),
     ):
         def event_stream():
             try:
@@ -115,6 +133,8 @@ def create_app() -> FastAPI:
                         "progress": int(pct),
                         "message": f"Processing… {int(pct)}%",
                     })
+                if db.last_processed_df is not None and not db.last_processed_df.empty:
+                    persistence.persist(db.last_processed_df, _read_file_as_text(body.file_path))
                 yield _sse_event({"done": True, "progress": 100})
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
@@ -205,6 +225,7 @@ def create_app() -> FastAPI:
     def notes_vectorize(
         body: NotesRequest,
         db: DatabaseHandler = Depends(get_db_handler),
+        persistence: NotePersistenceHandler = Depends(get_persistence_handler),
     ):
         def event_stream():
             try:
@@ -229,6 +250,8 @@ def create_app() -> FastAPI:
                         "progress": int(pct),
                         "message": f"Vectorizing… {int(pct)}%",
                     })
+                if db.last_processed_df is not None and not db.last_processed_df.empty:
+                    persistence.persist(db.last_processed_df, body.content)
                 yield _sse_event({"done": True, "progress": 100})
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
