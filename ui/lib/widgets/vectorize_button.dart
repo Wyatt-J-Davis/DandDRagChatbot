@@ -88,7 +88,10 @@ class _VectorizeButtonState extends State<VectorizeButton> {
         ),
         if (isVectorizing) ...[
           const SizedBox(height: 8),
-          LinearProgressIndicator(value: progress / 100),
+          SizedBox(
+            width: 100,
+            child: LinearProgressIndicator(value: progress / 100),
+          ),
         ],
         if (_showSuccess) ...[
           const SizedBox(height: 4),

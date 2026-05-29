@@ -1,16 +1,70 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/pages/note_editor_page.dart';
+import 'package:ttrpg_chatbot/services/file_picker_service.dart';
+import 'package:ttrpg_chatbot/services/note_content_service.dart';
+import 'package:ttrpg_chatbot/services/note_export_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/state/operation_manager.dart';
 import 'package:ttrpg_chatbot/widgets/vectorize_button.dart';
+
+class _FakeNoteContentService extends NoteContentService {
+  bool saveNotesCalled = false;
+  String? lastSavedContent;
+
+  _FakeNoteContentService() : super(port: 9999);
+
+  @override
+  Future<bool> saveNotes(String content) async {
+    saveNotesCalled = true;
+    lastSavedContent = content;
+    return true;
+  }
+}
+
+class _FakeNoteExportService extends NoteExportService {
+  bool fetchTxtCalled = false;
+  bool fetchDocxCalled = false;
+
+  _FakeNoteExportService() : super(port: 9999);
+
+  @override
+  Future<Uint8List?> fetchTxtBytes() async {
+    fetchTxtCalled = true;
+    return Uint8List.fromList([116, 120, 116]);
+  }
+
+  @override
+  Future<Uint8List?> fetchDocxBytes() async {
+    fetchDocxCalled = true;
+    return Uint8List.fromList([80, 75, 3, 4]);
+  }
+}
+
+class _FakeFilePickerService extends FilePickerService {
+  String? returnPath;
+  String? capturedFileName;
+
+  _FakeFilePickerService({this.returnPath});
+
+  @override
+  Future<String?> pickSavePath({required String fileName}) async {
+    capturedFileName = fileName;
+    return returnPath;
+  }
+}
 
 Widget buildPage({
   QuillController? controller,
   bool darkMode = false,
   VoidCallback? onToggleDarkMode,
   OperationManager? operationManager,
+  NoteContentService? noteContentService,
+  NoteExportService? noteExportService,
+  FilePickerService? filePickerService,
 }) =>
     MaterialApp(
       localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
@@ -21,6 +75,9 @@ Widget buildPage({
           darkMode: darkMode,
           onToggleDarkMode: onToggleDarkMode,
           operationManager: operationManager,
+          noteContentService: noteContentService,
+          noteExportService: noteExportService,
+          filePickerService: filePickerService,
         ),
       ),
     );
@@ -151,6 +208,174 @@ void main() {
         await tester.pumpWidget(buildPage());
         await tester.pumpAndSettle();
         expect(find.byType(VectorizeButton), findsNothing);
+      });
+
+      testWidgets('is in the header row when operationManager is provided',
+          (tester) async {
+        final appState = AppStateNotifier();
+        final om = OperationManager(appState: appState);
+        await tester.pumpWidget(buildPage(operationManager: om));
+        await tester.pumpAndSettle();
+
+        final headerRow = find.byKey(const ValueKey('header_row'));
+        expect(headerRow, findsOneWidget);
+        expect(
+          find.descendant(
+              of: headerRow, matching: find.byType(VectorizeButton)),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('is not in the header row when operationManager is null',
+          (tester) async {
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        final headerRow = find.byKey(const ValueKey('header_row'));
+        expect(headerRow, findsOneWidget);
+        expect(
+          find.descendant(
+              of: headerRow, matching: find.byType(VectorizeButton)),
+          findsNothing,
+        );
+      });
+    });
+
+    group('export buttons', () {
+      testWidgets(
+          'Export .txt and Export .docx buttons shown when all export services provided',
+          (tester) async {
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FakeNoteContentService(),
+          noteExportService: _FakeNoteExportService(),
+          filePickerService: _FakeFilePickerService(returnPath: null),
+        ));
+        await tester.pumpAndSettle();
+        expect(find.text('Export .txt'), findsOneWidget);
+        expect(find.text('Export .docx'), findsOneWidget);
+      });
+
+      testWidgets('export buttons not shown when services are null (default)',
+          (tester) async {
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+        expect(find.text('Export .txt'), findsNothing);
+        expect(find.text('Export .docx'), findsNothing);
+      });
+
+      testWidgets('tapping Export .txt calls saveNotes with editor content',
+          (tester) async {
+        final controller = QuillController.basic();
+        final contentService = _FakeNoteContentService();
+        final exportService = _FakeNoteExportService();
+        final pickerService =
+            _FakeFilePickerService(returnPath: r'C:\tmp\notes.txt');
+
+        await tester.pumpWidget(buildPage(
+          controller: controller,
+          noteContentService: contentService,
+          noteExportService: exportService,
+          filePickerService: pickerService,
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Export .txt'));
+        await tester.pumpAndSettle();
+
+        expect(contentService.saveNotesCalled, isTrue);
+      });
+
+      testWidgets('tapping Export .txt fetches txt bytes', (tester) async {
+        final exportService = _FakeNoteExportService();
+        final pickerService =
+            _FakeFilePickerService(returnPath: r'C:\tmp\notes.txt');
+
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FakeNoteContentService(),
+          noteExportService: exportService,
+          filePickerService: pickerService,
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Export .txt'));
+        await tester.pumpAndSettle();
+
+        expect(exportService.fetchTxtCalled, isTrue);
+        expect(exportService.fetchDocxCalled, isFalse);
+      });
+
+      testWidgets('tapping Export .docx fetches docx bytes', (tester) async {
+        final exportService = _FakeNoteExportService();
+        final pickerService =
+            _FakeFilePickerService(returnPath: r'C:\tmp\notes.docx');
+
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FakeNoteContentService(),
+          noteExportService: exportService,
+          filePickerService: pickerService,
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Export .docx'));
+        await tester.pumpAndSettle();
+
+        expect(exportService.fetchDocxCalled, isTrue);
+        expect(exportService.fetchTxtCalled, isFalse);
+      });
+
+      testWidgets(
+          'tapping Export .txt passes notes.txt as default file name to picker',
+          (tester) async {
+        final pickerService =
+            _FakeFilePickerService(returnPath: null);
+
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FakeNoteContentService(),
+          noteExportService: _FakeNoteExportService(),
+          filePickerService: pickerService,
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Export .txt'));
+        await tester.pumpAndSettle();
+
+        expect(pickerService.capturedFileName, 'notes.txt');
+      });
+
+      testWidgets(
+          'tapping Export .docx passes notes.docx as default file name to picker',
+          (tester) async {
+        final pickerService =
+            _FakeFilePickerService(returnPath: null);
+
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FakeNoteContentService(),
+          noteExportService: _FakeNoteExportService(),
+          filePickerService: pickerService,
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Export .docx'));
+        await tester.pumpAndSettle();
+
+        expect(pickerService.capturedFileName, 'notes.docx');
+      });
+
+      testWidgets('does not fetch bytes when picker returns null',
+          (tester) async {
+        final exportService = _FakeNoteExportService();
+
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FakeNoteContentService(),
+          noteExportService: exportService,
+          filePickerService: _FakeFilePickerService(returnPath: null),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Export .txt'));
+        await tester.pumpAndSettle();
+
+        expect(exportService.fetchTxtCalled, isFalse);
       });
     });
   });

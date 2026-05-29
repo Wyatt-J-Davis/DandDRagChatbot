@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
+import '../services/file_picker_service.dart';
+import '../services/note_content_service.dart';
+import '../services/note_export_service.dart';
 import '../state/operation_manager.dart';
 import '../widgets/vectorize_button.dart';
 
@@ -10,6 +15,9 @@ class NoteEditorPage extends StatefulWidget {
   final VoidCallback? onToggleDarkMode;
   final ScrollController? scrollController;
   final OperationManager? operationManager;
+  final NoteContentService? noteContentService;
+  final NoteExportService? noteExportService;
+  final FilePickerService? filePickerService;
 
   const NoteEditorPage({
     super.key,
@@ -18,6 +26,9 @@ class NoteEditorPage extends StatefulWidget {
     this.onToggleDarkMode,
     this.scrollController,
     this.operationManager,
+    this.noteContentService,
+    this.noteExportService,
+    this.filePickerService,
   });
 
   @override
@@ -26,6 +37,11 @@ class NoteEditorPage extends StatefulWidget {
 
 class _NoteEditorPageState extends State<NoteEditorPage> {
   late final QuillController _controller;
+
+  bool get _exportEnabled =>
+      widget.noteContentService != null &&
+      widget.noteExportService != null &&
+      widget.filePickerService != null;
 
   @override
   void initState() {
@@ -41,6 +57,23 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     super.dispose();
   }
 
+  Future<void> _export(String format) async {
+    final content = _controller.document.toPlainText();
+    await widget.noteContentService!.saveNotes(content);
+
+    final defaultName = 'notes.$format';
+    final path = await widget.filePickerService!
+        .pickSavePath(fileName: defaultName);
+    if (path == null) return;
+
+    final bytes = format == 'txt'
+        ? await widget.noteExportService!.fetchTxtBytes()
+        : await widget.noteExportService!.fetchDocxBytes();
+    if (bytes == null) return;
+
+    await File(path).writeAsBytes(bytes);
+  }
+
   @override
   Widget build(BuildContext context) {
     final editorBg =
@@ -53,12 +86,33 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            key: const ValueKey('header_row'),
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Text(
                 'Notes',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const Spacer(),
+              if (_exportEnabled) ...[
+                TextButton(
+                  onPressed: () => _export('txt'),
+                  child: const Text('Export .txt'),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => _export('docx'),
+                  child: const Text('Export .docx'),
+                ),
+                const SizedBox(width: 4),
+              ],
+              if (widget.operationManager != null) ...[
+                VectorizeButton(
+                  controller: _controller,
+                  operationManager: widget.operationManager!,
+                ),
+                const SizedBox(width: 4),
+              ],
               IconButton(
                 icon: Icon(
                     widget.darkMode ? Icons.light_mode : Icons.dark_mode),
@@ -67,13 +121,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               ),
             ],
           ),
-          if (widget.operationManager != null) ...[
-            const SizedBox(height: 8),
-            VectorizeButton(
-              controller: _controller,
-              operationManager: widget.operationManager!,
-            ),
-          ],
           const SizedBox(height: 16),
           QuillSimpleToolbar(
             controller: _controller,
