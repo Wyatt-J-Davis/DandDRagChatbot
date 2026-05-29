@@ -28,21 +28,28 @@ class DatabaseHandler:
 
         if df is not None and not df.empty:
             self.last_processed_df = df
+
+            # Pre-split all entries so we know the total chunk count for accurate progress
+            all_entry_chunks = []
+            for _, row in df.iterrows():
+                chunks = self.text_splitter.split_text(str(row["Contents"]))
+                all_entry_chunks.append((row, chunks))
+
+            total_chunks = sum(len(chunks) for _, chunks in all_entry_chunks)
+
             documents = []
             idlist = []
-            l = 0 
-            
-            for i, row in df.iterrows():
-                text = str(row["Contents"])
-                # Existing semantic chunking via text_splitter
-                chunks = self.text_splitter.split_text(text)
+            l = 0
+            processed_chunks = 0
+
+            for row, chunks in all_entry_chunks:
                 for chunk in chunks:
                     document = langchaindoc(
                         page_content=chunk,
                         metadata={
-                            "Title": row.get("Title", "Untitled"), 
-                            "Date": str(row.get("Date", "Unknown")), 
-                            "Exerpt Start": chunk[:25], 
+                            "Title": row.get("Title", "Untitled"),
+                            "Date": str(row.get("Date", "Unknown")),
+                            "Exerpt Start": chunk[:25],
                             "Exerpt End": chunk[-25:]
                         },
                         id=str(l)
@@ -50,15 +57,13 @@ class DatabaseHandler:
                     idlist.append(str(l))
                     documents.append(document)
                     l += 1
-                
-                # Progress bar logic
-                percent_complete = (i + 1) / len(df) * 100
-                yield percent_complete # provide percent complete for progress bar usage
-                    
+                    processed_chunks += 1
+                    yield processed_chunks / total_chunks * 100
+
             if self.vector_store is not None:
                 self.vector_store.add_documents(documents=documents, ids=idlist)
             else:
-                retCode = False 
+                retCode = False
         else:
             retCode = False
 

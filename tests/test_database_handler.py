@@ -153,8 +153,46 @@ class TestGenerateDatabase:
                     ret = e.value
                     break
         assert ret is True
-        assert len(progress_values) == 1  # one row → one yield
-        assert progress_values[0] == pytest.approx(100.0)
+        assert len(progress_values) == 2  # one row, two chunks → two yields
+        assert progress_values == sorted(progress_values)
+        assert progress_values[-1] == pytest.approx(100.0)
+
+    def test_single_entry_yields_multiple_advancing_progress_values(self):
+        """Editor text without date headers is a single entry; must yield one value
+        per chunk so the progress bar advances rather than jumping from 0 to 100."""
+        self.db.text_splitter.split_text.return_value = ["a", "b", "c"]
+        mock_file = _make_text_file("Plain text with no date headers.", "notes.txt")
+        gen = self.db.generate_database(mock_file, "data/test_db")
+        progress_values = []
+        while True:
+            try:
+                progress_values.append(next(gen))
+            except StopIteration:
+                break
+        assert len(progress_values) > 1
+        assert progress_values == sorted(progress_values)
+        assert progress_values[-1] == pytest.approx(100.0)
+
+    def test_multi_entry_progress_is_monotonically_increasing(self):
+        """Multi-entry input yields one value per chunk across all entries, always increasing."""
+        self.db.text_splitter.split_text.return_value = ["c1", "c2"]
+        with patch("pandas.read_csv", return_value=pd.DataFrame({
+            "Title": ["E1", "E2", "E3"],
+            "Date": ["2023-01-01", "2023-01-02", "2023-01-03"],
+            "Contents": ["body1", "body2", "body3"],
+        })):
+            mock_file = MagicMock()
+            mock_file.name = "notes.csv"
+            gen = self.db.generate_database(mock_file, "data/test_db")
+            progress_values = []
+            while True:
+                try:
+                    progress_values.append(next(gen))
+                except StopIteration:
+                    break
+        assert len(progress_values) == 6  # 3 entries × 2 chunks
+        assert progress_values == sorted(progress_values)
+        assert progress_values[-1] == pytest.approx(100.0)
 
     def test_returns_false_when_vector_store_is_none(self):
         self.db.vector_store = None
