@@ -12,6 +12,7 @@ from langchain.docstore.document import Document as langchaindoc
 from docx import Document as DocxReader
 
 DATABASE_DIR = "data/chrome_langchain_db"
+BATCH_SIZE = 10
 
 
 class DatabaseHandler:
@@ -37,33 +38,35 @@ class DatabaseHandler:
 
             total_chunks = sum(len(chunks) for _, chunks in all_entry_chunks)
 
-            documents = []
-            idlist = []
-            l = 0
-            processed_chunks = 0
-
-            for row, chunks in all_entry_chunks:
-                for chunk in chunks:
-                    document = langchaindoc(
-                        page_content=chunk,
-                        metadata={
-                            "Title": row.get("Title", "Untitled"),
-                            "Date": str(row.get("Date", "Unknown")),
-                            "Exerpt Start": chunk[:25],
-                            "Exerpt End": chunk[-25:]
-                        },
-                        id=str(l)
-                    )
-                    idlist.append(str(l))
-                    documents.append(document)
-                    l += 1
-                    processed_chunks += 1
-                    yield processed_chunks / total_chunks * 100
-
-            if self.vector_store is not None:
-                self.vector_store.add_documents(documents=documents, ids=idlist)
-            else:
+            if self.vector_store is None:
                 retCode = False
+            else:
+                all_chunks_flat = [
+                    (row, chunk)
+                    for row, chunks in all_entry_chunks
+                    for chunk in chunks
+                ]
+                chunk_id = 0
+                for batch_start in range(0, total_chunks, BATCH_SIZE):
+                    batch = all_chunks_flat[batch_start:batch_start + BATCH_SIZE]
+                    documents = []
+                    idlist = []
+                    for row, chunk in batch:
+                        doc = langchaindoc(
+                            page_content=chunk,
+                            metadata={
+                                "Title": row.get("Title", "Untitled"),
+                                "Date": str(row.get("Date", "Unknown")),
+                                "Exerpt Start": chunk[:25],
+                                "Exerpt End": chunk[-25:]
+                            },
+                            id=str(chunk_id)
+                        )
+                        idlist.append(str(chunk_id))
+                        documents.append(doc)
+                        chunk_id += 1
+                    self.vector_store.add_documents(documents=documents, ids=idlist)
+                    yield chunk_id / total_chunks * 100
         else:
             retCode = False
 
