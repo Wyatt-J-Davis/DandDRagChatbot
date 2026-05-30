@@ -15,7 +15,8 @@ void main() {
         ),
       );
       final service = PartyService(port: 9999, httpClient: client);
-      expect(await service.fetchPartyMembers(), ['Aria', 'Borin']);
+      final result = await service.fetchPartyMembers();
+      expect(result.members, ['Aria', 'Borin']);
     });
 
     test('fetchPartyMembers returns empty list when party_members is empty', () async {
@@ -23,7 +24,8 @@ void main() {
         (_) async => http.Response('{"party_members": []}', 200),
       );
       final service = PartyService(port: 9999, httpClient: client);
-      expect(await service.fetchPartyMembers(), isEmpty);
+      final result = await service.fetchPartyMembers();
+      expect(result.members, isEmpty);
     });
 
     test('fetchPartyMembers throws on non-200 response', () async {
@@ -44,6 +46,39 @@ void main() {
       await service.fetchPartyMembers();
       expect(capturedUri?.path, '/party');
       expect(capturedUri?.port, 8765);
+    });
+
+    test('fetchPartyMembers returns note taker name when a member has note_taker true', () async {
+      final client = MockClient(
+        (_) async => http.Response(
+          '{"party_members": [{"name": "Aria", "note_taker": false}, {"name": "Borin", "note_taker": true}]}',
+          200,
+        ),
+      );
+      final service = PartyService(port: 9999, httpClient: client);
+      final result = await service.fetchPartyMembers();
+      expect(result.noteTaker, 'Borin');
+    });
+
+    test('fetchPartyMembers returns null noteTaker when no member has note_taker true', () async {
+      final client = MockClient(
+        (_) async => http.Response(
+          '{"party_members": [{"name": "Aria", "note_taker": false}, {"name": "Borin", "note_taker": false}]}',
+          200,
+        ),
+      );
+      final service = PartyService(port: 9999, httpClient: client);
+      final result = await service.fetchPartyMembers();
+      expect(result.noteTaker, isNull);
+    });
+
+    test('fetchPartyMembers returns null noteTaker when party is empty', () async {
+      final client = MockClient(
+        (_) async => http.Response('{"party_members": []}', 200),
+      );
+      final service = PartyService(port: 9999, httpClient: client);
+      final result = await service.fetchPartyMembers();
+      expect(result.noteTaker, isNull);
     });
   });
 

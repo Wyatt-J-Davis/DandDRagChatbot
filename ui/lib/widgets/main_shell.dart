@@ -139,9 +139,10 @@ class _MainShellState extends State<MainShell> {
   Future<void> _loadParty() async {
     if (widget.partyService == null) return;
     try {
-      final members = await widget.partyService!.fetchPartyMembers();
+      final (:members, :noteTaker) = await widget.partyService!.fetchPartyMembers();
       if (!mounted) return;
       widget.appState.setPartyMembers(members);
+      widget.appState.setNoteTaker(noteTaker);
     } catch (_) {}
   }
 

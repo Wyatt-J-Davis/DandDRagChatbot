@@ -138,13 +138,14 @@ class _FakeNoteContentService extends NoteContentService {
 class _FakePartyService extends PartyService {
   int fetchCount = 0;
   final List<String> _members;
+  final String? _noteTaker;
 
-  _FakePartyService([this._members = const []]);
+  _FakePartyService([this._members = const [], this._noteTaker]);
 
   @override
-  Future<List<String>> fetchPartyMembers() async {
+  Future<({List<String> members, String? noteTaker})> fetchPartyMembers() async {
     fetchCount++;
-    return List<String>.from(_members);
+    return (members: List<String>.from(_members), noteTaker: _noteTaker);
   }
 }
 
@@ -520,6 +521,30 @@ void main() {
       await tester.pump();
 
       expect(appState.partyMembers, ['Aria', 'Borin']);
+    });
+
+    testWidgets('restores noteTaker from PartyService response on startup',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      final partyService = _FakePartyService(['Aria', 'Borin'], 'Borin');
+
+      await tester.pumpWidget(buildSubject(
+          appState: appState, partyService: partyService));
+      await tester.pump();
+
+      expect(appState.noteTaker, 'Borin');
+    });
+
+    testWidgets('leaves noteTaker unset when PartyService returns null noteTaker',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      final partyService = _FakePartyService(['Aria', 'Borin']);
+
+      await tester.pumpWidget(buildSubject(
+          appState: appState, partyService: partyService));
+      await tester.pump();
+
+      expect(appState.noteTaker, isNull);
     });
 
     testWidgets('loads saved temperature from UserPreferencesService on startup',

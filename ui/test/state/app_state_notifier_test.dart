@@ -23,7 +23,8 @@ class _FakePartyService extends PartyService {
   _FakePartyService() : super(port: 0);
 
   @override
-  Future<List<String>> fetchPartyMembers() async => [];
+  Future<({List<String> members, String? noteTaker})> fetchPartyMembers() async =>
+      (members: <String>[], noteTaker: null);
 
   @override
   Future<void> savePartyMembers(List<String> members, String? noteTaker) async {
