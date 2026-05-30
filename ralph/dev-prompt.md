@@ -12,7 +12,7 @@ Follow these steps exactly:
 
 ## 1. Explore
 
-Review the commit messages to understand recent work. Explore the repo structure so you understand the codebase before touching anything.
+Review the commit messages to understand recent work. Explore the repo structure so you understand the codebase before touching anything. Reference PRD.md for high level requirements and user stories.
 
 ## 2. Understand
 
