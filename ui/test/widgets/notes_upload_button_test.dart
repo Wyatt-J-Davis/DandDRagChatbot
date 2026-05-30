@@ -631,5 +631,34 @@ void main() {
       uploadService.controller.close();
       await tester.pump();
     });
+
+    testWidgets(
+        'Lottie and progress bar are co-located in a Stack during upload',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _BlockingUploadService();
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump();
+
+      final stackWithLottie = find.ancestor(
+        of: find.byType(Lottie),
+        matching: find.byType(Stack),
+      );
+      expect(stackWithLottie, findsAtLeastNWidgets(1));
+      expect(
+        find.descendant(
+          of: stackWithLottie,
+          matching: find.byType(LinearProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+
+      uploadService.controller.close();
+      await tester.pump();
+    });
   });
 }
