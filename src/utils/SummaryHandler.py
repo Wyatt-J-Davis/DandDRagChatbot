@@ -155,7 +155,11 @@ class SummaryHandler:
     def _format_party_members(self, party_members):
         if not party_members:
             return "unknown party members"
-        names = [m.get("name", "").strip() for m in party_members if m.get("name", "").strip()]
+        names = []
+        for m in party_members:
+            name = m.get("name", "").strip() if isinstance(m, dict) else str(m).strip()
+            if name:
+                names.append(name)
         if not names:
             return "unknown party members"
         if len(names) == 1:

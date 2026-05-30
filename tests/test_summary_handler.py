@@ -120,6 +120,35 @@ class TestFormatPartyMembers:
         result = self.h._format_party_members(members)
         assert result == "Brom"
 
+    def test_list_of_strings_single(self):
+        assert self.h._format_party_members(["Aria"]) == "Aria"
+
+    def test_list_of_strings_multiple(self):
+        result = self.h._format_party_members(["Aria", "Brom", "Cael"])
+        assert "Aria" in result
+        assert "Brom" in result
+        assert "Cael" in result
+        assert "and" in result
+
+    def test_list_of_strings_empty_string_excluded(self):
+        result = self.h._format_party_members(["", "Brom"])
+        assert result == "Brom"
+
+    def test_list_of_strings_whitespace_only_excluded(self):
+        result = self.h._format_party_members(["   ", "Aria"])
+        assert result == "Aria"
+
+    def test_list_of_strings_all_empty_returns_fallback(self):
+        result = self.h._format_party_members(["", "   "])
+        assert result == "unknown party members"
+
+    def test_mixed_strings_and_dicts(self):
+        members = ["Aria", {"id": "2", "name": "Brom", "note_taker": False}]
+        result = self.h._format_party_members(members)
+        assert "Aria" in result
+        assert "Brom" in result
+        assert "and" in result
+
 
 # ---------------------------------------------------------------------------
 # _split_into_chunks
