@@ -11,7 +11,7 @@ class TypewriterController extends ChangeNotifier {
 
   TypewriterController({
     required this.fullText,
-    this.interval = const Duration(milliseconds: 20),
+    this.interval = const Duration(milliseconds: 2),
   });
 
   String get displayedText => fullText.substring(0, _currentLength);

@@ -90,5 +90,27 @@ void main() {
       expect(notifyCount, 0);
       ctrl.dispose();
     });
+
+    testWidgets('50-char string completes within 200 ms at 2 ms interval',
+        (tester) async {
+      final ctrl = TypewriterController(
+        fullText: 'A' * 50,
+        interval: const Duration(milliseconds: 2),
+      );
+      ctrl.start();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(ctrl.isDone, isTrue);
+      expect(ctrl.displayedText.length, 50);
+      ctrl.dispose();
+    });
+
+    testWidgets('default interval completes 50-char string within 200 ms',
+        (tester) async {
+      final ctrl = TypewriterController(fullText: 'A' * 50);
+      ctrl.start();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(ctrl.isDone, isTrue);
+      ctrl.dispose();
+    });
   });
 }

@@ -528,6 +528,20 @@ void main() {
 
         expect(find.byType(Lottie), findsNothing);
       });
+
+      testWidgets('inference Lottie renders at 240x240 while bot is thinking',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(
+            buildSubject(chatService: _HangingChatService()));
+        await tester.enterText(find.byType(TextField), 'question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+
+        final lottie = tester.widget<Lottie>(find.byType(Lottie));
+        expect(lottie.width, 240);
+        expect(lottie.height, 240);
+      });
     });
 
     group('typewriter effect', () {
@@ -540,8 +554,8 @@ void main() {
         await tester.pump();
         await tester.tap(find.byType(IconButton));
         await tester.pump();
-        // Answer arrived, typewriter started — advance exactly 2 ticks (40ms)
-        await tester.pump(const Duration(milliseconds: 40));
+        // Answer arrived, typewriter started — advance exactly 2 ticks (4ms at 2ms interval)
+        await tester.pump(const Duration(milliseconds: 4));
 
         expect(find.text('AB'), findsOneWidget);
         expect(find.text(fullAnswer), findsNothing);
@@ -571,8 +585,8 @@ void main() {
         await tester.pump();
         await tester.tap(find.byType(IconButton));
         await tester.pump();
-        // Typewriter has only revealed a few chars
-        await tester.pump(const Duration(milliseconds: 40));
+        // Typewriter has only revealed a few chars (4ms = 2 ticks at 2ms interval)
+        await tester.pump(const Duration(milliseconds: 4));
 
         expect(find.byType(ReferenceChip), findsNothing);
       });

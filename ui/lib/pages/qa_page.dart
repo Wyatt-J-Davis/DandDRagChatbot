@@ -240,8 +240,8 @@ class _QAPageState extends State<QAPage> {
           Center(
             child: Lottie.asset(
               'assets/star-magic.json',
-              width: 80,
-              height: 80,
+              width: 240,
+              height: 240,
               errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
           ),
