@@ -475,6 +475,17 @@ void main() {
       manager.startVectorize(text: 'notes');
       expect(manager.vectorizeStatus, OperationStatus.running);
     });
+
+    test('appState.hasNotes is set to true after VectorizeDoneEvent', () async {
+      final appState = AppStateNotifier();
+      final manager = makeManager(
+        appState: appState,
+        vectorizeService: _DoneVectorizeService(),
+      );
+      manager.startVectorize(text: 'notes');
+      await Future<void>.delayed(Duration.zero);
+      expect(appState.hasNotes, isTrue);
+    });
   });
 
   // --------------------------------------------------------------- summary --

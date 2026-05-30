@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
 import 'package:ttrpg_chatbot/services/upload_service.dart';
+import 'package:ttrpg_chatbot/services/vectorize_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/state/operation_manager.dart';
 import 'package:ttrpg_chatbot/widgets/notes_upload_button.dart';
@@ -58,6 +59,14 @@ class _CountingUploadService extends UploadService {
       yield e;
     }
   }
+}
+
+class _BlockingVectorizeService extends VectorizeService {
+  final StreamController<VectorizeEvent> controller =
+      StreamController<VectorizeEvent>();
+
+  @override
+  Stream<VectorizeEvent> vectorize(String _) => controller.stream;
 }
 
 Widget buildSubject({
@@ -551,13 +560,59 @@ void main() {
       expect(find.text('No notes loaded'), findsOneWidget);
     });
 
-    testWidgets('shows Notes loaded indicator when hasNotes is true',
+    testWidgets('shows Notes processed indicator when hasNotes is true',
         (WidgetTester tester) async {
       final appState = AppStateNotifier();
       appState.setHasNotes(true);
       await tester.pumpWidget(buildSubject(appState: appState));
-      expect(find.text('Notes loaded'), findsOneWidget);
+      expect(find.text('Notes processed'), findsOneWidget);
       expect(find.text('No notes loaded'), findsNothing);
+    });
+
+    testWidgets('status text hidden while upload is running',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _BlockingUploadService();
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump();
+
+      expect(find.text('No notes loaded'), findsNothing);
+      expect(find.text('Notes processed'), findsNothing);
+
+      uploadService.controller.close();
+      await tester.pump();
+    });
+
+    testWidgets('status text hidden while vectorize is running',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      final blockingVectorize = _BlockingVectorizeService();
+      final manager = OperationManager(
+        appState: appState,
+        vectorizeService: blockingVectorize,
+      );
+      manager.startVectorize(text: 'notes');
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: NotesUploadButton(
+            appState: appState,
+            pickerService: _FakePickerService(),
+            operationManager: manager,
+          ),
+        ),
+      ));
+
+      expect(find.text('No notes loaded'), findsNothing);
+      expect(find.text('Notes processed'), findsNothing);
+
+      blockingVectorize.controller.close();
+      await tester.pump();
+      manager.dispose();
     });
 
     testWidgets('shows Lottie widget while upload is in progress',

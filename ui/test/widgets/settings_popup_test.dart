@@ -245,16 +245,16 @@ void main() {
         await tester.pumpWidget(buildSubject(appState: appState));
 
         expect(find.text('No notes loaded'), findsOneWidget);
-        expect(find.text('Notes loaded'), findsNothing);
+        expect(find.text('Notes processed'), findsNothing);
       });
 
-      testWidgets('shows Notes loaded when hasNotes is true', (tester) async {
+      testWidgets('shows Notes processed when hasNotes is true', (tester) async {
         final appState = AppStateNotifier();
         appState.setHasNotes(true);
 
         await tester.pumpWidget(buildSubject(appState: appState));
 
-        expect(find.text('Notes loaded'), findsOneWidget);
+        expect(find.text('Notes processed'), findsOneWidget);
         expect(find.text('No notes loaded'), findsNothing);
       });
 

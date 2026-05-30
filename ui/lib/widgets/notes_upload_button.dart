@@ -87,6 +87,8 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
   @override
   Widget build(BuildContext context) {
     final isUploading = widget.operationManager.isUploadRunning;
+    final isVectorizing = widget.operationManager.isVectorizeRunning;
+    final isOperationRunning = isUploading || isVectorizing;
     final progress = widget.operationManager.uploadProgress;
     final error = widget.operationManager.uploadError;
     final path = widget.appState.selectedNotesPath;
@@ -113,7 +115,8 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
               widget.appState.hasNotes ? 'Re-upload Notes' : 'Upload Notes'),
         ),
         const SizedBox(height: 4),
-        Text(widget.appState.hasNotes ? 'Notes loaded' : 'No notes loaded'),
+        if (!isOperationRunning)
+          Text(widget.appState.hasNotes ? 'Notes processed' : 'No notes loaded'),
         if (filename != null) ...[
           const SizedBox(height: 4),
           Text(filename, overflow: TextOverflow.ellipsis),

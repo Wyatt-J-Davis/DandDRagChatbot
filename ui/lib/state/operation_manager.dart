@@ -173,6 +173,7 @@ class OperationManager extends ChangeNotifier {
           notifyListeners();
         } else if (event is VectorizeDoneEvent) {
           _vectorizeStatus = OperationStatus.done;
+          _appState.setHasNotes(true);
           notifyListeners();
           onVectorizeSuccess?.call();
         } else if (event is VectorizeErrorEvent) {
