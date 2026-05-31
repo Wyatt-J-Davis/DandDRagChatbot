@@ -108,6 +108,19 @@ class _SummaryWithSectionsFetchService extends SummaryService {
           '# Introduction\nThe campaign begins.\n\n# The Adventure\nThe heroes set out.');
 }
 
+class _BoldHeadingsSummaryService extends SummaryService {
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {}
+
+  @override
+  Future<SummaryResult?> fetchSummary() async => SummaryResult(
+      summary:
+          '# **Overview**\nThe campaign begins.\n\n# **Journey**\nThe heroes set out.');
+}
+
 class _PlainSummaryFetchService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
@@ -535,6 +548,16 @@ void main() {
 
       expect(find.text('Plain summary with no headings.'), findsOneWidget);
       expect(find.byType(ListTile), findsNothing);
+    });
+
+    testWidgets('section headings with bold markers are displayed without asterisks',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _BoldHeadingsSummaryService()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Overview'), findsWidgets);
+      expect(find.text('**Overview**'), findsNothing);
     });
 
     testWidgets('plain summary (no headings) renders via MarkdownBody',

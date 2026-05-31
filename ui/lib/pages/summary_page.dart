@@ -99,7 +99,7 @@ class _SummaryPageState extends State<SummaryPage> {
       final match = RegExp(r'^(#{1,3})\s+(.+)').firstMatch(line);
       if (match != null) {
         flush();
-        currentHeading = match.group(2)!.trim();
+        currentHeading = match.group(2)!.trim().replaceAll(RegExp(r'\*+'), '');
         currentLevel = match.group(1)!.length;
       } else {
         bodyLines.add(line);
