@@ -215,8 +215,18 @@ class _QAPageState extends State<QAPage> {
               constraints: const BoxConstraints(maxWidth: 720),
               child: ListView.builder(
                 controller: _scrollController,
-                itemCount: messages.length,
+                itemCount: messages.length + (isLoading ? 1 : 0),
                 itemBuilder: (context, index) {
+                  if (isLoading && index == messages.length) {
+                    return Center(
+                      child: Lottie.asset(
+                        'assets/star-magic.json',
+                        width: 360,
+                        height: 360,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    );
+                  }
                   final msg = messages[index];
                   final isTyping = index == _typingMessageIndex;
                   final displayText = isTyping
@@ -251,15 +261,6 @@ class _QAPageState extends State<QAPage> {
             ),
           ),
         ),
-        if (isLoading)
-          Center(
-            child: Lottie.asset(
-              'assets/star-magic.json',
-              width: 240,
-              height: 240,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
-            ),
-          ),
         Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),

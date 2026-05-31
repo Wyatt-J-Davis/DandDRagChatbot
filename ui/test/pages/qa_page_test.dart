@@ -517,6 +517,24 @@ void main() {
         expect(find.byType(Lottie), findsNothing);
       });
 
+      testWidgets('inference Lottie is inside the message ListView while loading',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(
+            buildSubject(chatService: _HangingChatService()));
+        await tester.enterText(find.byType(TextField), 'question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+
+        expect(
+          find.descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Lottie),
+          ),
+          findsOneWidget,
+        );
+      });
+
       testWidgets('star-magic Lottie disappears after answer arrives',
           (WidgetTester tester) async {
         await tester.pumpWidget(
@@ -529,7 +547,7 @@ void main() {
         expect(find.byType(Lottie), findsNothing);
       });
 
-      testWidgets('inference Lottie renders at 240x240 while bot is thinking',
+      testWidgets('inference Lottie renders at 360x360 while bot is thinking',
           (WidgetTester tester) async {
         await tester.pumpWidget(
             buildSubject(chatService: _HangingChatService()));
@@ -539,8 +557,8 @@ void main() {
         await tester.pump();
 
         final lottie = tester.widget<Lottie>(find.byType(Lottie));
-        expect(lottie.width, 240);
-        expect(lottie.height, 240);
+        expect(lottie.width, 360);
+        expect(lottie.height, 360);
       });
     });
 
