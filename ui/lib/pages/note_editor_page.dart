@@ -57,6 +57,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     super.dispose();
   }
 
+  Future<void> _save() async {
+    final content = _controller.document.toPlainText();
+    final success = await widget.noteContentService!.saveNotes(content);
+    if (!mounted) return;
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notes saved')),
+      );
+    }
+  }
+
   Future<void> _export(String format) async {
     final content = _controller.document.toPlainText();
     await widget.noteContentService!.saveNotes(content);
@@ -103,6 +114,13 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 TextButton(
                   onPressed: () => _export('docx'),
                   child: const Text('Export .docx'),
+                ),
+                const SizedBox(width: 4),
+              ],
+              if (widget.noteContentService != null) ...[
+                ElevatedButton(
+                  onPressed: _save,
+                  child: const Text('Save'),
                 ),
                 const SizedBox(width: 4),
               ],

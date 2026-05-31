@@ -241,6 +241,55 @@ void main() {
       });
     });
 
+    group('save button', () {
+      testWidgets('shown when noteContentService is provided', (tester) async {
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FakeNoteContentService(),
+        ));
+        await tester.pumpAndSettle();
+        expect(find.text('Save'), findsOneWidget);
+      });
+
+      testWidgets('not shown when noteContentService is null (default)',
+          (tester) async {
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+        expect(find.text('Save'), findsNothing);
+      });
+
+      testWidgets('tapping Save calls saveNotes with current editor content',
+          (tester) async {
+        final controller = QuillController.basic();
+        final contentService = _FakeNoteContentService();
+
+        await tester.pumpWidget(buildPage(
+          controller: controller,
+          noteContentService: contentService,
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+
+        expect(contentService.saveNotesCalled, isTrue);
+        expect(contentService.lastSavedContent,
+            controller.document.toPlainText());
+      });
+
+      testWidgets('tapping Save shows SnackBar "Notes saved" on success',
+          (tester) async {
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FakeNoteContentService(),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Notes saved'), findsOneWidget);
+      });
+    });
+
     group('export buttons', () {
       testWidgets(
           'Export .txt and Export .docx buttons shown when all export services provided',
