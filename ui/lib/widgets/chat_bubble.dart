@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../services/chat_service.dart';
 
@@ -23,13 +24,16 @@ class ChatBubble extends StatelessWidget {
           color: isUser ? colorScheme.primary : colorScheme.surfaceVariant,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(
-          message,
-          style: TextStyle(
-            color:
-                isUser ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-          ),
-        ),
+        child: isUser
+            ? Text(
+                message,
+                style: TextStyle(color: colorScheme.onPrimary),
+              )
+            : MarkdownBody(
+                data: message,
+                styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+                    .copyWith(p: TextStyle(color: colorScheme.onSurfaceVariant)),
+              ),
       ),
     );
   }

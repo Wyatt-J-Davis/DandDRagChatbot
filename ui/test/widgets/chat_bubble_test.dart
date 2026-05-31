@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/widgets/chat_bubble.dart';
 
@@ -59,6 +60,20 @@ void main() {
       final container = tester.widget<Container>(find.byType(Container).first);
       final decoration = container.decoration as BoxDecoration;
       expect(decoration.color, theme.colorScheme.surfaceVariant);
+    });
+
+    testWidgets('assistant bubble renders via MarkdownBody',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(message: '**bold**', sender: ChatSender.assistant));
+      expect(find.byType(MarkdownBody), findsOneWidget);
+    });
+
+    testWidgets('user bubble does not use MarkdownBody',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(message: '**bold**', sender: ChatSender.user));
+      expect(find.byType(MarkdownBody), findsNothing);
     });
   });
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 import 'package:ttrpg_chatbot/pages/summary_page.dart';
@@ -534,6 +535,24 @@ void main() {
 
       expect(find.text('Plain summary with no headings.'), findsOneWidget);
       expect(find.byType(ListTile), findsNothing);
+    });
+
+    testWidgets('plain summary (no headings) renders via MarkdownBody',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _PlainSummaryFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MarkdownBody), findsOneWidget);
+    });
+
+    testWidgets('section body renders via MarkdownBody',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _SummaryWithSectionsFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MarkdownBody), findsWidgets);
     });
   });
 

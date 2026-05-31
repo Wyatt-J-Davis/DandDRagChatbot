@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:lottie/lottie.dart';
 
 import '../services/summary_service.dart';
@@ -201,7 +202,8 @@ class _SummaryPageState extends State<SummaryPage> {
           if (hasResult && !isGenerating)
             Expanded(
               child: sections.isEmpty
-                  ? SingleChildScrollView(child: Text(summaryResult.summary))
+                  ? SingleChildScrollView(
+                      child: MarkdownBody(data: summaryResult.summary))
                   : _buildSummaryWithToc(sections),
             ),
         ],
@@ -263,7 +265,7 @@ class _SummaryPageState extends State<SummaryPage> {
                   if (section.body.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(section.body),
+                      child: MarkdownBody(data: section.body),
                     ),
                 ],
               ],
