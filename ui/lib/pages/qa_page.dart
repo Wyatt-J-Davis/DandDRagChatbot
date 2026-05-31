@@ -147,29 +147,39 @@ class _QAPageState extends State<QAPage> {
   }
 
   Widget _buildInputRow(bool isLoading) {
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _controller,
-            focusNode: _inputFocus,
-            enabled: !isLoading,
-            onSubmitted: (_) => _submit(),
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(hintText: 'Ask a question…'),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: _inputFocus,
+              enabled: !isLoading,
+              onSubmitted: (_) => _submit(),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration.collapsed(hintText: 'Ask a question…'),
+            ),
           ),
-        ),
-        ValueListenableBuilder<TextEditingValue>(
-          valueListenable: _controller,
-          builder: (context, value, _) {
-            return IconButton(
-              icon: const Icon(Icons.send),
-              onPressed:
-                  (value.text.trim().isEmpty || isLoading) ? null : _submit,
-            );
-          },
-        ),
-      ],
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _controller,
+            builder: (context, value, _) {
+              return IconButton(
+                icon: const Icon(Icons.send),
+                onPressed:
+                    (value.text.trim().isEmpty || isLoading) ? null : _submit,
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -186,7 +196,7 @@ class _QAPageState extends State<QAPage> {
             const Text('🧙', style: TextStyle(fontSize: 72)),
             const SizedBox(height: 24),
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
+              constraints: const BoxConstraints(maxWidth: 720),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _buildInputRow(isLoading),
@@ -200,40 +210,45 @@ class _QAPageState extends State<QAPage> {
     return Column(
       children: [
         Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            itemCount: messages.length,
-            itemBuilder: (context, index) {
-              final msg = messages[index];
-              final isTyping = index == _typingMessageIndex;
-              final displayText = isTyping
-                  ? (_typewriterController?.displayedText ?? '')
-                  : msg.text;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ChatBubble(message: displayText, sender: msg.sender),
-                  if (!isTyping &&
-                      msg.sender == ChatSender.assistant &&
-                      msg.sources.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8, bottom: 4),
-                      child: Wrap(
-                        spacing: 4,
-                        children: [
-                          for (var i = 0; i < msg.sources.length; i++)
-                            ReferenceChip(
-                              index: i + 1,
-                              date: msg.sources[i].date,
-                              onTap: () =>
-                                  _showSourceDialog(context, msg.sources[i]),
-                            ),
-                        ],
-                      ),
-                    ),
-                ],
-              );
-            },
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: messages.length,
+                itemBuilder: (context, index) {
+                  final msg = messages[index];
+                  final isTyping = index == _typingMessageIndex;
+                  final displayText = isTyping
+                      ? (_typewriterController?.displayedText ?? '')
+                      : msg.text;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ChatBubble(message: displayText, sender: msg.sender),
+                      if (!isTyping &&
+                          msg.sender == ChatSender.assistant &&
+                          msg.sources.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8, bottom: 4),
+                          child: Wrap(
+                            spacing: 4,
+                            children: [
+                              for (var i = 0; i < msg.sources.length; i++)
+                                ReferenceChip(
+                                  index: i + 1,
+                                  date: msg.sources[i].date,
+                                  onTap: () =>
+                                      _showSourceDialog(context, msg.sources[i]),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
         ),
         if (isLoading)
@@ -245,9 +260,14 @@ class _QAPageState extends State<QAPage> {
               errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: _buildInputRow(isLoading),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: _buildInputRow(isLoading),
+            ),
+          ),
         ),
       ],
     );

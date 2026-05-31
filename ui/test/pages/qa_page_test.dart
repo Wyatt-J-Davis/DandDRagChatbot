@@ -544,6 +544,83 @@ void main() {
       });
     });
 
+    group('centered layout', () {
+      testWidgets('empty state input is constrained to maxWidth 720',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+
+        final constrainedBoxes = tester.widgetList<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(TextField),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
+        expect(
+          constrainedBoxes.any((cb) => cb.constraints.maxWidth == 720),
+          isTrue,
+        );
+      });
+
+      testWidgets('message list is wrapped in a ConstrainedBox with maxWidth 720',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.enterText(find.byType(TextField), 'Hello');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+
+        final constrainedBoxes = tester.widgetList<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(ListView),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
+        expect(
+          constrainedBoxes.any((cb) => cb.constraints.maxWidth == 720),
+          isTrue,
+        );
+      });
+
+      testWidgets('input row is wrapped in a ConstrainedBox with maxWidth 720 in active chat',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.enterText(find.byType(TextField), 'Hello');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+
+        final constrainedBoxes = tester.widgetList<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(TextField),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
+        expect(
+          constrainedBoxes.any((cb) => cb.constraints.maxWidth == 720),
+          isTrue,
+        );
+      });
+
+      testWidgets('input area has a rounded border container',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+
+        final containers = tester.widgetList<Container>(
+          find.ancestor(
+            of: find.byType(TextField),
+            matching: find.byType(Container),
+          ),
+        );
+        expect(
+          containers.any((c) {
+            final deco = c.decoration;
+            return deco is BoxDecoration && deco.borderRadius != null;
+          }),
+          isTrue,
+        );
+      });
+    });
+
     group('typewriter effect', () {
       testWidgets('answer bubble shows partial text immediately after arriving',
           (WidgetTester tester) async {
