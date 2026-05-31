@@ -372,11 +372,21 @@ class TestSummaryGenerateEndpoint:
             assert "message" in event
             assert "progress" in event
 
-    def test_passes_model_and_party_members_to_handler(self):
+    def test_passes_model_party_members_and_temperature_to_handler(self):
+        handler = self._make_summary_handler([(True, 100, "Summary.")])
+        client = self._client_with_handler(handler)
+        client.post("/summary/generate", json={**self._BODY, "temperature": 0.5})
+        handler.generate_summary_streaming.assert_called_once_with(
+            "llama3", ["Alice", "Bob"], temperature=0.5
+        )
+
+    def test_temperature_defaults_to_0_7_when_not_sent(self):
         handler = self._make_summary_handler([(True, 100, "Summary.")])
         client = self._client_with_handler(handler)
         client.post("/summary/generate", json=self._BODY)
-        handler.generate_summary_streaming.assert_called_once_with("llama3", ["Alice", "Bob"])
+        handler.generate_summary_streaming.assert_called_once_with(
+            "llama3", ["Alice", "Bob"], temperature=0.7
+        )
 
     def test_error_emits_sse_error_event_not_http_500(self):
         client = self._client_with_handler(self._make_erroring_handler())

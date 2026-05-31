@@ -73,6 +73,7 @@ class _SummaryPageState extends State<SummaryPage> {
     widget.operationManager.startSummary(
       model: widget.appState.selectedModel ?? '',
       partyMembers: widget.appState.partyMembers.toList(),
+      temperature: widget.appState.temperature,
     );
   }
 

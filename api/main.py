@@ -75,6 +75,7 @@ class ChatRequest(BaseModel):
 class SummaryGenerateRequest(BaseModel):
     model: str
     party_members: list[str] = []
+    temperature: float = 0.7
 
 
 class NotesRequest(BaseModel):
@@ -273,7 +274,7 @@ def create_app() -> FastAPI:
         def event_stream():
             try:
                 for is_done, progress, text in summary.generate_summary_streaming(
-                    body.model, body.party_members
+                    body.model, body.party_members, temperature=body.temperature
                 ):
                     if is_done:
                         yield _sse_event({"done": True, "progress": 100})

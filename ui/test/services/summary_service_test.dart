@@ -26,7 +26,7 @@ void main() {
 
       final service = SummaryService(port: 9999, httpClient: client);
       final events = await service
-          .generate(model: 'llama3', partyMembers: ['Alice', 'Bob'])
+          .generate(model: 'llama3', partyMembers: ['Alice', 'Bob'], temperature: 0.7)
           .toList();
 
       expect(events.length, 3);
@@ -48,7 +48,7 @@ void main() {
 
       final service = SummaryService(port: 9999, httpClient: client);
       final events = await service
-          .generate(model: 'llama3', partyMembers: [])
+          .generate(model: 'llama3', partyMembers: [], temperature: 0.7)
           .toList();
 
       expect(events, [isA<SummaryDoneEvent>()]);
@@ -62,7 +62,7 @@ void main() {
 
       final service = SummaryService(port: 9999, httpClient: client);
       final events = await service
-          .generate(model: 'llama3', partyMembers: [])
+          .generate(model: 'llama3', partyMembers: [], temperature: 0.7)
           .toList();
 
       expect(events, [isA<SummaryErrorEvent>()]);
@@ -79,7 +79,7 @@ void main() {
 
       final service = SummaryService(port: 9999, httpClient: client);
       await service
-          .generate(model: 'llama3', partyMembers: ['Alice', 'Bob'])
+          .generate(model: 'llama3', partyMembers: ['Alice', 'Bob'], temperature: 0.5)
           .toList();
 
       expect(captured, isNotNull);
@@ -89,6 +89,25 @@ void main() {
           jsonDecode((captured as http.Request).body) as Map<String, dynamic>;
       expect(body['model'], 'llama3');
       expect(body['party_members'], ['Alice', 'Bob']);
+      expect(body['temperature'], 0.5);
+    });
+
+    test('temperature included in POST body when specified', () async {
+      http.BaseRequest? captured;
+
+      final client = MockClient.streaming((request, _) async {
+        captured = request;
+        return _sseResponse(['{"done":true,"progress":100}']);
+      });
+
+      final service = SummaryService(port: 9999, httpClient: client);
+      await service
+          .generate(model: 'llama3', partyMembers: [], temperature: 0.3)
+          .toList();
+
+      final body =
+          jsonDecode((captured as http.Request).body) as Map<String, dynamic>;
+      expect(body['temperature'], 0.3);
     });
 
     test('hits the configured port', () async {
@@ -100,7 +119,7 @@ void main() {
       });
 
       final service = SummaryService(port: 7777, httpClient: client);
-      await service.generate(model: 'm', partyMembers: []).toList();
+      await service.generate(model: 'm', partyMembers: [], temperature: 0.7).toList();
 
       expect(capturedPort, 7777);
     });

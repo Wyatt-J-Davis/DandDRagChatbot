@@ -102,6 +102,7 @@ class _BlockingSummaryService extends SummaryService {
   Stream<SummaryEvent> generate({
     required String model,
     required List<String> partyMembers,
+    required double temperature,
   }) =>
       controller.stream;
 

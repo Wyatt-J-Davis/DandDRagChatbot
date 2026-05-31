@@ -59,7 +59,7 @@ class SummaryHandler:
                 return json.load(f)
         return None
 
-    def generate_summary_streaming(self, model_name, party_members=None):
+    def generate_summary_streaming(self, model_name, party_members=None, temperature=0.7):
         """
         Generator that yields (is_done, progress_pct, text) tuples.
 
@@ -75,6 +75,8 @@ class SummaryHandler:
              incorporating the names of the player characters.
         """
         import pandas as pd
+
+        self.llm_handler.load_model(model_name, temperature, disable_thinking=True)
 
         if not self.raw_notes_exist():
             raise FileNotFoundError("Raw notes not found. Upload notes on the main page first.")

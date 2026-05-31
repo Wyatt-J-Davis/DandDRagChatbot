@@ -133,6 +133,7 @@ class _HangingSummaryService extends SummaryService {
   Stream<SummaryEvent> generate({
     required String model,
     required List<String> partyMembers,
+    required double temperature,
   }) =>
       controller.stream;
 
@@ -148,6 +149,7 @@ class _ProgressSummaryService extends SummaryService {
   Stream<SummaryEvent> generate({
     required String model,
     required List<String> partyMembers,
+    required double temperature,
   }) {
     controller.add(
         SummaryProgressEvent(progress: 30, message: 'Summarizing section 1...'));
@@ -163,6 +165,7 @@ class _DoneSummaryService extends SummaryService {
   Stream<SummaryEvent> generate({
     required String model,
     required List<String> partyMembers,
+    required double temperature,
   }) async* {
     yield SummaryDoneEvent();
   }
@@ -177,6 +180,7 @@ class _ErrorSummaryService extends SummaryService {
   Stream<SummaryEvent> generate({
     required String model,
     required List<String> partyMembers,
+    required double temperature,
   }) async* {
     yield SummaryErrorEvent(message: 'Model not found');
   }
@@ -195,6 +199,7 @@ class _FetchSummaryService extends SummaryService {
   Stream<SummaryEvent> generate({
     required String model,
     required List<String> partyMembers,
+    required double temperature,
   }) async* {}
 
   @override
@@ -202,6 +207,22 @@ class _FetchSummaryService extends SummaryService {
     fetchCount++;
     return result;
   }
+}
+
+class _CapturingTemperatureSummaryService extends SummaryService {
+  double? capturedTemperature;
+
+  @override
+  Stream<SummaryEvent> generate({
+    required String model,
+    required List<String> partyMembers,
+    required double temperature,
+  }) async* {
+    capturedTemperature = temperature;
+  }
+
+  @override
+  Future<SummaryResult?> fetchSummary() async => null;
 }
 
 // --- Helpers ---
@@ -496,55 +517,55 @@ void main() {
 
     test('summaryStatus becomes running after startSummary', () {
       final manager = makeManager(summaryService: _HangingSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       expect(manager.summaryStatus, OperationStatus.running);
     });
 
     test('summaryProgress updates on progress events', () async {
       final manager = makeManager(summaryService: _ProgressSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       await Future<void>.delayed(Duration.zero);
       expect(manager.summaryProgress, 30);
     });
 
     test('summaryProgressMessage is updated from events', () async {
       final manager = makeManager(summaryService: _ProgressSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       await Future<void>.delayed(Duration.zero);
       expect(manager.summaryProgressMessage, 'Summarizing section 1...');
     });
 
     test('summaryPhase is "Map" for Summarizing messages', () async {
       final manager = makeManager(summaryService: _ProgressSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       await Future<void>.delayed(Duration.zero);
       expect(manager.summaryPhase, 'Map');
     });
 
     test('summaryStatus becomes done after SummaryDoneEvent', () async {
       final manager = makeManager(summaryService: _DoneSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(manager.summaryStatus, OperationStatus.done);
     });
 
     test('summaryResult is stored after SummaryDoneEvent', () async {
       final manager = makeManager(summaryService: _DoneSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(manager.summaryResult?.summary, 'The campaign summary.');
     });
 
     test('summaryStatus becomes error after SummaryErrorEvent', () async {
       final manager = makeManager(summaryService: _ErrorSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       await Future<void>.delayed(Duration.zero);
       expect(manager.summaryStatus, OperationStatus.error);
     });
 
     test('summaryError is set on error', () async {
       final manager = makeManager(summaryService: _ErrorSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       await Future<void>.delayed(Duration.zero);
       expect(manager.summaryError, 'Model not found');
     });
@@ -555,15 +576,23 @@ void main() {
         summaryService: _DoneSummaryService(),
         onSummaryComplete: (r) => received = r,
       );
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(received?.summary, 'The campaign summary.');
     });
 
     test('summary status retained independent of any page', () {
       final manager = makeManager(summaryService: _HangingSummaryService());
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       expect(manager.summaryStatus, OperationStatus.running);
+    });
+
+    test('startSummary forwards temperature to service', () async {
+      final svc = _CapturingTemperatureSummaryService();
+      final manager = makeManager(summaryService: svc);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.3);
+      await Future<void>.delayed(Duration.zero);
+      expect(svc.capturedTemperature, 0.3);
     });
 
     test('loadSummary stores result in summaryResult', () async {
@@ -576,7 +605,7 @@ void main() {
     test('loadSummary does not change status when already running', () async {
       final svc = _HangingSummaryService();
       final manager = makeManager(summaryService: svc);
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       expect(manager.summaryStatus, OperationStatus.running);
       // loadSummary should be a no-op when running
       await manager.loadSummary();
@@ -592,7 +621,7 @@ void main() {
       final ctrl = StreamController<SummaryEvent>();
       final svc = _HangingSummaryService();
       final manager = makeManager(summaryService: svc);
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       svc.controller.add(SummaryProgressEvent(
           progress: 10, message: 'Summarizing section 2...'));
       await Future<void>.delayed(Duration.zero);
@@ -603,7 +632,7 @@ void main() {
     test('Combining message yields Reduce phase', () async {
       final svc = _HangingSummaryService();
       final manager = makeManager(summaryService: svc);
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       svc.controller.add(SummaryProgressEvent(
           progress: 50, message: 'Combining summaries (pass 1)...'));
       await Future<void>.delayed(Duration.zero);
@@ -613,7 +642,7 @@ void main() {
     test('Writing message yields Synthesis phase', () async {
       final svc = _HangingSummaryService();
       final manager = makeManager(summaryService: svc);
-      manager.startSummary(model: 'llama3', partyMembers: []);
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
       svc.controller.add(SummaryProgressEvent(
           progress: 90, message: 'Writing final campaign summary...'));
       await Future<void>.delayed(Duration.zero);

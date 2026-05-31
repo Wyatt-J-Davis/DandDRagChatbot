@@ -203,6 +203,7 @@ class OperationManager extends ChangeNotifier {
   void startSummary({
     required String model,
     required List<String> partyMembers,
+    required double temperature,
   }) {
     _summarySubscription?.cancel();
     _summaryStatus = OperationStatus.running;
@@ -215,7 +216,7 @@ class OperationManager extends ChangeNotifier {
     notifyListeners();
 
     _summarySubscription =
-        _summaryService.generate(model: model, partyMembers: partyMembers).listen(
+        _summaryService.generate(model: model, partyMembers: partyMembers, temperature: temperature).listen(
       (event) {
         if (event is SummaryProgressEvent) {
           _summaryProgress = event.progress;

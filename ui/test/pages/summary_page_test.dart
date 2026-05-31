@@ -11,7 +11,9 @@ import 'package:ttrpg_chatbot/state/operation_manager.dart';
 class _NoOpSummaryService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {}
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {}
 
   @override
   Future<SummaryResult?> fetchSummary() async => null;
@@ -20,7 +22,9 @@ class _NoOpSummaryService extends SummaryService {
 class _HangingSummaryService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) {
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) {
     return StreamController<SummaryEvent>().stream;
   }
 
@@ -34,7 +38,9 @@ class _ProgressAndHangSummaryService extends SummaryService {
 
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) {
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) {
     final controller = StreamController<SummaryEvent>();
     controller.add(SummaryProgressEvent(progress: 30, message: progressMessage));
     // Never closes — hangs after the progress event.
@@ -48,7 +54,9 @@ class _ProgressAndHangSummaryService extends SummaryService {
 class _DoneSummaryService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {
     yield SummaryDoneEvent();
   }
 
@@ -60,7 +68,9 @@ class _DoneSummaryService extends SummaryService {
 class _ErrorSummaryService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {
     yield SummaryErrorEvent(message: 'Model not found');
   }
 
@@ -73,7 +83,9 @@ class _TrackingNullFetchService extends SummaryService {
 
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {}
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {}
 
   @override
   Future<SummaryResult?> fetchSummary() async {
@@ -85,7 +97,9 @@ class _TrackingNullFetchService extends SummaryService {
 class _SummaryWithSectionsFetchService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {}
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {}
 
   @override
   Future<SummaryResult?> fetchSummary() async => SummaryResult(
@@ -96,7 +110,9 @@ class _SummaryWithSectionsFetchService extends SummaryService {
 class _PlainSummaryFetchService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {}
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {}
 
   @override
   Future<SummaryResult?> fetchSummary() async =>
@@ -110,7 +126,9 @@ class _SummaryWithMetadataService extends SummaryService {
 
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {}
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {}
 
   @override
   Future<SummaryResult?> fetchSummary() async => SummaryResult(
@@ -123,7 +141,9 @@ class _SummaryWithMetadataService extends SummaryService {
 class _LoadedThenHangService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) {
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) {
     return StreamController<SummaryEvent>().stream;
   }
 
@@ -135,7 +155,9 @@ class _LoadedThenHangService extends SummaryService {
 class _LoadedThenProgressAndHangService extends SummaryService {
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) {
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) {
     final controller = StreamController<SummaryEvent>();
     controller.add(SummaryProgressEvent(progress: 50, message: 'Summarizing...'));
     return controller.stream;
@@ -151,7 +173,9 @@ class _LoadedThenDoneService extends SummaryService {
 
   @override
   Stream<SummaryEvent> generate(
-      {required String model, required List<String> partyMembers}) async* {
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {
     yield SummaryDoneEvent();
   }
 
@@ -163,15 +187,30 @@ class _LoadedThenDoneService extends SummaryService {
   }
 }
 
-Widget buildSubject({SummaryService? summaryService}) {
-  final appState = AppStateNotifier(initialModel: 'llama3');
+class _CapturingTemperatureService extends SummaryService {
+  double? capturedTemperature;
+
+  @override
+  Stream<SummaryEvent> generate(
+      {required String model,
+      required List<String> partyMembers,
+      required double temperature}) async* {
+    capturedTemperature = temperature;
+  }
+
+  @override
+  Future<SummaryResult?> fetchSummary() async => null;
+}
+
+Widget buildSubject({SummaryService? summaryService, AppStateNotifier? appState}) {
+  final theAppState = appState ?? AppStateNotifier(initialModel: 'llama3');
   final theService = summaryService ?? _NoOpSummaryService();
   return MaterialApp(
     home: Scaffold(
       body: SummaryPage(
-        appState: appState,
+        appState: theAppState,
         operationManager: OperationManager(
-          appState: appState,
+          appState: theAppState,
           summaryService: theService,
         ),
       ),
@@ -400,6 +439,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(SnackBar), findsNothing);
+    });
+  });
+
+  group('SummaryPage (temperature threading)', () {
+    testWidgets('_generate passes appState.temperature to startSummary',
+        (WidgetTester tester) async {
+      final capturingSvc = _CapturingTemperatureService();
+      final appState = AppStateNotifier(
+          initialModel: 'llama3', initialTemperature: 0.3);
+      await tester.pumpWidget(
+          buildSubject(summaryService: capturingSvc, appState: appState));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Generate Summary'));
+      await tester.pumpAndSettle();
+
+      expect(capturingSvc.capturedTemperature, 0.3);
     });
   });
 

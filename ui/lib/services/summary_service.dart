@@ -36,6 +36,7 @@ class SummaryService {
   Stream<SummaryEvent> generate({
     required String model,
     required List<String> partyMembers,
+    required double temperature,
   }) async* {
     final uri = Uri.http('localhost:$port', '/summary/generate');
     final request = http.Request('POST', uri)
@@ -43,6 +44,7 @@ class SummaryService {
       ..body = jsonEncode({
         'model': model,
         'party_members': partyMembers,
+        'temperature': temperature,
       });
 
     final response = await _httpClient.send(request);

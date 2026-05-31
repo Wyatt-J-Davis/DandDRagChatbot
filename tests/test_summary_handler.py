@@ -382,6 +382,30 @@ class TestGenerateSummaryStreaming:
 
         assert results[-1][0] is True
 
+    def test_calls_load_model_with_temperature_before_invoke(self, tmp_path):
+        _write_raw_notes(tmp_path)
+        h = _make_handler(tmp_path)
+        h.llm_handler.invoke_model.return_value = "Summary."
+
+        with patch.object(h, "_get_chunk_char_size", return_value=100_000):
+            list(h.generate_summary_streaming("llama3:latest", temperature=0.5))
+
+        h.llm_handler.load_model.assert_called_once_with(
+            "llama3:latest", 0.5, disable_thinking=True
+        )
+
+    def test_load_model_default_temperature_is_0_7(self, tmp_path):
+        _write_raw_notes(tmp_path)
+        h = _make_handler(tmp_path)
+        h.llm_handler.invoke_model.return_value = "Summary."
+
+        with patch.object(h, "_get_chunk_char_size", return_value=100_000):
+            list(h.generate_summary_streaming("llama3:latest"))
+
+        h.llm_handler.load_model.assert_called_once_with(
+            "llama3:latest", 0.7, disable_thinking=True
+        )
+
     def test_reduce_loop_raises_when_model_output_does_not_shrink(self, tmp_path):
         _write_raw_notes(tmp_path, rows=[
             {"Date": "2023-01-01", "Contents": "A " * 500},
