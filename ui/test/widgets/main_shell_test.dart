@@ -41,6 +41,22 @@ class _FakePrefsService extends UserPreferencesService {
   }
 }
 
+/// Prefs service that does not complete until [complete] is called.
+class _SlowPrefsService extends UserPreferencesService {
+  final _completer = Completer<UserPreferences>();
+
+  _SlowPrefsService() : super(file: File(''));
+
+  @override
+  Future<UserPreferences> load() => _completer.future;
+
+  @override
+  Future<void> save(UserPreferences prefs) async {}
+
+  void complete({double scrollOffset = 0.0}) =>
+      _completer.complete(UserPreferences(scrollOffset: scrollOffset));
+}
+
 ModelService _stubModelService({List<String> models = const []}) {
   return ModelService(
     port: 9999,
@@ -592,6 +608,93 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Light mode'), findsOneWidget);
+    });
+
+    group('scroll position persistence', () {
+      testWidgets(
+          'notes fetch does not start until prefsService.load() resolves',
+          (WidgetTester tester) async {
+        final prefs = _SlowPrefsService();
+        final notes = _FakeNoteContentService('some content');
+
+        await tester.pumpWidget(buildSubject(
+          prefsService: prefs,
+          noteContentService: notes,
+        ));
+        await tester.pump();
+
+        // Prefs are still pending — notes must not have been fetched yet.
+        expect(notes.fetchCount, 0);
+      });
+
+      testWidgets(
+          'fetchNotes is called exactly once after prefsService resolves',
+          (WidgetTester tester) async {
+        final prefs = _SlowPrefsService();
+        final notes = _FakeNoteContentService('some content');
+
+        await tester.pumpWidget(buildSubject(
+          prefsService: prefs,
+          noteContentService: notes,
+        ));
+        await tester.pump();
+
+        prefs.complete();
+        await tester.pumpAndSettle();
+
+        expect(notes.fetchCount, 1);
+      });
+
+      testWidgets(
+          'navigating back to Note Editor tab does not crash when stored offset is nonzero',
+          (WidgetTester tester) async {
+        final prefs = _FakePrefsService(
+          const UserPreferences(scrollOffset: 50.0),
+        );
+        final notes = _FakeNoteContentService('some content');
+
+        await tester.pumpWidget(buildSubject(
+          prefsService: prefs,
+          noteContentService: notes,
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Note Editor'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Q&A'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Note Editor'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(QuillEditor), findsOneWidget);
+      });
+
+      testWidgets(
+          'scroll restore is not attempted when stored offset is zero',
+          (WidgetTester tester) async {
+        final prefs = _FakePrefsService(const UserPreferences(scrollOffset: 0.0));
+        final notes = _FakeNoteContentService('some content');
+
+        await tester.pumpWidget(buildSubject(
+          prefsService: prefs,
+          noteContentService: notes,
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Note Editor'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Q&A'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Note Editor'));
+        await tester.pumpAndSettle();
+
+        // No crash; editor is present.
+        expect(find.byType(QuillEditor), findsOneWidget);
+      });
     });
   });
 }

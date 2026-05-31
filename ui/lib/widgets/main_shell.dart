@@ -101,9 +101,10 @@ class _MainShellState extends State<MainShell> {
     );
     if (widget.prefsService != null) {
       widget.appState.addListener(_savePreferences);
-      _applyStoredPreferences();
+      _initialize();
+    } else {
+      _loadNotes();
     }
-    _loadNotes();
     _loadStatus();
     _loadParty();
   }
@@ -116,6 +117,11 @@ class _MainShellState extends State<MainShell> {
     _noteController.dispose();
     widget.appState.removeListener(_savePreferences);
     super.dispose();
+  }
+
+  Future<void> _initialize() async {
+    await _applyStoredPreferences();
+    await _loadNotes();
   }
 
   Future<void> _applyStoredPreferences() async {
@@ -247,8 +253,19 @@ class _MainShellState extends State<MainShell> {
         children: [
           NavigationRail(
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) =>
-                setState(() => _selectedIndex = index),
+            onDestinationSelected: (index) {
+              setState(() => _selectedIndex = index);
+              if (index == 2) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || !_editorScrollController.hasClients) return;
+                  if (_currentScrollOffset <= 0) return;
+                  final maxExtent =
+                      _editorScrollController.position.maxScrollExtent;
+                  _editorScrollController.jumpTo(
+                      _currentScrollOffset.clamp(0.0, maxExtent));
+                });
+              }
+            },
             labelType: NavigationRailLabelType.all,
             destinations: _destinations,
             trailing: IconButton(
