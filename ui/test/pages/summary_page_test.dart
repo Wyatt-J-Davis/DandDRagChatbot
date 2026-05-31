@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 import 'package:ttrpg_chatbot/pages/summary_page.dart';
 import 'package:ttrpg_chatbot/services/summary_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
@@ -207,6 +208,38 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
+    testWidgets('Lottie animation visible while generating',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _HangingSummaryService()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Generate Summary'));
+      await tester.pump();
+
+      expect(find.byType(Lottie), findsOneWidget);
+    });
+
+    testWidgets('Lottie animation is 240x240 while generating',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _HangingSummaryService()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Generate Summary'));
+      await tester.pump();
+
+      final size = tester.getSize(find.byType(Lottie));
+      expect(size.width, 240);
+      expect(size.height, 240);
+    });
+
+    testWidgets('Lottie animation not shown when idle',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Lottie), findsNothing);
+    });
+
     testWidgets('LinearProgressIndicator visible while generating',
         (WidgetTester tester) async {
       await tester.pumpWidget(
@@ -264,6 +297,28 @@ void main() {
       await tester.pump();
 
       expect(find.text('Synthesis'), findsOneWidget);
+    });
+
+    testWidgets('Lottie animation disappears after generation completes',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _DoneSummaryService()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Generate Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Lottie), findsNothing);
+    });
+
+    testWidgets('Lottie animation disappears after generation errors',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _ErrorSummaryService()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Generate Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Lottie), findsNothing);
     });
 
     testWidgets('after done: LinearProgressIndicator is gone',

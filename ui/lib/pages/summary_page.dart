@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../services/summary_service.dart';
 import '../state/app_state_notifier.dart';
@@ -171,6 +172,14 @@ class _SummaryPageState extends State<SummaryPage> {
           ),
           const SizedBox(height: 16),
           if (isGenerating) ...[
+            Center(
+              child: Lottie.asset(
+                'assets/star-magic.json',
+                width: 240,
+                height: 240,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
             LinearProgressIndicator(value: progressValue / 100),
             const SizedBox(height: 8),
             if (phase.isNotEmpty) Chip(label: Text(phase)),
