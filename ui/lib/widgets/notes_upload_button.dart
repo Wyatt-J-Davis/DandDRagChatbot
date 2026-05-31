@@ -129,16 +129,17 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
             ),
           if (isUploading) ...[
             const SizedBox(height: 8),
-            Stack(
-              alignment: Alignment.center,
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                LinearProgressIndicator(value: progress / 100),
                 Lottie.asset(
                   'assets/Magical_Effect_Loading.json',
                   width: 80,
                   height: 80,
                   errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(value: progress / 100),
               ],
             ),
           ],

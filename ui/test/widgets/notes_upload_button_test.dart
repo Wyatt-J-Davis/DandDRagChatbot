@@ -633,7 +633,7 @@ void main() {
     });
 
     testWidgets(
-        'Lottie and progress bar are co-located in a Stack during upload',
+        'Lottie and progress bar are in a Column (not a Stack) during upload',
         (WidgetTester tester) async {
       final appState = AppStateNotifier();
       appState.setSelectedNotesPath(r'C:\notes.txt');
@@ -644,18 +644,43 @@ void main() {
       await tester.tap(find.text('Vectorize'));
       await tester.pump();
 
-      final stackWithLottie = find.ancestor(
+      final columnWithLottie = find.ancestor(
         of: find.byType(Lottie),
-        matching: find.byType(Stack),
+        matching: find.byType(Column),
       );
-      expect(stackWithLottie, findsAtLeastNWidgets(1));
+      expect(columnWithLottie, findsAtLeastNWidgets(1));
       expect(
         find.descendant(
-          of: stackWithLottie,
+          of: columnWithLottie.first,
           matching: find.byType(LinearProgressIndicator),
         ),
         findsOneWidget,
       );
+      // Lottie must not be inside a Stack
+      expect(
+        find.ancestor(of: find.byType(Lottie), matching: find.byType(Stack)),
+        findsNothing,
+      );
+
+      uploadService.controller.close();
+      await tester.pump();
+    });
+
+    testWidgets('Lottie appears above the progress bar during upload',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier();
+      appState.setSelectedNotesPath(r'C:\notes.txt');
+      final uploadService = _BlockingUploadService();
+      await tester.pumpWidget(
+          buildSubject(appState: appState, uploadService: uploadService));
+
+      await tester.tap(find.text('Vectorize'));
+      await tester.pump();
+
+      final lottieTop = tester.getTopLeft(find.byType(Lottie)).dy;
+      final barTop =
+          tester.getTopLeft(find.byType(LinearProgressIndicator)).dy;
+      expect(lottieTop, lessThan(barTop));
 
       uploadService.controller.close();
       await tester.pump();
