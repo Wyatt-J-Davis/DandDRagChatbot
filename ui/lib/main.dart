@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
+import 'services/backend_lifecycle_observer.dart';
 import 'services/backend_service.dart';
 import 'services/model_service.dart';
 import 'services/note_content_service.dart';
@@ -18,6 +19,9 @@ BackendService? _backendService;
 
 Future<void> _startBackend() async {
   _backendService = BackendService(executablePath: 'backend/ttrpg_backend.exe');
+  WidgetsBinding.instance.addObserver(
+    BackendLifecycleObserver(backendService: _backendService!),
+  );
   await _backendService!.start();
   return _backendService!.ready;
 }
