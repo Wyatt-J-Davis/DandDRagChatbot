@@ -547,7 +547,7 @@ void main() {
         expect(find.byType(Lottie), findsNothing);
       });
 
-      testWidgets('inference Lottie renders at 360x360 while bot is thinking',
+      testWidgets('inference Lottie renders at 720x720 while bot is thinking',
           (WidgetTester tester) async {
         await tester.pumpWidget(
             buildSubject(chatService: _HangingChatService()));
@@ -557,8 +557,30 @@ void main() {
         await tester.pump();
 
         final lottie = tester.widget<Lottie>(find.byType(Lottie));
-        expect(lottie.width, 360);
-        expect(lottie.height, 360);
+        expect(lottie.width, 720);
+        expect(lottie.height, 720);
+      });
+    });
+
+    group('input placeholder', () {
+      testWidgets('shows campaign-focused placeholder in empty state',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        final tf = tester.widget<TextField>(find.byType(TextField));
+        expect(tf.decoration?.hintText, 'Ask a question about the campaign…');
+      });
+
+      testWidgets('shows campaign-focused placeholder in active-chat state',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(
+            buildSubject(chatService: _HangingChatService()));
+        await tester.enterText(find.byType(TextField), 'First question');
+        await tester.pump();
+        await tester.tap(find.byType(IconButton));
+        await tester.pump();
+
+        final tf = tester.widget<TextField>(find.byType(TextField));
+        expect(tf.decoration?.hintText, 'Ask a question about the campaign…');
       });
     });
 

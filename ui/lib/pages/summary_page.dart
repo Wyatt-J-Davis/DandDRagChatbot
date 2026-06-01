@@ -157,28 +157,17 @@ class _SummaryPageState extends State<SummaryPage> {
               _buildMetadataSubtitle(summaryResult)!,
           ],
           const SizedBox(height: 16),
-          Row(
-            children: [
-              ElevatedButton(
-                onPressed: isGenerating ? null : _generate,
-                child: const Text('Generate Summary'),
-              ),
-              if (hasResult) ...[
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: isGenerating ? null : _generate,
-                  child: const Text('Regenerate'),
-                ),
-              ],
-            ],
+          ElevatedButton(
+            onPressed: isGenerating ? null : _generate,
+            child: Text(hasResult ? 'Regenerate' : 'Generate Summary'),
           ),
           const SizedBox(height: 16),
           if (isGenerating) ...[
             Center(
               child: Lottie.asset(
                 'assets/star-magic.json',
-                width: 240,
-                height: 240,
+                width: 720,
+                height: 720,
                 errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
             ),

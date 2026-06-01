@@ -165,7 +165,7 @@ class _QAPageState extends State<QAPage> {
               enabled: !isLoading,
               onSubmitted: (_) => _submit(),
               onChanged: (_) => setState(() {}),
-              decoration: InputDecoration.collapsed(hintText: 'Ask a question…'),
+              decoration: InputDecoration.collapsed(hintText: 'Ask a question about the campaign…'),
             ),
           ),
           ValueListenableBuilder<TextEditingValue>(
@@ -221,8 +221,8 @@ class _QAPageState extends State<QAPage> {
                     return Center(
                       child: Lottie.asset(
                         'assets/star-magic.json',
-                        width: 360,
-                        height: 360,
+                        width: 720,
+                        height: 720,
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     );

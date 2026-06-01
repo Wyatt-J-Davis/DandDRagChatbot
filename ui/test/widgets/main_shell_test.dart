@@ -431,6 +431,11 @@ void main() {
       testWidgets(
           'navigation is allowed while summary generation SSE is active',
           (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final summaryService = _BlockingSummaryService();
 
         await tester.pumpWidget(buildSubject(

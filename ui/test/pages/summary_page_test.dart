@@ -232,6 +232,13 @@ Widget buildSubject({SummaryService? summaryService, AppStateNotifier? appState}
   );
 }
 
+void _setLargeView(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 1200);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 void main() {
   group('SummaryPage', () {
     testWidgets('"Generate Summary" button is visible initially',
@@ -250,6 +257,7 @@ void main() {
 
     testWidgets('button is disabled while generating',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(
           buildSubject(summaryService: _HangingSummaryService()));
       await tester.pumpAndSettle();
@@ -263,6 +271,7 @@ void main() {
 
     testWidgets('Lottie animation visible while generating',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(
           buildSubject(summaryService: _HangingSummaryService()));
       await tester.pumpAndSettle();
@@ -272,17 +281,19 @@ void main() {
       expect(find.byType(Lottie), findsOneWidget);
     });
 
-    testWidgets('Lottie animation is 240x240 while generating',
+    testWidgets('Lottie animation is 720x720 while generating',
         (WidgetTester tester) async {
+      _setLargeView(tester);
+
       await tester.pumpWidget(
           buildSubject(summaryService: _HangingSummaryService()));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Generate Summary'));
       await tester.pump();
 
-      final size = tester.getSize(find.byType(Lottie));
-      expect(size.width, 240);
-      expect(size.height, 240);
+      final lottie = tester.widget<Lottie>(find.byType(Lottie));
+      expect(lottie.width, 720);
+      expect(lottie.height, 720);
     });
 
     testWidgets('Lottie animation not shown when idle',
@@ -295,6 +306,7 @@ void main() {
 
     testWidgets('LinearProgressIndicator visible while generating',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(
           buildSubject(summaryService: _HangingSummaryService()));
       await tester.pumpAndSettle();
@@ -306,6 +318,7 @@ void main() {
 
     testWidgets('progress message displayed during generation',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(buildSubject(
           summaryService: _ProgressAndHangSummaryService(
               'Summarizing section 1 of 3...')));
@@ -318,6 +331,7 @@ void main() {
 
     testWidgets('phase label "Map" visible for Summarizing message',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(buildSubject(
           summaryService: _ProgressAndHangSummaryService(
               'Summarizing section 1 of 3...')));
@@ -330,6 +344,7 @@ void main() {
 
     testWidgets('phase label "Reduce" visible for Combining message',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(buildSubject(
           summaryService: _ProgressAndHangSummaryService(
               'Combining summaries (pass 1)...')));
@@ -342,6 +357,7 @@ void main() {
 
     testWidgets('phase label "Synthesis" visible for Writing message',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(buildSubject(
           summaryService: _ProgressAndHangSummaryService(
               'Writing final campaign summary...')));
@@ -357,7 +373,7 @@ void main() {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Generate Summary'));
+      await tester.tap(find.text('Regenerate'));
       await tester.pumpAndSettle();
 
       expect(find.byType(Lottie), findsNothing);
@@ -379,7 +395,7 @@ void main() {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Generate Summary'));
+      await tester.tap(find.text('Regenerate'));
       await tester.pumpAndSettle();
 
       expect(find.byType(LinearProgressIndicator), findsNothing);
@@ -390,7 +406,7 @@ void main() {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Generate Summary'));
+      await tester.tap(find.text('Regenerate'));
       await tester.pumpAndSettle();
 
       expect(find.text('The campaign summary text.'), findsOneWidget);
@@ -411,11 +427,11 @@ void main() {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Generate Summary'));
+      await tester.tap(find.text('Regenerate'));
       await tester.pumpAndSettle();
 
       final button = tester.widget<ElevatedButton>(
-          find.widgetWithText(ElevatedButton, 'Generate Summary'));
+          find.widgetWithText(ElevatedButton, 'Regenerate'));
       expect(button.onPressed, isNotNull);
     });
 
@@ -437,7 +453,7 @@ void main() {
       await tester.pumpWidget(
           buildSubject(summaryService: _DoneSummaryService()));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Generate Summary'));
+      await tester.tap(find.text('Regenerate'));
       await tester.pumpAndSettle();
 
       expect(find.byType(SnackBar), findsOneWidget);
@@ -493,6 +509,7 @@ void main() {
 
     testWidgets('"no summary" prompt not shown while generating',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(
           buildSubject(summaryService: _HangingSummaryService()));
       await tester.pumpAndSettle();
@@ -634,6 +651,35 @@ void main() {
     });
   });
 
+  group('SummaryPage (state-driven button)', () {
+    testWidgets('exactly one button shown when no summary exists',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _TrackingNullFetchService()));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ElevatedButton), findsOneWidget);
+    });
+
+    testWidgets('exactly one button shown when summary exists',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _LoadedThenHangService()));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ElevatedButton), findsOneWidget);
+    });
+
+    testWidgets('"Generate Summary" absent when summary exists',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+          buildSubject(summaryService: _LoadedThenHangService()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Generate Summary'), findsNothing);
+    });
+  });
+
   group('SummaryPage (regenerate button)', () {
     testWidgets('Regenerate button not visible when no summary exists',
         (WidgetTester tester) async {
@@ -655,6 +701,7 @@ void main() {
 
     testWidgets('Regenerate button is disabled while generating',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(
           buildSubject(summaryService: _LoadedThenHangService()));
       await tester.pumpAndSettle();
@@ -668,6 +715,7 @@ void main() {
 
     testWidgets('tapping Regenerate shows progress messages',
         (WidgetTester tester) async {
+      _setLargeView(tester);
       await tester.pumpWidget(
           buildSubject(summaryService: _LoadedThenProgressAndHangService()));
       await tester.pumpAndSettle();
