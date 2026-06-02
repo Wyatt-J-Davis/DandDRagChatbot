@@ -166,8 +166,9 @@ class _SummaryPageState extends State<SummaryPage> {
             Center(
               child: Lottie.asset(
                 'assets/star-magic.json',
-                width: 720,
-                height: 720,
+                width: 70,
+                height: 70,
+                fit: BoxFit.contain,
                 errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
             ),

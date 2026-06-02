@@ -281,7 +281,7 @@ void main() {
       expect(find.byType(Lottie), findsOneWidget);
     });
 
-    testWidgets('Lottie animation is 720x720 while generating',
+    testWidgets('Lottie animation is 70x70 with contain fit while generating',
         (WidgetTester tester) async {
       _setLargeView(tester);
 
@@ -292,8 +292,9 @@ void main() {
       await tester.pump();
 
       final lottie = tester.widget<Lottie>(find.byType(Lottie));
-      expect(lottie.width, 720);
-      expect(lottie.height, 720);
+      expect(lottie.width, 70);
+      expect(lottie.height, 70);
+      expect(lottie.fit, BoxFit.contain);
     });
 
     testWidgets('Lottie animation not shown when idle',
