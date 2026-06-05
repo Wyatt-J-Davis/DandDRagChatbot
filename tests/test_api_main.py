@@ -1,5 +1,6 @@
 """Tests for the FastAPI application skeleton, /health, /models, and /upload-notes endpoints."""
 import json
+import threading
 import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
@@ -721,3 +722,51 @@ class TestNotesExportDocxEndpoint:
         response = TestClient(create_app()).get("/notes/export/docx")
         assert "content-disposition" in response.headers
         assert "editor_notes.docx" in response.headers["content-disposition"]
+
+
+class TestBusyRejection:
+    """While a heavy operation is in flight, subsequent heavy requests receive a busy response."""
+
+    _CHAT_BODY = {"question": "What happened?", "model": "llama3", "temperature": 0.7}
+
+    def _make_blocking_handlers(self):
+        lock_acquired = threading.Event()
+        can_proceed = threading.Event()
+
+        def slow_invoke(*args, **kwargs):
+            lock_acquired.set()
+            can_proceed.wait(timeout=5)
+            return "The dragon attacked"
+
+        llm = MagicMock()
+        llm.invoke_model.side_effect = slow_invoke
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc("Some text")]
+        return llm, db, lock_acquired, can_proceed
+
+    def test_second_chat_request_while_first_inflight_receives_busy_response(self):
+        llm, db, lock_acquired, can_proceed = self._make_blocking_handlers()
+
+        app = create_app()
+        app.dependency_overrides[get_llm_handler] = lambda: llm
+        app.dependency_overrides[get_db_handler] = lambda: db
+        client = TestClient(app)
+
+        first_result = {}
+
+        def run_first():
+            first_result["response"] = client.post("/chat", json=self._CHAT_BODY)
+
+        t = threading.Thread(target=run_first, daemon=True)
+        t.start()
+
+        assert lock_acquired.wait(timeout=5), "First request did not reach the LLM call in time"
+
+        second = client.post("/chat", json=self._CHAT_BODY)
+
+        can_proceed.set()
+        t.join(timeout=5)
+
+        events = _parse_sse_events(second.text)
+        assert any(e.get("error") for e in events), "Expected error event in second response"
+        assert any("busy" in e.get("message", "").lower() for e in events), "Expected 'busy' in error message"

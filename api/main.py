@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import threading
 import uvicorn
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -88,6 +89,23 @@ class PartyRequest(BaseModel):
 
 def create_app() -> FastAPI:
     application = FastAPI()
+    _heavy_lock = threading.Lock()
+
+    def _guarded_stream(inner):
+        """Wraps an SSE generator with the global heavy-op lock."""
+        def guarded():
+            if not _heavy_lock.acquire(blocking=False):
+                yield _sse_event({
+                    "done": True,
+                    "error": True,
+                    "message": "Backend is busy. Wait for the current operation to finish.",
+                })
+                return
+            try:
+                yield from inner()
+            finally:
+                _heavy_lock.release()
+        return guarded
 
     application.add_middleware(
         CORSMiddleware,
@@ -144,7 +162,7 @@ def create_app() -> FastAPI:
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
-        return StreamingResponse(event_stream(), media_type="text/event-stream")
+        return StreamingResponse(_guarded_stream(event_stream)(), media_type="text/event-stream")
 
     @application.post("/chat")
     def chat(
@@ -208,7 +226,7 @@ def create_app() -> FastAPI:
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
-        return StreamingResponse(event_stream(), media_type="text/event-stream")
+        return StreamingResponse(_guarded_stream(event_stream)(), media_type="text/event-stream")
 
     @application.get("/summary")
     def summary_get(summary: SummaryHandler = Depends(get_summary_handler)):
@@ -264,7 +282,7 @@ def create_app() -> FastAPI:
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
-        return StreamingResponse(event_stream(), media_type="text/event-stream")
+        return StreamingResponse(_guarded_stream(event_stream)(), media_type="text/event-stream")
 
     @application.post("/summary/generate")
     def summary_generate(
@@ -283,7 +301,7 @@ def create_app() -> FastAPI:
             except Exception as exc:
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
-        return StreamingResponse(event_stream(), media_type="text/event-stream")
+        return StreamingResponse(_guarded_stream(event_stream)(), media_type="text/event-stream")
 
     @application.get("/party")
     def party_get():
