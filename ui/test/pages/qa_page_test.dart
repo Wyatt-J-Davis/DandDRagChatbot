@@ -547,7 +547,7 @@ void main() {
         expect(find.byType(Lottie), findsNothing);
       });
 
-      testWidgets('inference Lottie renders at 70x70 with contain fit while bot is thinking',
+      testWidgets('inference Lottie renders at 120x120 with contain fit while bot is thinking',
           (WidgetTester tester) async {
         await tester.pumpWidget(
             buildSubject(chatService: _HangingChatService()));
@@ -557,8 +557,8 @@ void main() {
         await tester.pump();
 
         final lottie = tester.widget<Lottie>(find.byType(Lottie));
-        expect(lottie.width, 70);
-        expect(lottie.height, 70);
+        expect(lottie.width, 120);
+        expect(lottie.height, 120);
         expect(lottie.fit, BoxFit.contain);
       });
     });
