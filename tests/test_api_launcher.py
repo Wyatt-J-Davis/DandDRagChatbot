@@ -120,3 +120,145 @@ class TestSyncSrc:
         # existing exe/src must not be overwritten
         assert (exe_dir / "src" / "old.py").exists()
         assert not (exe_dir / "src" / "new.py").exists()
+
+
+# ---------------------------------------------------------------------------
+# _RotatingConsoleStream
+# ---------------------------------------------------------------------------
+
+class TestRotatingConsoleStream:
+    def test_high_volume_writes_complete_without_blocking_and_file_rotates(self, tmp_path):
+        """The original freeze was a blocking console write; writing to a regular
+        rotating file must never block, so a large volume of writes simply
+        completes (the test would hang on a regression) and stays size-bounded."""
+        m = _import_launcher()
+        log_path = tmp_path / "console.log"
+        max_bytes = 1024
+        line = "x" * 100 + "\n"
+
+        stream = m._RotatingConsoleStream(str(log_path), max_bytes=max_bytes, backup_count=2)
+        try:
+            for _ in range(1000):  # ~101 KB written into a 1 KB-bounded file
+                stream.write(line)
+            stream.flush()
+        finally:
+            stream.close()
+
+        # The active file never exceeds the size bound.
+        assert log_path.exists()
+        assert log_path.stat().st_size < max_bytes
+
+        # Rotation happened and stayed bounded to backup_count backups.
+        assert (tmp_path / "console.log.1").exists()
+        for name in ("console.log.1", "console.log.2"):
+            assert (tmp_path / name).stat().st_size <= max_bytes + len(line)
+        assert not (tmp_path / "console.log.3").exists()
+
+    def test_write_returns_number_of_characters(self, tmp_path):
+        m = _import_launcher()
+        stream = m._RotatingConsoleStream(str(tmp_path / "console.log"))
+        try:
+            assert stream.write("hello") == 5
+        finally:
+            stream.close()
+
+    def test_is_not_a_tty(self, tmp_path):
+        m = _import_launcher()
+        stream = m._RotatingConsoleStream(str(tmp_path / "console.log"))
+        try:
+            assert stream.isatty() is False
+        finally:
+            stream.close()
+
+
+# ---------------------------------------------------------------------------
+# console redirection (packaged path only)
+# ---------------------------------------------------------------------------
+
+class TestConsoleRedirection:
+    def test_redirect_points_stdout_and_stderr_at_rotating_file(self, monkeypatch, tmp_path):
+        m = _import_launcher()
+        log_path = tmp_path / "console.log"
+
+        orig_stdout, orig_stderr = sys.stdout, sys.stderr
+        stream = m._redirect_console_to_rotating_file(str(log_path))
+        try:
+            assert sys.stdout is stream
+            assert sys.stderr is stream
+            print("hello from redirected stdout")
+            sys.stdout.flush()
+            assert "hello from redirected stdout" in log_path.read_text(encoding="utf-8")
+        finally:
+            sys.stdout, sys.stderr = orig_stdout, orig_stderr
+            stream.close()
+
+
+# ---------------------------------------------------------------------------
+# main() server start
+# ---------------------------------------------------------------------------
+
+class TestMainServerStart:
+    def test_starts_server_with_access_log_disabled(self, monkeypatch, tmp_path):
+        import uvicorn
+
+        captured = {}
+
+        def fake_run(*args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+
+        monkeypatch.setattr(uvicorn, "run", fake_run)
+
+        m = _import_launcher()
+        monkeypatch.setattr(m, "_exe_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(m, "_bundle_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(os, "chdir", lambda p: None)
+        if hasattr(sys, "_MEIPASS"):
+            monkeypatch.delattr(sys, "_MEIPASS")
+
+        m.main()
+
+        assert captured["kwargs"].get("access_log") is False
+
+    def test_redirects_console_when_packaged(self, monkeypatch, tmp_path):
+        import uvicorn
+
+        monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+
+        m = _import_launcher()
+        monkeypatch.setattr(m, "_exe_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(m, "_bundle_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(os, "chdir", lambda p: None)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+
+        called = {}
+        monkeypatch.setattr(
+            m, "_redirect_console_to_rotating_file",
+            lambda *a, **k: called.setdefault("redirected", True),
+        )
+
+        m.main()
+
+        assert called.get("redirected") is True
+
+    def test_does_not_redirect_console_in_dev(self, monkeypatch, tmp_path):
+        import uvicorn
+
+        monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+
+        m = _import_launcher()
+        monkeypatch.setattr(m, "_exe_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(m, "_bundle_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(os, "chdir", lambda p: None)
+        if hasattr(sys, "_MEIPASS"):
+            monkeypatch.delattr(sys, "_MEIPASS")
+
+        called = {}
+        monkeypatch.setattr(
+            m, "_redirect_console_to_rotating_file",
+            lambda *a, **k: called.setdefault("redirected", True),
+        )
+
+        m.main()
+
+        assert "redirected" not in called
