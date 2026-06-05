@@ -52,7 +52,7 @@ class LLMHandler:
             pass
         return min(context_tokens, _MAX_CONTEXT_TOKENS)
 
-    def load_model(self, model_name, model_temperature, disable_thinking=False):
+    def load_model(self, model_name, model_temperature, disable_thinking=False, num_predict=None):
         temp_model = self.currnet_model
         for item in self.availble_models:
             if item['model'] == model_name:
@@ -64,7 +64,7 @@ class LLMHandler:
                     num_ctx=num_ctx,
                 )
                 if disable_thinking:
-                    kwargs["num_predict"] = _SUMMARY_MAX_PREDICT
+                    kwargs["num_predict"] = num_predict if num_predict is not None else _SUMMARY_MAX_PREDICT
                     if self.is_thinking_model(model_name):
                         kwargs["reasoning"] = False
                 self.currnet_model = OllamaLLM(**kwargs)

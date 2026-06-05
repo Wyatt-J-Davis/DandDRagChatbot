@@ -145,6 +145,19 @@ class TestLoadModelDisableThinking:
         calls = self._capture_ollama_calls(handler, disable_thinking=True, is_thinking_return=False)
         assert "reasoning" not in calls[0]
 
+    def test_explicit_num_predict_overrides_summary_max_when_disable_thinking(self):
+        handler = LLMHandler()
+        import src.utils.LLMHandler as llm_module
+        calls = []
+        original = llm_module.OllamaLLM
+        llm_module.OllamaLLM = lambda **kw: calls.append(kw) or MagicMock()
+        try:
+            with patch.object(handler, "is_thinking_model", return_value=False):
+                handler.load_model("llama3:latest", 0.7, disable_thinking=True, num_predict=2048)
+        finally:
+            llm_module.OllamaLLM = original
+        assert calls[0].get("num_predict") == 2048
+
     def test_default_leaves_num_predict_unlimited_and_no_reasoning(self):
         import src.utils.LLMHandler as llm_module
         handler = LLMHandler()

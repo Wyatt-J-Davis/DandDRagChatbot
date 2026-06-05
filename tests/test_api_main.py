@@ -1,8 +1,10 @@
 """Tests for the FastAPI application skeleton, /health, /models, and /upload-notes endpoints."""
 import json
+import logging
 import threading
 import time
 import pytest
+from logging.handlers import RotatingFileHandler
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
@@ -956,3 +958,154 @@ class TestChatBoundedOutput:
     def test_chat_max_predict_constant_is_bounded(self):
         import api.main as m
         assert 0 < m._CHAT_MAX_PREDICT <= 4096
+
+
+class TestOperationLog:
+    """Rotating log records operations, lock events, timeouts, and errors."""
+
+    _CHAT_BODY = {"question": "What happened?", "model": "llama3", "temperature": 0.7}
+
+    @pytest.fixture(autouse=True)
+    def _reset_log_handlers(self):
+        yield
+        import api.main as m
+        logger = logging.getLogger(m._OP_LOGGER_NAME)
+        for h in list(logger.handlers):
+            if isinstance(h, RotatingFileHandler):
+                h.close()
+                logger.removeHandler(h)
+
+    def _setup(self, tmp_path, monkeypatch, llm=None, db=None):
+        import api.main as m
+        monkeypatch.setattr(m, "_LOG_FILE", str(tmp_path / "operations.log"))
+        caplog_level = logging.DEBUG
+        app = create_app()
+        if llm is not None:
+            app.dependency_overrides[get_llm_handler] = lambda: llm
+        if db is not None:
+            app.dependency_overrides[get_db_handler] = lambda: db
+        return TestClient(app), app
+
+    def _fast_handlers(self):
+        llm = MagicMock()
+        llm.invoke_model.return_value = "The dragon attacked"
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc("Some text")]
+        return llm, db
+
+    def test_rotating_file_handler_configured_at_startup(self, tmp_path, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_LOG_FILE", str(tmp_path / "operations.log"))
+        create_app()
+        logger = logging.getLogger(m._OP_LOGGER_NAME)
+        handlers = [h for h in logger.handlers if isinstance(h, RotatingFileHandler)]
+        assert len(handlers) == 1
+        assert handlers[0].maxBytes == m._LOG_MAX_BYTES
+        assert handlers[0].backupCount == m._LOG_BACKUP_COUNT
+
+    def test_operation_start_is_logged(self, caplog, tmp_path, monkeypatch):
+        import api.main as m
+        caplog.set_level(logging.DEBUG, logger=m._OP_LOGGER_NAME)
+        llm, db = self._fast_handlers()
+        client, _ = self._setup(tmp_path, monkeypatch, llm, db)
+        client.post("/chat", json=self._CHAT_BODY)
+        assert any("start" in r.message for r in caplog.records)
+
+    def test_operation_end_and_duration_are_logged(self, caplog, tmp_path, monkeypatch):
+        import api.main as m
+        caplog.set_level(logging.DEBUG, logger=m._OP_LOGGER_NAME)
+        llm, db = self._fast_handlers()
+        client, _ = self._setup(tmp_path, monkeypatch, llm, db)
+        client.post("/chat", json=self._CHAT_BODY)
+        messages = [r.message for r in caplog.records]
+        assert any("end" in msg for msg in messages)
+        assert any("duration=" in msg for msg in messages)
+
+    def test_lock_acquire_is_logged(self, caplog, tmp_path, monkeypatch):
+        import api.main as m
+        caplog.set_level(logging.DEBUG, logger=m._OP_LOGGER_NAME)
+        llm, db = self._fast_handlers()
+        client, _ = self._setup(tmp_path, monkeypatch, llm, db)
+        client.post("/chat", json=self._CHAT_BODY)
+        assert any("lock acquired" in r.message for r in caplog.records)
+
+    def test_lock_release_is_logged(self, caplog, tmp_path, monkeypatch):
+        import api.main as m
+        caplog.set_level(logging.DEBUG, logger=m._OP_LOGGER_NAME)
+        llm, db = self._fast_handlers()
+        client, _ = self._setup(tmp_path, monkeypatch, llm, db)
+        client.post("/chat", json=self._CHAT_BODY)
+        assert any("lock released" in r.message for r in caplog.records)
+
+    def test_busy_rejection_is_logged(self, caplog, tmp_path, monkeypatch):
+        import api.main as m
+        caplog.set_level(logging.DEBUG, logger=m._OP_LOGGER_NAME)
+        monkeypatch.setattr(m, "_LOG_FILE", str(tmp_path / "operations.log"))
+
+        lock_acquired = threading.Event()
+        can_proceed = threading.Event()
+
+        def slow_invoke(*args, **kwargs):
+            lock_acquired.set()
+            can_proceed.wait(timeout=5)
+            return "answer"
+
+        llm = MagicMock()
+        llm.invoke_model.side_effect = slow_invoke
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc("Some text")]
+
+        app = create_app()
+        app.dependency_overrides[get_llm_handler] = lambda: llm
+        app.dependency_overrides[get_db_handler] = lambda: db
+        client = TestClient(app)
+
+        first_done = {}
+
+        def run_first():
+            first_done["r"] = client.post("/chat", json=self._CHAT_BODY)
+
+        t = threading.Thread(target=run_first, daemon=True)
+        t.start()
+        assert lock_acquired.wait(timeout=5)
+
+        client.post("/chat", json=self._CHAT_BODY)
+
+        can_proceed.set()
+        t.join(timeout=5)
+
+        assert any("busy" in r.message.lower() for r in caplog.records)
+
+    def test_timeout_is_logged_with_stuck_thread_stack(self, caplog, tmp_path, monkeypatch):
+        import api.main as m
+        caplog.set_level(logging.DEBUG, logger=m._OP_LOGGER_NAME)
+        monkeypatch.setattr(m, "_LOG_FILE", str(tmp_path / "operations.log"))
+        monkeypatch.setattr(m, "_LLM_CALL_TIMEOUT_SECONDS", 0.05)
+
+        llm = MagicMock()
+        llm.invoke_model.side_effect = lambda *a, **kw: time.sleep(2) or "answer"
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc("Some text")]
+
+        app = create_app()
+        app.dependency_overrides[get_llm_handler] = lambda: llm
+        app.dependency_overrides[get_db_handler] = lambda: db
+        client = TestClient(app)
+        client.post("/chat", json=self._CHAT_BODY)
+
+        error_messages = [r.message for r in caplog.records if r.levelno >= logging.ERROR]
+        assert any("timed out" in msg.lower() for msg in error_messages), "expected timeout log"
+        assert any("Stuck thread stack" in msg for msg in error_messages), "expected stack dump header"
+
+    def test_exception_logged_with_full_traceback(self, caplog, tmp_path, monkeypatch):
+        import api.main as m
+        caplog.set_level(logging.DEBUG, logger=m._OP_LOGGER_NAME)
+        llm = MagicMock()
+        llm.invoke_model.side_effect = RuntimeError("model unavailable")
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc("Some text")]
+        client, _ = self._setup(tmp_path, monkeypatch, llm, db)
+        client.post("/chat", json=self._CHAT_BODY)
+        error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+        assert len(error_records) >= 1
+        assert any(r.exc_info is not None and r.exc_info[0] is not None for r in error_records)

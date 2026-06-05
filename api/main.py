@@ -1,12 +1,17 @@
 import io
 import json
+import logging
 import os
+import sys
 import threading
+import time
+import traceback
 import uvicorn
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from langchain_core.prompts import ChatPromptTemplate
+from logging.handlers import RotatingFileHandler
 from pydantic import BaseModel
 
 from src.utils.DatabaseHandler import DatabaseHandler, DATABASE_DIR
@@ -16,9 +21,32 @@ from src.utils.SummaryHandler import SummaryHandler
 
 _USER_DATA_FILE = "data/user_data.json"
 _NOTES_FILE = "data/editor_notes.txt"
+_LOG_FILE = "data/operations.log"
+_LOG_MAX_BYTES = 5 * 1024 * 1024
+_LOG_BACKUP_COUNT = 3
+_OP_LOGGER_NAME = "dandd.operations"
 
 _LLM_CALL_TIMEOUT_SECONDS = 180
 _CHAT_MAX_PREDICT = 2048
+
+
+def _get_op_logger() -> logging.Logger:
+    return logging.getLogger(_OP_LOGGER_NAME)
+
+
+def _configure_op_logger(log_file: str) -> None:
+    logger = logging.getLogger(_OP_LOGGER_NAME)
+    for h in list(logger.handlers):
+        if isinstance(h, RotatingFileHandler):
+            h.close()
+            logger.removeHandler(h)
+    log_dir = os.path.dirname(log_file)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
+    fh = RotatingFileHandler(log_file, maxBytes=_LOG_MAX_BYTES, backupCount=_LOG_BACKUP_COUNT)
+    fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(fh)
+    logger.setLevel(logging.DEBUG)
 
 _singleton_lock = threading.Lock()
 
@@ -41,6 +69,12 @@ def _invoke_with_timeout(invoke_callable, *args, **kwargs):
     t.join(timeout=_LLM_CALL_TIMEOUT_SECONDS)
 
     if not done.is_set():
+        frames = sys._current_frames()
+        frame = frames.get(t.ident)
+        stack_str = "".join(traceback.format_stack(frame)) if frame is not None else "(frame unavailable)"
+        _get_op_logger().error(
+            f"LLM call timed out after {_LLM_CALL_TIMEOUT_SECONDS}s\nStuck thread stack:\n{stack_str}"
+        )
         raise TimeoutError(f"LLM call exceeded {_LLM_CALL_TIMEOUT_SECONDS}s timeout")
     if exc[0] is not None:
         raise exc[0]
@@ -144,23 +178,32 @@ class PartyRequest(BaseModel):
 
 
 def create_app() -> FastAPI:
+    _configure_op_logger(_LOG_FILE)
     application = FastAPI()
     _heavy_lock = threading.Lock()
 
-    def _guarded_stream(inner):
-        """Wraps an SSE generator with the global heavy-op lock."""
+    def _guarded_stream(inner, op_name: str = "operation"):
+        """Wraps an SSE generator with the global heavy-op lock and operation logging."""
         def guarded():
+            logger = _get_op_logger()
             if not _heavy_lock.acquire(blocking=False):
+                logger.warning(f"[{op_name}] busy rejection: lock held by another operation")
                 yield _sse_event({
                     "done": True,
                     "error": True,
                     "message": "Backend is busy. Wait for the current operation to finish.",
                 })
                 return
+            logger.info(f"[{op_name}] lock acquired")
+            t_start = time.monotonic()
+            logger.info(f"[{op_name}] start")
             try:
                 yield from inner()
             finally:
+                duration = time.monotonic() - t_start
+                logger.info(f"[{op_name}] end, duration={duration:.3f}s")
                 _heavy_lock.release()
+                logger.info(f"[{op_name}] lock released")
         return guarded
 
     application.add_middleware(
@@ -216,9 +259,10 @@ def create_app() -> FastAPI:
                     persistence.persist(db.last_processed_df, _read_file_as_text(body.file_path))
                 yield _sse_event({"done": True, "progress": 100})
             except Exception as exc:
+                _get_op_logger().error("[upload-notes] error: %s", exc, exc_info=True)
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
-        return StreamingResponse(_guarded_stream(event_stream)(), media_type="text/event-stream")
+        return StreamingResponse(_guarded_stream(event_stream, "upload-notes")(), media_type="text/event-stream")
 
     @application.post("/chat")
     def chat(
@@ -281,9 +325,10 @@ def create_app() -> FastAPI:
                 ]
                 yield _sse_event({"done": True, "answer": answer, "sources": sources})
             except Exception as exc:
+                _get_op_logger().error("[chat] error: %s", exc, exc_info=True)
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
-        return StreamingResponse(_guarded_stream(event_stream)(), media_type="text/event-stream")
+        return StreamingResponse(_guarded_stream(event_stream, "chat")(), media_type="text/event-stream")
 
     @application.get("/summary")
     def summary_get(summary: SummaryHandler = Depends(get_summary_handler)):
@@ -337,9 +382,10 @@ def create_app() -> FastAPI:
                     persistence.persist(db.last_processed_df, body.content)
                 yield _sse_event({"done": True, "progress": 100})
             except Exception as exc:
+                _get_op_logger().error("[notes-vectorize] error: %s", exc, exc_info=True)
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
-        return StreamingResponse(_guarded_stream(event_stream)(), media_type="text/event-stream")
+        return StreamingResponse(_guarded_stream(event_stream, "notes-vectorize")(), media_type="text/event-stream")
 
     @application.post("/summary/generate")
     def summary_generate(
@@ -356,9 +402,10 @@ def create_app() -> FastAPI:
                     else:
                         yield _sse_event({"done": False, "progress": progress, "message": text})
             except Exception as exc:
+                _get_op_logger().error("[summary-generate] error: %s", exc, exc_info=True)
                 yield _sse_event({"done": True, "error": True, "message": str(exc)})
 
-        return StreamingResponse(_guarded_stream(event_stream)(), media_type="text/event-stream")
+        return StreamingResponse(_guarded_stream(event_stream, "summary-generate")(), media_type="text/event-stream")
 
     @application.get("/party")
     def party_get():
