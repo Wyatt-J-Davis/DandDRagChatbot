@@ -43,9 +43,17 @@ final class ChatErrorEvent extends ChatEvent {
 class ChatService {
   final int port;
   final http.Client _httpClient;
+  final Duration _connectTimeout;
+  final Duration _streamIdleTimeout;
 
-  ChatService({this.port = 8000, http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+  ChatService({
+    this.port = 8000,
+    http.Client? httpClient,
+    Duration connectTimeout = const Duration(seconds: 30),
+    Duration streamIdleTimeout = const Duration(seconds: 240),
+  })  : _httpClient = httpClient ?? http.Client(),
+        _connectTimeout = connectTimeout,
+        _streamIdleTimeout = streamIdleTimeout;
 
   Stream<ChatEvent> chat({
     required String question,
@@ -61,37 +69,45 @@ class ChatService {
         'temperature': temperature,
       });
 
-    final response = await _httpClient.send(request);
-    final lines = response.stream
-        .transform(utf8.decoder)
-        .transform(const LineSplitter());
+    try {
+      final response =
+          await _httpClient.send(request).timeout(_connectTimeout);
+      final lines = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .timeout(_streamIdleTimeout);
 
-    await for (final line in lines) {
-      if (!line.startsWith('data: ')) continue;
-      final payload = jsonDecode(line.substring(6)) as Map<String, dynamic>;
-      if (payload['done'] == true) {
-        if (payload['error'] == true) {
-          yield ChatErrorEvent(
-              message: payload['message']?.toString() ?? 'Unknown error');
-        } else {
-          yield ChatAnswerEvent(
-            answer: payload['answer']?.toString() ?? '',
-            sources: (payload['sources'] as List<dynamic>?)
-                    ?.map((e) {
-                      final map = e as Map<String, dynamic>;
-                      final rawDate = map['date']?.toString();
-                      return ChatSource(
-                        content: map['content']?.toString() ?? '',
-                        date: (rawDate == null || rawDate == 'Unknown') ? null : rawDate,
-                      );
-                    })
-                    .toList() ??
-                [],
-          );
+      await for (final line in lines) {
+        if (!line.startsWith('data: ')) continue;
+        final payload = jsonDecode(line.substring(6)) as Map<String, dynamic>;
+        if (payload['done'] == true) {
+          if (payload['error'] == true) {
+            yield ChatErrorEvent(
+                message: payload['message']?.toString() ?? 'Unknown error');
+          } else {
+            yield ChatAnswerEvent(
+              answer: payload['answer']?.toString() ?? '',
+              sources: (payload['sources'] as List<dynamic>?)
+                      ?.map((e) {
+                        final map = e as Map<String, dynamic>;
+                        final rawDate = map['date']?.toString();
+                        return ChatSource(
+                          content: map['content']?.toString() ?? '',
+                          date: (rawDate == null || rawDate == 'Unknown')
+                              ? null
+                              : rawDate,
+                        );
+                      })
+                      .toList() ??
+                  [],
+            );
+          }
+          return;
         }
-        return;
+        yield ChatProgressEvent(message: payload['message']?.toString() ?? '');
       }
-      yield ChatProgressEvent(message: payload['message']?.toString() ?? '');
+    } on TimeoutException {
+      yield ChatErrorEvent(message: 'Request timed out');
     }
   }
 }

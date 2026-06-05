@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -186,6 +187,62 @@ void main() {
       final result = await service.fetchSummary();
 
       expect(result, isNull);
+    });
+
+    group('timeout', () {
+      test('generate yields SummaryErrorEvent when connect hangs past timeout',
+          () async {
+        final completer = Completer<http.StreamedResponse>();
+        final client = MockClient.streaming((_, __) => completer.future);
+        final service = SummaryService(
+          port: 9999,
+          httpClient: client,
+          connectTimeout: const Duration(milliseconds: 20),
+        );
+
+        final events = await service
+            .generate(model: 'm', partyMembers: [], temperature: 0.5)
+            .toList();
+
+        expect(events, [isA<SummaryErrorEvent>()]);
+        expect((events[0] as SummaryErrorEvent).message, 'Request timed out');
+      });
+
+      test('generate yields SummaryErrorEvent when stream idles past timeout',
+          () async {
+        final sc = StreamController<List<int>>();
+        final client = MockClient.streaming(
+          (_, __) async => http.StreamedResponse(sc.stream, 200),
+        );
+        final service = SummaryService(
+          port: 9999,
+          httpClient: client,
+          streamIdleTimeout: const Duration(milliseconds: 20),
+        );
+
+        final events = await service
+            .generate(model: 'm', partyMembers: [], temperature: 0.5)
+            .toList();
+
+        expect(events, [isA<SummaryErrorEvent>()]);
+        expect((events[0] as SummaryErrorEvent).message, 'Request timed out');
+        await sc.close();
+      });
+
+      test('fetchSummary returns null when request hangs past timeout',
+          () async {
+        final completer = Completer<http.Response>();
+        final client = MockClient((_) => completer.future);
+        final service = SummaryService(
+          port: 9999,
+          httpClient: client,
+          requestTimeout: const Duration(milliseconds: 20),
+        );
+
+        final result = await service.fetchSummary();
+
+        expect(result, isNull);
+      });
     });
   });
 }

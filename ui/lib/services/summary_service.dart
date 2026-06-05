@@ -29,9 +29,20 @@ final class SummaryErrorEvent extends SummaryEvent {
 class SummaryService {
   final int port;
   final http.Client _httpClient;
+  final Duration _connectTimeout;
+  final Duration _streamIdleTimeout;
+  final Duration _requestTimeout;
 
-  SummaryService({this.port = 8000, http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+  SummaryService({
+    this.port = 8000,
+    http.Client? httpClient,
+    Duration connectTimeout = const Duration(seconds: 30),
+    Duration streamIdleTimeout = const Duration(seconds: 240),
+    Duration requestTimeout = const Duration(seconds: 30),
+  })  : _httpClient = httpClient ?? http.Client(),
+        _connectTimeout = connectTimeout,
+        _streamIdleTimeout = streamIdleTimeout,
+        _requestTimeout = requestTimeout;
 
   Stream<SummaryEvent> generate({
     required String model,
@@ -47,41 +58,52 @@ class SummaryService {
         'temperature': temperature,
       });
 
-    final response = await _httpClient.send(request);
-    final lines = response.stream
-        .transform(utf8.decoder)
-        .transform(const LineSplitter());
+    try {
+      final response =
+          await _httpClient.send(request).timeout(_connectTimeout);
+      final lines = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .timeout(_streamIdleTimeout);
 
-    await for (final line in lines) {
-      if (!line.startsWith('data: ')) continue;
-      final payload = jsonDecode(line.substring(6)) as Map<String, dynamic>;
-      if (payload['done'] == true) {
-        if (payload['error'] == true) {
-          yield SummaryErrorEvent(
-              message: payload['message']?.toString() ?? 'Unknown error');
-        } else {
-          yield SummaryDoneEvent();
+      await for (final line in lines) {
+        if (!line.startsWith('data: ')) continue;
+        final payload = jsonDecode(line.substring(6)) as Map<String, dynamic>;
+        if (payload['done'] == true) {
+          if (payload['error'] == true) {
+            yield SummaryErrorEvent(
+                message: payload['message']?.toString() ?? 'Unknown error');
+          } else {
+            yield SummaryDoneEvent();
+          }
+          return;
         }
-        return;
+        yield SummaryProgressEvent(
+          progress: (payload['progress'] as num?)?.toInt() ?? 0,
+          message: payload['message']?.toString() ?? '',
+        );
       }
-      yield SummaryProgressEvent(
-        progress: (payload['progress'] as num?)?.toInt() ?? 0,
-        message: payload['message']?.toString() ?? '',
-      );
+    } on TimeoutException {
+      yield SummaryErrorEvent(message: 'Request timed out');
     }
   }
 
   Future<SummaryResult?> fetchSummary() async {
-    final uri = Uri.http('localhost:$port', '/summary');
-    final response = await _httpClient.get(uri);
-    if (response.statusCode != 200) return null;
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final summary = data['summary'] as String?;
-    if (summary == null) return null;
-    return SummaryResult(
-      summary: summary,
-      model: data['model'] as String?,
-      generatedAt: data['generated_at'] as String?,
-    );
+    try {
+      final uri = Uri.http('localhost:$port', '/summary');
+      final response =
+          await _httpClient.get(uri).timeout(_requestTimeout);
+      if (response.statusCode != 200) return null;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final summary = data['summary'] as String?;
+      if (summary == null) return null;
+      return SummaryResult(
+        summary: summary,
+        model: data['model'] as String?,
+        generatedAt: data['generated_at'] as String?,
+      );
+    } on TimeoutException {
+      return null;
+    }
   }
 }

@@ -65,6 +65,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Notes saved')),
       );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save notes')),
+      );
     }
   }
 

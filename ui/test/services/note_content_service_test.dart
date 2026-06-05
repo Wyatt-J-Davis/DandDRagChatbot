@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -89,6 +91,37 @@ void main() {
       final service = NoteContentService(port: 9999, httpClient: client);
 
       final result = await service.saveNotes('content');
+
+      expect(result, isFalse);
+    });
+  });
+
+  group('timeout', () {
+    test('fetchNotes returns empty string when request hangs past timeout',
+        () async {
+      final completer = Completer<http.Response>();
+      final client = MockClient((_) => completer.future);
+      final service = NoteContentService(
+        port: 9999,
+        httpClient: client,
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      final result = await service.fetchNotes();
+
+      expect(result, '');
+    });
+
+    test('saveNotes returns false when request hangs past timeout', () async {
+      final completer = Completer<http.Response>();
+      final client = MockClient((_) => completer.future);
+      final service = NoteContentService(
+        port: 9999,
+        httpClient: client,
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      final result = await service.saveNotes('some content');
 
       expect(result, isFalse);
     });

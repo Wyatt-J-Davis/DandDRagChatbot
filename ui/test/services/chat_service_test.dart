@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -139,6 +140,45 @@ void main() {
           .toList();
 
       expect(events, [isA<ChatAnswerEvent>()]);
+    });
+
+    group('timeout', () {
+      test('yields ChatErrorEvent when connect hangs past timeout', () async {
+        final completer = Completer<http.StreamedResponse>();
+        final client = MockClient.streaming((_, __) => completer.future);
+        final service = ChatService(
+          port: 9999,
+          httpClient: client,
+          connectTimeout: const Duration(milliseconds: 20),
+        );
+
+        final events = await service
+            .chat(question: 'q', model: 'm', temperature: 0.5)
+            .toList();
+
+        expect(events, [isA<ChatErrorEvent>()]);
+        expect((events[0] as ChatErrorEvent).message, 'Request timed out');
+      });
+
+      test('yields ChatErrorEvent when stream idles past timeout', () async {
+        final sc = StreamController<List<int>>();
+        final client = MockClient.streaming(
+          (_, __) async => http.StreamedResponse(sc.stream, 200),
+        );
+        final service = ChatService(
+          port: 9999,
+          httpClient: client,
+          streamIdleTimeout: const Duration(milliseconds: 20),
+        );
+
+        final events = await service
+            .chat(question: 'q', model: 'm', temperature: 0.5)
+            .toList();
+
+        expect(events, [isA<ChatErrorEvent>()]);
+        expect((events[0] as ChatErrorEvent).message, 'Request timed out');
+        await sc.close();
+      });
     });
   });
 }

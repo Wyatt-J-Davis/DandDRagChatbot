@@ -25,6 +25,13 @@ class _FakeNoteContentService extends NoteContentService {
   }
 }
 
+class _FailingNoteContentService extends NoteContentService {
+  _FailingNoteContentService() : super(port: 9999);
+
+  @override
+  Future<bool> saveNotes(String content) async => false;
+}
+
 class _FakeNoteExportService extends NoteExportService {
   bool fetchTxtCalled = false;
   bool fetchDocxCalled = false;
@@ -287,6 +294,19 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Notes saved'), findsOneWidget);
+      });
+
+      testWidgets('tapping Save shows error SnackBar when save fails',
+          (tester) async {
+        await tester.pumpWidget(buildPage(
+          noteContentService: _FailingNoteContentService(),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Failed to save notes'), findsOneWidget);
       });
     });
 

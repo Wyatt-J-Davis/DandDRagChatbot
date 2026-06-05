@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -39,6 +41,18 @@ void main() {
       await service.fetchHasNotes();
       expect(capturedUri?.path, '/status');
       expect(capturedUri?.port, 8765);
+    });
+
+    test('fetchHasNotes throws when request hangs past timeout', () async {
+      final completer = Completer<http.Response>();
+      final client = MockClient((_) => completer.future);
+      final service = StatusService(
+        port: 9999,
+        httpClient: client,
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      expect(() => service.fetchHasNotes(), throwsA(isA<TimeoutException>()));
     });
   });
 }

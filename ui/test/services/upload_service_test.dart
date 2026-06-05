@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -105,6 +106,41 @@ void main() {
       final events = await service.uploadNotes('/notes.txt').toList();
 
       expect(events, [isA<UploadDoneEvent>()]);
+    });
+
+    group('timeout', () {
+      test('yields UploadErrorEvent when connect hangs past timeout', () async {
+        final completer = Completer<http.StreamedResponse>();
+        final client = MockClient.streaming((_, __) => completer.future);
+        final service = UploadService(
+          port: 9999,
+          httpClient: client,
+          connectTimeout: const Duration(milliseconds: 20),
+        );
+
+        final events = await service.uploadNotes('/file.txt').toList();
+
+        expect(events, [isA<UploadErrorEvent>()]);
+        expect((events[0] as UploadErrorEvent).message, 'Request timed out');
+      });
+
+      test('yields UploadErrorEvent when stream idles past timeout', () async {
+        final sc = StreamController<List<int>>();
+        final client = MockClient.streaming(
+          (_, __) async => http.StreamedResponse(sc.stream, 200),
+        );
+        final service = UploadService(
+          port: 9999,
+          httpClient: client,
+          streamIdleTimeout: const Duration(milliseconds: 20),
+        );
+
+        final events = await service.uploadNotes('/file.txt').toList();
+
+        expect(events, [isA<UploadErrorEvent>()]);
+        expect((events[0] as UploadErrorEvent).message, 'Request timed out');
+        await sc.close();
+      });
     });
   });
 }

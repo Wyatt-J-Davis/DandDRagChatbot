@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -49,6 +51,18 @@ void main() {
       await service.fetchModels();
 
       expect(capturedUri?.port, 8765);
+    });
+
+    test('fetchModels throws when request hangs past timeout', () async {
+      final completer = Completer<http.Response>();
+      final client = MockClient((_) => completer.future);
+      final service = ModelService(
+        port: 9999,
+        httpClient: client,
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      expect(() => service.fetchModels(), throwsA(isA<TimeoutException>()));
     });
   });
 }

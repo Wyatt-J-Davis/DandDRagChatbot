@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -76,6 +78,43 @@ void main() {
 
       expect(events.length, 2);
       expect(events.first, isA<VectorizeProgressEvent>());
+    });
+
+    group('timeout', () {
+      test('yields VectorizeErrorEvent when connect hangs past timeout',
+          () async {
+        final completer = Completer<http.StreamedResponse>();
+        final client = MockClient.streaming((_, __) => completer.future);
+        final service = VectorizeService(
+          port: 9999,
+          httpClient: client,
+          connectTimeout: const Duration(milliseconds: 20),
+        );
+
+        final events = await service.vectorize('text').toList();
+
+        expect(events, [isA<VectorizeErrorEvent>()]);
+        expect((events[0] as VectorizeErrorEvent).message, 'Request timed out');
+      });
+
+      test('yields VectorizeErrorEvent when stream idles past timeout',
+          () async {
+        final sc = StreamController<List<int>>();
+        final client = MockClient.streaming(
+          (_, __) async => http.StreamedResponse(sc.stream, 200),
+        );
+        final service = VectorizeService(
+          port: 9999,
+          httpClient: client,
+          streamIdleTimeout: const Duration(milliseconds: 20),
+        );
+
+        final events = await service.vectorize('text').toList();
+
+        expect(events, [isA<VectorizeErrorEvent>()]);
+        expect((events[0] as VectorizeErrorEvent).message, 'Request timed out');
+        await sc.close();
+      });
     });
   });
 }

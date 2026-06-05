@@ -23,9 +23,17 @@ final class VectorizeErrorEvent extends VectorizeEvent {
 class VectorizeService {
   final int port;
   final http.Client _httpClient;
+  final Duration _connectTimeout;
+  final Duration _streamIdleTimeout;
 
-  VectorizeService({this.port = 8000, http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+  VectorizeService({
+    this.port = 8000,
+    http.Client? httpClient,
+    Duration connectTimeout = const Duration(seconds: 30),
+    Duration streamIdleTimeout = const Duration(seconds: 240),
+  })  : _httpClient = httpClient ?? http.Client(),
+        _connectTimeout = connectTimeout,
+        _streamIdleTimeout = streamIdleTimeout;
 
   Stream<VectorizeEvent> vectorize(String plainText) async* {
     final uri = Uri.http('localhost:$port', '/notes/vectorize');
@@ -33,27 +41,33 @@ class VectorizeService {
       ..headers['Content-Type'] = 'application/json'
       ..body = jsonEncode({'content': plainText});
 
-    final response = await _httpClient.send(request);
-    final lines = response.stream
-        .transform(utf8.decoder)
-        .transform(const LineSplitter());
+    try {
+      final response =
+          await _httpClient.send(request).timeout(_connectTimeout);
+      final lines = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .timeout(_streamIdleTimeout);
 
-    await for (final line in lines) {
-      if (!line.startsWith('data: ')) continue;
-      final payload = jsonDecode(line.substring(6)) as Map<String, dynamic>;
-      if (payload['done'] == true) {
-        if (payload['error'] == true) {
-          yield VectorizeErrorEvent(
-              message: payload['message']?.toString() ?? 'Unknown error');
-        } else {
-          yield VectorizeDoneEvent();
+      await for (final line in lines) {
+        if (!line.startsWith('data: ')) continue;
+        final payload = jsonDecode(line.substring(6)) as Map<String, dynamic>;
+        if (payload['done'] == true) {
+          if (payload['error'] == true) {
+            yield VectorizeErrorEvent(
+                message: payload['message']?.toString() ?? 'Unknown error');
+          } else {
+            yield VectorizeDoneEvent();
+          }
+          return;
         }
-        return;
+        yield VectorizeProgressEvent(
+          progress: (payload['progress'] as num?)?.toInt() ?? 0,
+          message: payload['message']?.toString() ?? '',
+        );
       }
-      yield VectorizeProgressEvent(
-        progress: (payload['progress'] as num?)?.toInt() ?? 0,
-        message: payload['message']?.toString() ?? '',
-      );
+    } on TimeoutException {
+      yield VectorizeErrorEvent(message: 'Request timed out');
     }
   }
 }

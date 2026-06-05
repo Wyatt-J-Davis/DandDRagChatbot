@@ -5,13 +5,19 @@ import 'package:http/http.dart' as http;
 class StatusService {
   final int port;
   final http.Client _httpClient;
+  final Duration _requestTimeout;
 
-  StatusService({this.port = 8000, http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+  StatusService({
+    this.port = 8000,
+    http.Client? httpClient,
+    Duration requestTimeout = const Duration(seconds: 30),
+  })  : _httpClient = httpClient ?? http.Client(),
+        _requestTimeout = requestTimeout;
 
   Future<bool> fetchHasNotes() async {
     final uri = Uri.http('localhost:$port', '/status');
-    final response = await _httpClient.get(uri);
+    final response =
+        await _httpClient.get(uri).timeout(_requestTimeout);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch status: ${response.statusCode}');
     }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -79,6 +81,38 @@ void main() {
         expect(captured!.url.path, '/notes/export/docx');
         expect(captured!.url.port, 9999);
       });
+    });
+  });
+
+  group('timeout', () {
+    test('fetchTxtBytes returns null when request hangs past timeout',
+        () async {
+      final completer = Completer<http.Response>();
+      final client = MockClient((_) => completer.future);
+      final service = NoteExportService(
+        port: 9999,
+        httpClient: client,
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      final result = await service.fetchTxtBytes();
+
+      expect(result, isNull);
+    });
+
+    test('fetchDocxBytes returns null when request hangs past timeout',
+        () async {
+      final completer = Completer<http.Response>();
+      final client = MockClient((_) => completer.future);
+      final service = NoteExportService(
+        port: 9999,
+        httpClient: client,
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      final result = await service.fetchDocxBytes();
+
+      expect(result, isNull);
     });
   });
 }
