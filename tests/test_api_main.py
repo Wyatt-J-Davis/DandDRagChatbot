@@ -770,3 +770,55 @@ class TestBusyRejection:
         events = _parse_sse_events(second.text)
         assert any(e.get("error") for e in events), "Expected error event in second response"
         assert any("busy" in e.get("message", "").lower() for e in events), "Expected 'busy' in error message"
+
+
+class TestSingletonHandlers:
+    """DatabaseHandler and LLMHandler are each built once and reused across requests."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_singletons(self, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_db_singleton", None)
+        monkeypatch.setattr(m, "_llm_singleton", None)
+
+    def test_get_db_handler_returns_same_instance_on_every_call(self, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "DatabaseHandler", lambda: MagicMock())
+        assert m.get_db_handler() is m.get_db_handler()
+
+    def test_get_llm_handler_returns_same_instance_on_every_call(self, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "LLMHandler", lambda: MagicMock())
+        assert m.get_llm_handler() is m.get_llm_handler()
+
+    def test_create_retrival_artifacts_called_once_when_db_singleton_initialises(self, monkeypatch):
+        import api.main as m
+        mock_db = MagicMock()
+        monkeypatch.setattr(m, "DatabaseHandler", lambda: mock_db)
+        m.get_db_handler()
+        m.get_db_handler()
+        mock_db.create_retrival_artifacts.assert_called_once_with(DATABASE_DIR)
+
+    def test_db_constructor_called_once_not_per_call(self, monkeypatch):
+        import api.main as m
+        calls = []
+        def factory():
+            calls.append(1)
+            return MagicMock()
+        monkeypatch.setattr(m, "DatabaseHandler", factory)
+        m.get_db_handler()
+        m.get_db_handler()
+        m.get_db_handler()
+        assert len(calls) == 1
+
+    def test_llm_constructor_called_once_not_per_call(self, monkeypatch):
+        import api.main as m
+        calls = []
+        def factory():
+            calls.append(1)
+            return MagicMock()
+        monkeypatch.setattr(m, "LLMHandler", factory)
+        m.get_llm_handler()
+        m.get_llm_handler()
+        m.get_llm_handler()
+        assert len(calls) == 1

@@ -17,6 +17,10 @@ from src.utils.SummaryHandler import SummaryHandler
 _USER_DATA_FILE = "data/user_data.json"
 _NOTES_FILE = "data/editor_notes.txt"
 
+_singleton_lock = threading.Lock()
+_db_singleton: DatabaseHandler | None = None
+_llm_singleton: LLMHandler | None = None
+
 _CHAT_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
@@ -32,11 +36,23 @@ _CHAT_PROMPT = ChatPromptTemplate.from_messages([
 
 
 def get_llm_handler() -> LLMHandler:
-    return LLMHandler()
+    global _llm_singleton
+    if _llm_singleton is None:
+        with _singleton_lock:
+            if _llm_singleton is None:
+                _llm_singleton = LLMHandler()
+    return _llm_singleton
 
 
 def get_db_handler() -> DatabaseHandler:
-    return DatabaseHandler()
+    global _db_singleton
+    if _db_singleton is None:
+        with _singleton_lock:
+            if _db_singleton is None:
+                h = DatabaseHandler()
+                h.create_retrival_artifacts(DATABASE_DIR)
+                _db_singleton = h
+    return _db_singleton
 
 
 def get_persistence_handler() -> NotePersistenceHandler:
