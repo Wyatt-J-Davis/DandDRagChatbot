@@ -26,6 +26,11 @@ class BackendService {
 
   Future<void> start() async {
     _process = await _processStarter(executablePath, []);
+    // Drain stdout/stderr so the OS pipe buffer can never fill and wedge the
+    // backend on a console write. The process handle is still retained below
+    // for health polling and shutdown.
+    _process!.stdout.listen((_) {});
+    _process!.stderr.listen((_) {});
     ready = _pollUntilReady();
   }
 
