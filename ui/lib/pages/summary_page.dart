@@ -133,6 +133,7 @@ class _SummaryPageState extends State<SummaryPage> {
   @override
   Widget build(BuildContext context) {
     final isGenerating = widget.operationManager.isSummaryRunning;
+    final isBusy = widget.operationManager.isAnyHeavyOperationRunning;
     final summaryResult = widget.operationManager.summaryResult;
     final hasResult = summaryResult != null;
     final error = widget.operationManager.summaryError;
@@ -158,7 +159,7 @@ class _SummaryPageState extends State<SummaryPage> {
           ],
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: isGenerating ? null : _generate,
+            onPressed: isBusy ? null : _generate,
             child: Text(hasResult ? 'Regenerate' : 'Generate Summary'),
           ),
           const SizedBox(height: 16),

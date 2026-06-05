@@ -615,6 +615,54 @@ void main() {
     });
   });
 
+  // ------------------------------------------------------- global busy gate --
+  group('OperationManager (global busy gate)', () {
+    test('isAnyHeavyOperationRunning is false when nothing runs', () {
+      expect(makeManager().isAnyHeavyOperationRunning, isFalse);
+    });
+
+    test('isAnyHeavyOperationRunning is true while chat runs', () {
+      final manager = makeManager(chatService: _HangingChatService());
+      manager.startChat(question: 'q', model: 'llama3', temperature: 0.5);
+      expect(manager.isAnyHeavyOperationRunning, isTrue);
+    });
+
+    test('isAnyHeavyOperationRunning is true while upload runs', () {
+      final manager = makeManager(uploadService: _HangingUploadService());
+      manager.startUpload(path: '/notes.txt');
+      expect(manager.isAnyHeavyOperationRunning, isTrue);
+    });
+
+    test('isAnyHeavyOperationRunning is true while vectorize runs', () {
+      final manager = makeManager(vectorizeService: _HangingVectorizeService());
+      manager.startVectorize(text: 'notes');
+      expect(manager.isAnyHeavyOperationRunning, isTrue);
+    });
+
+    test('isAnyHeavyOperationRunning is true while summary runs', () {
+      final manager = makeManager(summaryService: _HangingSummaryService());
+      manager.startSummary(model: 'llama3', partyMembers: [], temperature: 0.7);
+      expect(manager.isAnyHeavyOperationRunning, isTrue);
+    });
+
+    test('isAnyHeavyOperationRunning becomes false when chat finishes', () async {
+      final manager = makeManager(chatService: _AnswerChatService());
+      manager.startChat(question: 'q', model: 'llama3', temperature: 0.5);
+      await Future<void>.delayed(Duration.zero);
+      expect(manager.isAnyHeavyOperationRunning, isFalse);
+    });
+
+    test('starting upload makes isAnyHeavyOperationRunning true, isChatRunning stays false', () {
+      final manager = makeManager(
+        uploadService: _HangingUploadService(),
+        chatService: _HangingChatService(),
+      );
+      manager.startUpload(path: '/notes.txt');
+      expect(manager.isAnyHeavyOperationRunning, isTrue);
+      expect(manager.isChatRunning, isFalse);
+    });
+  });
+
   // -------------------------------------------------------------- phase detection
   group('OperationManager (phase detection)', () {
     test('Summarizing message yields Map phase', () async {

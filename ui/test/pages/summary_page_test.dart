@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 import 'package:ttrpg_chatbot/pages/summary_page.dart';
 import 'package:ttrpg_chatbot/services/summary_service.dart';
+import 'package:ttrpg_chatbot/services/upload_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/state/operation_manager.dart';
 
@@ -18,6 +19,12 @@ class _NoOpSummaryService extends SummaryService {
 
   @override
   Future<SummaryResult?> fetchSummary() async => null;
+}
+
+class _HangingUploadService extends UploadService {
+  @override
+  Stream<UploadEvent> uploadNotes(String _) =>
+      StreamController<UploadEvent>().stream;
 }
 
 class _HangingSummaryService extends SummaryService {
@@ -736,6 +743,33 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('New summary.'), findsOneWidget);
+    });
+  });
+
+  group('SummaryPage (global busy gate)', () {
+    testWidgets('Generate Summary button is disabled while upload is running',
+        (WidgetTester tester) async {
+      final appState = AppStateNotifier(initialModel: 'llama3');
+      final operationManager = OperationManager(
+        appState: appState,
+        uploadService: _HangingUploadService(),
+        summaryService: _NoOpSummaryService(),
+      );
+      operationManager.startUpload(path: '/notes.txt');
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SummaryPage(
+            appState: appState,
+            operationManager: operationManager,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final button =
+          tester.widget<ElevatedButton>(find.byType(ElevatedButton).first);
+      expect(button.onPressed, isNull);
     });
   });
 }

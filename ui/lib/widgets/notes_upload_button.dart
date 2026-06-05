@@ -89,6 +89,7 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
     final isUploading = widget.operationManager.isUploadRunning;
     final isVectorizing = widget.operationManager.isVectorizeRunning;
     final isOperationRunning = isUploading || isVectorizing;
+    final isBusy = widget.operationManager.isAnyHeavyOperationRunning;
     final progress = widget.operationManager.uploadProgress;
     final error = widget.operationManager.uploadError;
     final path = widget.appState.selectedNotesPath;
@@ -123,8 +124,9 @@ class _NotesUploadButtonState extends State<NotesUploadButton> {
           const SizedBox(height: 8),
           if (!isUploading)
             ElevatedButton(
-              onPressed: () =>
-                  widget.operationManager.startUpload(path: path!),
+              onPressed: isBusy
+                  ? null
+                  : () => widget.operationManager.startUpload(path: path!),
               child: const Text('Vectorize'),
             ),
           if (isUploading) ...[

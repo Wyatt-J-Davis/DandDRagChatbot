@@ -62,6 +62,11 @@ class OperationManager extends ChangeNotifier {
         _vectorizeService = vectorizeService ?? VectorizeService(),
         _summaryService = summaryService ?? SummaryService();
 
+  // ── Global busy gate ─────────────────────────────────────────────────────
+
+  bool get isAnyHeavyOperationRunning =>
+      isChatRunning || isUploadRunning || isVectorizeRunning || isSummaryRunning;
+
   // ── Chat ──────────────────────────────────────────────────────────────────
 
   OperationStatus get chatStatus => _chatStatus;

@@ -70,6 +70,7 @@ class _VectorizeButtonState extends State<VectorizeButton> {
   @override
   Widget build(BuildContext context) {
     final isVectorizing = widget.operationManager.isVectorizeRunning;
+    final isBusy = widget.operationManager.isAnyHeavyOperationRunning;
     final progress = widget.operationManager.vectorizeProgress;
     final error = widget.operationManager.vectorizeError;
 
@@ -78,7 +79,7 @@ class _VectorizeButtonState extends State<VectorizeButton> {
       mainAxisSize: MainAxisSize.min,
       children: [
         ElevatedButton(
-          onPressed: isVectorizing
+          onPressed: isBusy
               ? null
               : () {
                   final text = widget.controller.document.toPlainText();

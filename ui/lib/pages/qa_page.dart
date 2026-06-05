@@ -65,7 +65,8 @@ class _QAPageState extends State<QAPage> {
         _previousChatStatus == OperationStatus.running) {
       final messages = widget.appState.chatHistory;
       final lastIndex = messages.length - 1;
-      if (lastIndex >= 0 && messages[lastIndex].sender == ChatSender.assistant) {
+      if (lastIndex >= 0 &&
+          messages[lastIndex].sender == ChatSender.assistant) {
         _startTypewriter(messages[lastIndex].text, lastIndex);
       }
     }
@@ -131,7 +132,7 @@ class _QAPageState extends State<QAPage> {
 
   void _submit() {
     final text = _controller.text.trim();
-    if (text.isEmpty || widget.operationManager.isChatRunning) return;
+    if (text.isEmpty || widget.operationManager.isAnyHeavyOperationRunning) return;
 
     widget.appState.addChatMessage(
       ChatMessage(sender: ChatSender.user, text: text),
@@ -165,7 +166,9 @@ class _QAPageState extends State<QAPage> {
               enabled: !isLoading,
               onSubmitted: (_) => _submit(),
               onChanged: (_) => setState(() {}),
-              decoration: InputDecoration.collapsed(hintText: 'Ask a question about the campaign…'),
+              decoration: InputDecoration.collapsed(
+                hintText: 'Ask a question about the campaign…',
+              ),
             ),
           ),
           ValueListenableBuilder<TextEditingValue>(
@@ -173,8 +176,9 @@ class _QAPageState extends State<QAPage> {
             builder: (context, value, _) {
               return IconButton(
                 icon: const Icon(Icons.send),
-                onPressed:
-                    (value.text.trim().isEmpty || isLoading) ? null : _submit,
+                onPressed: (value.text.trim().isEmpty || isLoading)
+                    ? null
+                    : _submit,
               );
             },
           ),
@@ -186,7 +190,8 @@ class _QAPageState extends State<QAPage> {
   @override
   Widget build(BuildContext context) {
     final messages = widget.appState.chatHistory;
-    final isLoading = widget.operationManager.isChatRunning;
+    final isChatRunning = widget.operationManager.isChatRunning;
+    final isBusy = widget.operationManager.isAnyHeavyOperationRunning;
 
     if (messages.isEmpty) {
       return Center(
@@ -199,7 +204,7 @@ class _QAPageState extends State<QAPage> {
               constraints: const BoxConstraints(maxWidth: 720),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildInputRow(isLoading),
+                child: _buildInputRow(isBusy),
               ),
             ),
           ],
@@ -215,14 +220,14 @@ class _QAPageState extends State<QAPage> {
               constraints: const BoxConstraints(maxWidth: 720),
               child: ListView.builder(
                 controller: _scrollController,
-                itemCount: messages.length + (isLoading ? 1 : 0),
+                itemCount: messages.length + (isChatRunning ? 1 : 0),
                 itemBuilder: (context, index) {
-                  if (isLoading && index == messages.length) {
+                  if (isChatRunning && index == messages.length) {
                     return Center(
                       child: Lottie.asset(
                         'assets/star-magic.json',
-                        width: 70,
-                        height: 70,
+                        width: 120,
+                        height: 120,
                         fit: BoxFit.contain,
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
@@ -249,8 +254,10 @@ class _QAPageState extends State<QAPage> {
                                 ReferenceChip(
                                   index: i + 1,
                                   date: msg.sources[i].date,
-                                  onTap: () =>
-                                      _showSourceDialog(context, msg.sources[i]),
+                                  onTap: () => _showSourceDialog(
+                                    context,
+                                    msg.sources[i],
+                                  ),
                                 ),
                             ],
                           ),
@@ -267,7 +274,7 @@ class _QAPageState extends State<QAPage> {
             constraints: const BoxConstraints(maxWidth: 720),
             child: Padding(
               padding: const EdgeInsets.all(8.0),
-              child: _buildInputRow(isLoading),
+              child: _buildInputRow(isBusy),
             ),
           ),
         ),
