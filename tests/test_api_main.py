@@ -1,6 +1,7 @@
 """Tests for the FastAPI application skeleton, /health, /models, and /upload-notes endpoints."""
 import json
 import threading
+import time
 import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
@@ -822,3 +823,136 @@ class TestSingletonHandlers:
         m.get_llm_handler()
         m.get_llm_handler()
         assert len(calls) == 1
+
+
+class TestLLMCallTimeout:
+    """A wedged LLM call times out, aborts the operation, and releases the global lock."""
+
+    _CHAT_BODY = {"question": "What happened?", "model": "llama3", "temperature": 0.7}
+
+    def _make_slow_llm(self, sleep_seconds=2):
+        def slow_invoke(*args, **kwargs):
+            time.sleep(sleep_seconds)
+            return "answer"
+        llm = MagicMock()
+        llm.invoke_model.side_effect = slow_invoke
+        return llm
+
+    def _make_fast_llm(self, answer="The dragon attacked"):
+        llm = MagicMock()
+        llm.invoke_model.return_value = answer
+        return llm
+
+    def _make_db(self):
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc("Some text")]
+        return db
+
+    def test_hanging_chat_llm_call_returns_error_event(self, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_LLM_CALL_TIMEOUT_SECONDS", 0.05)
+
+        app = create_app()
+        app.dependency_overrides[get_llm_handler] = lambda: self._make_slow_llm()
+        app.dependency_overrides[get_db_handler] = lambda: self._make_db()
+        client = TestClient(app)
+
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        assert any(e.get("error") for e in events)
+
+    def test_hanging_chat_releases_lock_so_subsequent_request_succeeds(self, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_LLM_CALL_TIMEOUT_SECONDS", 0.05)
+
+        db = self._make_db()
+        app = create_app()
+        app.dependency_overrides[get_db_handler] = lambda: db
+        client = TestClient(app)
+
+        app.dependency_overrides[get_llm_handler] = lambda: self._make_slow_llm()
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        assert any(e.get("error") for e in events), "first request should have timed out"
+
+        app.dependency_overrides[get_llm_handler] = lambda: self._make_fast_llm()
+        response2 = client.post("/chat", json=self._CHAT_BODY)
+        events2 = _parse_sse_events(response2.text)
+        terminal2 = events2[-1]
+        assert terminal2["done"] is True
+        assert "answer" in terminal2
+        assert not terminal2.get("error"), "second request should succeed (lock was released)"
+
+    def test_fast_llm_call_is_not_cut_off_by_timeout(self, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_LLM_CALL_TIMEOUT_SECONDS", 5)
+
+        app = create_app()
+        app.dependency_overrides[get_llm_handler] = lambda: self._make_fast_llm(answer="The dragon attacked the village")
+        app.dependency_overrides[get_db_handler] = lambda: self._make_db()
+        client = TestClient(app)
+
+        response = client.post("/chat", json=self._CHAT_BODY)
+        events = _parse_sse_events(response.text)
+        terminal = events[-1]
+        assert terminal["done"] is True
+        assert terminal.get("answer") == "The dragon attacked the village"
+        assert not terminal.get("error")
+
+    def test_timed_llm_handler_raises_timeout_error_on_hanging_invoke(self, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_LLM_CALL_TIMEOUT_SECONDS", 0.05)
+
+        def slow_invoke(*args, **kwargs):
+            time.sleep(2)
+            return "answer"
+
+        inner = MagicMock()
+        inner.invoke_model.side_effect = slow_invoke
+        timed = m._TimedLLMHandler(inner)
+
+        with pytest.raises(TimeoutError):
+            timed.invoke_model(MagicMock(), {})
+
+    def test_timed_llm_handler_delegates_non_invoke_attributes(self, monkeypatch):
+        import api.main as m
+        monkeypatch.setattr(m, "_LLM_CALL_TIMEOUT_SECONDS", 5)
+
+        inner = MagicMock()
+        inner.load_model.return_value = None
+        timed = m._TimedLLMHandler(inner)
+
+        timed.load_model("llama3", 0.7)
+        inner.load_model.assert_called_once_with("llama3", 0.7)
+
+
+class TestChatBoundedOutput:
+    """Chat loads the model with a bounded num_predict and reasoning disabled."""
+
+    _CHAT_BODY = {"question": "What happened?", "model": "llama3", "temperature": 0.7}
+
+    def _client_with_handlers(self, llm, db):
+        app = create_app()
+        app.dependency_overrides[get_llm_handler] = lambda: llm
+        app.dependency_overrides[get_db_handler] = lambda: db
+        return TestClient(app)
+
+    def _make_handlers(self):
+        llm = MagicMock()
+        llm.invoke_model.return_value = "Short answer."
+        db = MagicMock()
+        db.retrieve_notes.return_value = [_make_mock_doc("Some context")]
+        return llm, db
+
+    def test_chat_loads_model_with_disable_thinking_and_bounded_num_predict(self):
+        import api.main as m
+        llm, db = self._make_handlers()
+        client = self._client_with_handlers(llm, db)
+        client.post("/chat", json=self._CHAT_BODY)
+        llm.load_model.assert_called_once_with(
+            "llama3", 0.7, disable_thinking=True, num_predict=m._CHAT_MAX_PREDICT
+        )
+
+    def test_chat_max_predict_constant_is_bounded(self):
+        import api.main as m
+        assert 0 < m._CHAT_MAX_PREDICT <= 4096

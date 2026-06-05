@@ -17,7 +17,36 @@ from src.utils.SummaryHandler import SummaryHandler
 _USER_DATA_FILE = "data/user_data.json"
 _NOTES_FILE = "data/editor_notes.txt"
 
+_LLM_CALL_TIMEOUT_SECONDS = 180
+_CHAT_MAX_PREDICT = 2048
+
 _singleton_lock = threading.Lock()
+
+
+def _invoke_with_timeout(invoke_callable, *args, **kwargs):
+    result = [None]
+    exc = [None]
+    done = threading.Event()
+
+    def _run():
+        try:
+            result[0] = invoke_callable(*args, **kwargs)
+        except Exception as e:
+            exc[0] = e
+        finally:
+            done.set()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout=_LLM_CALL_TIMEOUT_SECONDS)
+
+    if not done.is_set():
+        raise TimeoutError(f"LLM call exceeded {_LLM_CALL_TIMEOUT_SECONDS}s timeout")
+    if exc[0] is not None:
+        raise exc[0]
+    return result[0]
+
+
 _db_singleton: DatabaseHandler | None = None
 _llm_singleton: LLMHandler | None = None
 
@@ -33,6 +62,17 @@ _CHAT_PROMPT = ChatPromptTemplate.from_messages([
     ),
     ("user", "{question}"),
 ])
+
+
+class _TimedLLMHandler:
+    def __init__(self, handler):
+        self._handler = handler
+
+    def __getattr__(self, name):
+        return getattr(self._handler, name)
+
+    def invoke_model(self, prompt, mappings):
+        return _invoke_with_timeout(self._handler.invoke_model, prompt, mappings)
 
 
 def get_llm_handler() -> LLMHandler:
@@ -60,7 +100,7 @@ def get_persistence_handler() -> NotePersistenceHandler:
 
 
 def get_summary_handler() -> SummaryHandler:
-    return SummaryHandler(get_llm_handler())
+    return SummaryHandler(_TimedLLMHandler(get_llm_handler()))
 
 
 def _read_file_as_text(file_path: str) -> str:
@@ -217,8 +257,9 @@ def create_app() -> FastAPI:
                     formatted_members = "the party"
 
                 if notes:
-                    llm.load_model(body.model, body.temperature)
-                    answer = llm.invoke_model(
+                    llm.load_model(body.model, body.temperature, disable_thinking=True, num_predict=_CHAT_MAX_PREDICT)
+                    answer = _invoke_with_timeout(
+                        llm.invoke_model,
                         _CHAT_PROMPT,
                         {
                             "question": body.question,
