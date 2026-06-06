@@ -17,6 +17,7 @@ import '../services/status_service.dart';
 import '../services/vectorize_service.dart';
 import '../state/app_state_notifier.dart';
 import '../state/operation_manager.dart';
+import 'menu_sidebar.dart';
 import 'settings_popup.dart';
 
 class MainShell extends StatefulWidget {
@@ -56,27 +57,13 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
   bool _noteEditorDarkMode = false;
+  bool _sidebarCollapsed = false;
   late final QuillController _noteController;
   late final ScrollController _editorScrollController;
   double _currentScrollOffset = 0.0;
   late final OperationManager _operationManager;
 
   late Future<List<String>> _modelsFuture;
-
-  static const List<NavigationRailDestination> _destinations = [
-    NavigationRailDestination(
-      icon: Icon(Icons.lens),
-      label: Text('Q&A'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.auto_awesome),
-      label: Text('Summary'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.history_edu),
-      label: Text('Note Editor'),
-    ),
-  ];
 
   @override
   void initState() {
@@ -127,7 +114,10 @@ class _MainShellState extends State<MainShell> {
   Future<void> _applyStoredPreferences() async {
     final prefs = await widget.prefsService!.load();
     if (!mounted) return;
-    setState(() => _noteEditorDarkMode = prefs.darkMode);
+    setState(() {
+      _noteEditorDarkMode = prefs.darkMode;
+      _sidebarCollapsed = prefs.sidebarCollapsed;
+    });
     _currentScrollOffset = prefs.scrollOffset;
     widget.appState.setSelectedModel(prefs.model);
     widget.appState.setTemperature(prefs.temperature);
@@ -139,7 +129,26 @@ class _MainShellState extends State<MainShell> {
       temperature: widget.appState.temperature,
       darkMode: _noteEditorDarkMode,
       scrollOffset: _currentScrollOffset,
+      sidebarCollapsed: _sidebarCollapsed,
     ));
+  }
+
+  void _setSidebarCollapsed(bool collapsed) {
+    setState(() => _sidebarCollapsed = collapsed);
+    _savePreferences();
+  }
+
+  void _onDestinationSelected(int index) {
+    setState(() => _selectedIndex = index);
+    if (index == 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_editorScrollController.hasClients) return;
+        if (_currentScrollOffset <= 0) return;
+        final maxExtent = _editorScrollController.position.maxScrollExtent;
+        _editorScrollController.jumpTo(
+            _currentScrollOffset.clamp(0.0, maxExtent));
+      });
+    }
   }
 
   Future<void> _loadParty() async {
@@ -249,35 +258,49 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() => _selectedIndex = index);
-              if (index == 2) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted || !_editorScrollController.hasClients) return;
-                  if (_currentScrollOffset <= 0) return;
-                  final maxExtent =
-                      _editorScrollController.position.maxScrollExtent;
-                  _editorScrollController.jumpTo(
-                      _currentScrollOffset.clamp(0.0, maxExtent));
-                });
-              }
-            },
-            labelType: NavigationRailLabelType.all,
-            destinations: _destinations,
-            trailing: IconButton(
-              icon: const Icon(Icons.settings),
-              tooltip: 'Settings',
-              onPressed: _openSettings,
+      body: _sidebarCollapsed ? _buildCollapsed() : _buildExpanded(),
+    );
+  }
+
+  Widget _buildExpanded() {
+    return Row(
+      children: [
+        MenuSidebar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: _onDestinationSelected,
+          onCollapse: () => _setSidebarCollapsed(true),
+          onOpenSettings: _openSettings,
+        ),
+        const VerticalDivider(thickness: 1, width: 1),
+        Expanded(child: _buildPage()),
+      ],
+    );
+  }
+
+  Widget _buildCollapsed() {
+    return Stack(
+      children: [
+        // Left padding keeps the floating hamburger from covering the
+        // top-left controls of any page.
+        Padding(
+          padding: const EdgeInsets.only(left: 56),
+          child: _buildPage(),
+        ),
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Material(
+            elevation: 2,
+            shape: const CircleBorder(),
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            child: IconButton(
+              icon: const Icon(Icons.menu),
+              tooltip: 'Open menu',
+              onPressed: () => _setSidebarCollapsed(false),
             ),
           ),
-          const VerticalDivider(thickness: 1, width: 1),
-          Expanded(child: _buildPage()),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

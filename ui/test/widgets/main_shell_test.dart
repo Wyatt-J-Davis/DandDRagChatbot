@@ -15,6 +15,7 @@ import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
 import 'package:ttrpg_chatbot/services/vectorize_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
 import 'package:ttrpg_chatbot/widgets/main_shell.dart';
+import 'package:ttrpg_chatbot/widgets/menu_sidebar.dart';
 import 'package:ttrpg_chatbot/widgets/settings_popup.dart';
 import 'package:ttrpg_chatbot/widgets/vectorize_button.dart';
 import 'package:ttrpg_chatbot/services/file_picker_service.dart';
@@ -215,11 +216,13 @@ Widget buildSubject({
 void main() {
   group('MainShell', () {
     testWidgets(
-        'renders a NavigationRail with Q&A, Summary, and Note Editor destinations',
+        'renders a unified MenuSidebar with Q&A, Summary, and Note Editor '
+        'destinations and no NavigationRail',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
 
-      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(MenuSidebar), findsOneWidget);
+      expect(find.byType(NavigationRail), findsNothing);
       expect(find.text('Q&A'), findsOneWidget);
       expect(find.text('Summary'), findsOneWidget);
       expect(find.text('Note Editor'), findsOneWidget);
@@ -288,50 +291,114 @@ void main() {
       expect(find.byType(SummaryPage), findsNothing);
     });
 
-    testWidgets('NavigationRail is visible on all pages',
+    testWidgets('MenuSidebar is visible on all pages',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
 
-      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(MenuSidebar), findsOneWidget);
 
       await tester.tap(find.text('Summary'));
       await tester.pumpAndSettle();
-      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(MenuSidebar), findsOneWidget);
 
       await tester.tap(find.text('Note Editor'));
       await tester.pumpAndSettle();
-      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(MenuSidebar), findsOneWidget);
     });
 
-    group('settings icon', () {
-      testWidgets('settings icon is visible in NavigationRail',
+    group('collapsible sidebar', () {
+      testWidgets('starts expanded with no floating hamburger',
           (WidgetTester tester) async {
         await tester.pumpWidget(buildSubject());
-        expect(find.byTooltip('Settings'), findsOneWidget);
+
+        expect(find.byType(MenuSidebar), findsOneWidget);
+        expect(find.byTooltip('Open menu'), findsNothing);
       });
 
-      testWidgets('settings icon is visible on all three pages',
+      testWidgets('tapping collapse hides the sidebar and shows the floating '
+          'hamburger', (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+
+        await tester.tap(find.byTooltip('Collapse menu'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(MenuSidebar), findsNothing);
+        expect(find.byTooltip('Open menu'), findsOneWidget);
+      });
+
+      testWidgets('tapping the floating hamburger re-expands the sidebar',
           (WidgetTester tester) async {
         await tester.pumpWidget(buildSubject());
-        expect(find.byTooltip('Settings'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Collapse menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Open menu'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(MenuSidebar), findsOneWidget);
+        expect(find.byTooltip('Open menu'), findsNothing);
+      });
+
+      testWidgets('starts collapsed when prefs.sidebarCollapsed is true',
+          (WidgetTester tester) async {
+        final fakePrefs = _FakePrefsService(
+          const UserPreferences(sidebarCollapsed: true),
+        );
+
+        await tester.pumpWidget(buildSubject(prefsService: fakePrefs));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(MenuSidebar), findsNothing);
+        expect(find.byTooltip('Open menu'), findsOneWidget);
+      });
+
+      testWidgets('persists sidebarCollapsed when toggled',
+          (WidgetTester tester) async {
+        final fakePrefs = _FakePrefsService(const UserPreferences());
+
+        await tester.pumpWidget(buildSubject(prefsService: fakePrefs));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Collapse menu'));
+        await tester.pumpAndSettle();
+
+        expect(fakePrefs.saved, isNotEmpty);
+        expect(fakePrefs.saved.last.sidebarCollapsed, isTrue);
+      });
+
+      testWidgets(
+          'floating hamburger does not overlap the Summary page title',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
 
         await tester.tap(find.text('Summary'));
         await tester.pumpAndSettle();
-        expect(find.byTooltip('Settings'), findsOneWidget);
-
-        await tester.tap(find.text('Note Editor'));
+        await tester.tap(find.byTooltip('Collapse menu'));
         await tester.pumpAndSettle();
-        expect(find.byTooltip('Settings'), findsOneWidget);
+
+        final buttonRight =
+            tester.getRect(find.byTooltip('Open menu')).right;
+        final titleLeft =
+            tester.getRect(find.text('Campaign Summary')).left;
+        expect(titleLeft, greaterThanOrEqualTo(buttonRight));
+      });
+    });
+
+    group('settings entry', () {
+      testWidgets('Settings is reachable from the expanded sidebar',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.text('Settings'), findsOneWidget);
       });
 
-      testWidgets('tapping settings icon opens SettingsPopup dialog',
+      testWidgets('tapping Settings opens the SettingsPopup dialog',
           (WidgetTester tester) async {
         await tester.pumpWidget(buildSubject(
           modelService: _stubModelService(models: ['llama3']),
         ));
         await tester.pump();
 
-        await tester.tap(find.byTooltip('Settings'));
+        await tester.tap(find.text('Settings'));
         await tester.pumpAndSettle();
 
         expect(find.byType(SettingsPopup), findsOneWidget);
@@ -382,7 +449,7 @@ void main() {
         await tester.pump();
 
         // Open settings and start upload via Vectorize button
-        await tester.tap(find.byTooltip('Settings'));
+        await tester.tap(find.text('Settings'));
         await tester.pump();
 
         await tester.ensureVisible(find.text('Vectorize'));

@@ -6,12 +6,14 @@ class UserPreferences {
   final double temperature;
   final bool darkMode;
   final double scrollOffset;
+  final bool sidebarCollapsed;
 
   const UserPreferences({
     this.model,
     this.temperature = 0.5,
     this.darkMode = false,
     this.scrollOffset = 0.0,
+    this.sidebarCollapsed = false,
   });
 }
 
@@ -30,6 +32,7 @@ class UserPreferencesService {
         temperature: (map['temperature'] as num?)?.toDouble() ?? 0.5,
         darkMode: (map['darkMode'] as bool?) ?? false,
         scrollOffset: (map['scrollOffset'] as num?)?.toDouble() ?? 0.0,
+        sidebarCollapsed: (map['sidebarCollapsed'] as bool?) ?? false,
       );
     } on Exception {
       return const UserPreferences();
@@ -41,6 +44,7 @@ class UserPreferencesService {
       'temperature': prefs.temperature,
       'darkMode': prefs.darkMode,
       'scrollOffset': prefs.scrollOffset,
+      'sidebarCollapsed': prefs.sidebarCollapsed,
     };
     if (prefs.model != null) map['model'] = prefs.model;
     file.writeAsStringSync(jsonEncode(map));

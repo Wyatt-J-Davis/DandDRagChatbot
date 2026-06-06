@@ -116,6 +116,37 @@ void main() {
         expect(prefs.darkMode, isTrue);
         expect(prefs.scrollOffset, closeTo(42.0, 0.01));
       });
+
+      test('round-trips sidebarCollapsed true', () async {
+        await service.save(const UserPreferences(sidebarCollapsed: true));
+        final prefs = await service.load();
+        expect(prefs.sidebarCollapsed, isTrue);
+      });
+
+      test('round-trips sidebarCollapsed false', () async {
+        await service.save(const UserPreferences(sidebarCollapsed: false));
+        final prefs = await service.load();
+        expect(prefs.sidebarCollapsed, isFalse);
+      });
+    });
+
+    group('sidebarCollapsed', () {
+      test('defaults to false (expanded) when key is missing', () async {
+        prefsFile.writeAsStringSync(json.encode({'model': 'llama3'}));
+        final prefs = await service.load();
+        expect(prefs.sidebarCollapsed, isFalse);
+      });
+
+      test('defaults to false when file does not exist', () async {
+        final prefs = await service.load();
+        expect(prefs.sidebarCollapsed, isFalse);
+      });
+
+      test('returns stored sidebarCollapsed true', () async {
+        prefsFile.writeAsStringSync(json.encode({'sidebarCollapsed': true}));
+        final prefs = await service.load();
+        expect(prefs.sidebarCollapsed, isTrue);
+      });
     });
 
     group('darkMode', () {
