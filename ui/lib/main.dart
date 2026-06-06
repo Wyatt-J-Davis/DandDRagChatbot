@@ -5,6 +5,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 
 import 'services/backend_lifecycle_observer.dart';
 import 'services/backend_service.dart';
+import 'services/conversation_store.dart';
 import 'services/model_service.dart';
 import 'services/note_content_service.dart';
 import 'services/note_export_service.dart';
@@ -32,11 +33,17 @@ void main() async {
   final prefsService = UserPreferencesService(file: File('user_data.json'));
   final initialPrefs = await prefsService.load();
 
+  final conversationStore =
+      ConversationStore(file: File('chat_history.json'));
+  final initialConversations = await conversationStore.load();
+
   final backendReady = _startBackend();
   runApp(TTRPGChatbotApp(
     backendReady: backendReady,
     prefsService: prefsService,
     initialPrefs: initialPrefs,
+    conversationStore: conversationStore,
+    initialConversations: initialConversations,
   ));
 }
 
@@ -44,12 +51,16 @@ class TTRPGChatbotApp extends StatelessWidget {
   final Future<void> backendReady;
   final UserPreferencesService? prefsService;
   final UserPreferences? initialPrefs;
+  final ConversationStore? conversationStore;
+  final List<Conversation>? initialConversations;
 
   const TTRPGChatbotApp({
     super.key,
     required this.backendReady,
     this.prefsService,
     this.initialPrefs,
+    this.conversationStore,
+    this.initialConversations,
   });
 
   @override
@@ -59,6 +70,8 @@ class TTRPGChatbotApp extends StatelessWidget {
       initialModel: initialPrefs?.model,
       initialTemperature: initialPrefs?.temperature ?? 0.5,
       partyService: partyService,
+      conversationStore: conversationStore,
+      initialConversations: initialConversations,
     );
     final modelService = ModelService();
     final statusService = StatusService();

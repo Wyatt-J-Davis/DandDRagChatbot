@@ -9,6 +9,16 @@ class ChatSource {
   final String content;
   final String? date;
   const ChatSource({required this.content, this.date});
+
+  Map<String, dynamic> toJson() => {
+        'content': content,
+        if (date != null) 'date': date,
+      };
+
+  factory ChatSource.fromJson(Map<String, dynamic> json) => ChatSource(
+        content: json['content']?.toString() ?? '',
+        date: json['date']?.toString(),
+      );
 }
 
 class ChatMessage {
@@ -20,6 +30,24 @@ class ChatMessage {
     required this.text,
     this.sources = const [],
   });
+
+  Map<String, dynamic> toJson() => {
+        'sender': sender.name,
+        'text': text,
+        'sources': sources.map((s) => s.toJson()).toList(),
+      };
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
+        sender: ChatSender.values.firstWhere(
+          (s) => s.name == json['sender'],
+          orElse: () => ChatSender.assistant,
+        ),
+        text: json['text']?.toString() ?? '',
+        sources: (json['sources'] as List<dynamic>?)
+                ?.map((e) => ChatSource.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+      );
 }
 
 sealed class ChatEvent {}

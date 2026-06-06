@@ -1,6 +1,7 @@
 ﻿import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ttrpg_chatbot/services/conversation_store.dart';
 import 'package:ttrpg_chatbot/services/party_service.dart';
 import 'package:ttrpg_chatbot/services/user_preferences_service.dart';
 import 'package:ttrpg_chatbot/state/app_state_notifier.dart';
@@ -29,6 +30,20 @@ class _FakePartyService extends PartyService {
   @override
   Future<void> savePartyMembers(List<String> members, String? noteTaker) async {
     saved.add((members: List.unmodifiable(members), noteTaker: noteTaker));
+  }
+}
+
+class _FakeConversationStore extends ConversationStore {
+  final List<List<Conversation>> saved = [];
+
+  _FakeConversationStore() : super(file: File(''));
+
+  @override
+  Future<List<Conversation>> load() async => [];
+
+  @override
+  Future<void> save(List<Conversation> conversations) async {
+    saved.add(List.unmodifiable(conversations));
   }
 }
 
@@ -525,6 +540,131 @@ void main() {
       notifier.setSelectedNotesPath(r'C:\notes.txt');
       notifier.setSelectedNotesPath(null);
       expect(notifier.selectedNotesPath, isNull);
+    });
+  });
+
+  group('active conversation', () {
+    test('no active conversation on startup yields empty chatHistory', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.activeConversation, isNull);
+      expect(notifier.chatHistory, isEmpty);
+    });
+
+    test('startup does not auto-activate a loaded conversation', () {
+      final loaded = Conversation(
+        id: 'old',
+        title: 'Old chat',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+        messages: const [ChatMessage(sender: ChatSender.user, text: 'hi')],
+      );
+      final notifier =
+          AppStateNotifier(initialConversations: [loaded]);
+      expect(notifier.conversations, hasLength(1));
+      expect(notifier.activeConversation, isNull);
+      expect(notifier.chatHistory, isEmpty);
+    });
+
+    test('first message creates a conversation titled from the question', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(const ChatMessage(
+          sender: ChatSender.user, text: 'Who is the villain?'));
+
+      expect(notifier.conversations, hasLength(1));
+      final active = notifier.activeConversation;
+      expect(active, isNotNull);
+      expect(active!.title, 'Who is the villain?');
+      expect(notifier.chatHistory, hasLength(1));
+      expect(notifier.chatHistory.first.text, 'Who is the villain?');
+    });
+
+    test('long first question is truncated for the title', () {
+      final notifier = AppStateNotifier();
+      final longQuestion =
+          'Tell me absolutely everything that has ever happened in this campaign';
+      notifier.addChatMessage(
+          ChatMessage(sender: ChatSender.user, text: longQuestion));
+      final title = notifier.activeConversation!.title;
+      expect(title.length, lessThan(longQuestion.length));
+      expect(title, endsWith('…'));
+    });
+
+    test('subsequent messages append to the active conversation', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.assistant, text: 'a1'));
+
+      expect(notifier.conversations, hasLength(1));
+      expect(notifier.chatHistory.map((m) => m.text), ['q1', 'a1']);
+    });
+
+    test('appending a message bumps updatedAt', () async {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      final firstUpdatedAt = notifier.activeConversation!.updatedAt;
+
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.assistant, text: 'a1'));
+      final secondUpdatedAt = notifier.activeConversation!.updatedAt;
+
+      expect(secondUpdatedAt.isAfter(firstUpdatedAt), isTrue);
+    });
+
+    test('chatHistory remains unmodifiable', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      expect(
+        () => notifier.chatHistory.add(
+            const ChatMessage(sender: ChatSender.assistant, text: 'x')),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('persists conversation list on first message', () async {
+      final fake = _FakeConversationStore();
+      final notifier = AppStateNotifier(conversationStore: fake);
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fake.saved, isNotEmpty);
+      expect(fake.saved.last, hasLength(1));
+      expect(fake.saved.last.first.messages.first.text, 'q1');
+    });
+
+    test('persists again when a message is appended', () async {
+      final fake = _FakeConversationStore();
+      final notifier = AppStateNotifier(conversationStore: fake);
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.assistant, text: 'a1'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fake.saved.length, 2);
+      expect(fake.saved.last.first.messages, hasLength(2));
+    });
+
+    test('persisted conversation preserves message sources', () async {
+      final fake = _FakeConversationStore();
+      final notifier = AppStateNotifier(conversationStore: fake);
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      notifier.addChatMessage(const ChatMessage(
+        sender: ChatSender.assistant,
+        text: 'a1',
+        sources: [ChatSource(content: 'Session 1', date: '2026-05-01')],
+      ));
+      await Future<void>.delayed(Duration.zero);
+
+      final saved = fake.saved.last.first;
+      expect(saved.messages.last.sources.first.content, 'Session 1');
+      expect(saved.messages.last.sources.first.date, '2026-05-01');
     });
   });
 }
