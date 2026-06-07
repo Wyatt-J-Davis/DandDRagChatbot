@@ -87,6 +87,47 @@ void main() {
       final result = await store.load();
       expect(result, isEmpty);
     });
+
+    test('load prunes stale conversations and persists the pruned result',
+        () async {
+      final now = DateTime.now();
+      final stale = Conversation(
+        id: 'stale',
+        title: 'stale',
+        createdAt: now.subtract(const Duration(days: 40)),
+        updatedAt: now.subtract(const Duration(days: 30)),
+      );
+      final fresh = Conversation(
+        id: 'fresh',
+        title: 'fresh',
+        createdAt: now.subtract(const Duration(days: 2)),
+        updatedAt: now.subtract(const Duration(days: 1)),
+      );
+      await store.save([stale, fresh]);
+
+      final loaded = await store.load();
+      expect(loaded.map((c) => c.id), ['fresh']);
+
+      // The pruned result is written back to disk: a second load (which would
+      // not prune, since 'fresh' is recent) sees only the surviving entry.
+      final reloaded = await store.load();
+      expect(reloaded.map((c) => c.id), ['fresh']);
+    });
+
+    test('load retains archived conversations regardless of age', () async {
+      final now = DateTime.now();
+      final archivedAncient = Conversation(
+        id: 'archived',
+        title: 'archived',
+        createdAt: now.subtract(const Duration(days: 400)),
+        updatedAt: now.subtract(const Duration(days: 365)),
+        archived: true,
+      );
+      await store.save([archivedAncient]);
+
+      final loaded = await store.load();
+      expect(loaded.map((c) => c.id), ['archived']);
+    });
   });
 }
 

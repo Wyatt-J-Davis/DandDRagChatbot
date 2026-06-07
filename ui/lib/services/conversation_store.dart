@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../models/conversation.dart';
+import 'conversation_retention.dart';
 
 /// Persists the full conversation list to a local JSON file.
 ///
@@ -18,9 +19,14 @@ class ConversationStore {
     try {
       final contents = await file.readAsString();
       final list = jsonDecode(contents) as List<dynamic>;
-      return list
+      final conversations = list
           .map((e) => Conversation.fromJson(e as Map<String, dynamic>))
           .toList();
+      final pruned = pruneConversations(conversations, DateTime.now());
+      if (pruned.length != conversations.length) {
+        await save(pruned);
+      }
+      return pruned;
     } on Exception {
       return [];
     }
