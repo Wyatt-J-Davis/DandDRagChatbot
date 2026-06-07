@@ -667,4 +667,166 @@ void main() {
       expect(saved.messages.last.sources.first.date, '2026-05-01');
     });
   });
+
+  group('recentConversations', () {
+    Conversation conv(String id, DateTime updatedAt, {bool archived = false}) =>
+        Conversation(
+          id: id,
+          title: 'conv $id',
+          createdAt: updatedAt,
+          updatedAt: updatedAt,
+          archived: archived,
+        );
+
+    test('is empty initially', () {
+      final notifier = AppStateNotifier();
+      expect(notifier.recentConversations, isEmpty);
+    });
+
+    test('returns non-archived conversations sorted newest-first by updatedAt', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1)),
+        conv('b', DateTime(2026, 5, 3)),
+        conv('c', DateTime(2026, 5, 2)),
+      ]);
+      expect(
+        notifier.recentConversations.map((c) => c.id),
+        ['b', 'c', 'a'],
+      );
+    });
+
+    test('excludes archived conversations', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1)),
+        conv('b', DateTime(2026, 5, 2), archived: true),
+      ]);
+      expect(notifier.recentConversations.map((c) => c.id), ['a']);
+    });
+
+    test('is unmodifiable', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1)),
+      ]);
+      expect(
+        () => notifier.recentConversations.add(conv('z', DateTime(2026, 5, 9))),
+        throwsUnsupportedError,
+      );
+    });
+  });
+
+  group('setActiveConversation', () {
+    Conversation conv(String id) => Conversation(
+          id: id,
+          title: 'conv $id',
+          createdAt: DateTime(2026, 5, 1),
+          updatedAt: DateTime(2026, 5, 1),
+          messages: [ChatMessage(sender: ChatSender.user, text: 'in $id')],
+        );
+
+    test('sets the active conversation and exposes its messages', () {
+      final notifier = AppStateNotifier(
+          initialConversations: [conv('a'), conv('b')]);
+      notifier.setActiveConversation('b');
+      expect(notifier.activeConversationId, 'b');
+      expect(notifier.activeConversation!.id, 'b');
+      expect(notifier.chatHistory.first.text, 'in b');
+    });
+
+    test('notifies listeners', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.setActiveConversation('a');
+      expect(calls, 1);
+    });
+
+    test('does not notify when already active', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      notifier.setActiveConversation('a');
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.setActiveConversation('a');
+      expect(calls, 0);
+    });
+  });
+
+  group('startNewChat', () {
+    test('clears the active conversation to the welcome/empty state', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      expect(notifier.activeConversation, isNotNull);
+
+      notifier.startNewChat();
+      expect(notifier.activeConversationId, isNull);
+      expect(notifier.chatHistory, isEmpty);
+    });
+
+    test('writes no new conversation entry', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      notifier.startNewChat();
+      expect(notifier.conversations, hasLength(1));
+    });
+
+    test('notifies listeners when there was an active conversation', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'q1'));
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.startNewChat();
+      expect(calls, 1);
+    });
+
+    test('does not notify when already at the welcome state', () {
+      final notifier = AppStateNotifier();
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.startNewChat();
+      expect(calls, 0);
+    });
+
+    test('next message after startNewChat begins a fresh conversation', () {
+      final notifier = AppStateNotifier();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'first chat'));
+      notifier.startNewChat();
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'second chat'));
+
+      expect(notifier.conversations, hasLength(2));
+      expect(notifier.activeConversation!.title, 'second chat');
+    });
+  });
+
+  group('append moves a reopened conversation to the top', () {
+    test('asking in a reopened conversation moves it newest-first', () async {
+      final older = Conversation(
+        id: 'older',
+        title: 'older',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+        messages: const [ChatMessage(sender: ChatSender.user, text: 'old q')],
+      );
+      final newer = Conversation(
+        id: 'newer',
+        title: 'newer',
+        createdAt: DateTime(2026, 5, 2),
+        updatedAt: DateTime(2026, 5, 2),
+        messages: const [ChatMessage(sender: ChatSender.user, text: 'new q')],
+      );
+      final notifier =
+          AppStateNotifier(initialConversations: [newer, older]);
+
+      notifier.setActiveConversation('older');
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.user, text: 'follow up'));
+
+      expect(notifier.recentConversations.first.id, 'older');
+      expect(notifier.activeConversation!.messages.map((m) => m.text),
+          ['old q', 'follow up']);
+    });
+  });
 }

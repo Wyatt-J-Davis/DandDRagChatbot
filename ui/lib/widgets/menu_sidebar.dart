@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../models/conversation.dart';
 import 'sidebar_panel.dart';
 
 /// Unified, Ollama-style left sidebar: a collapse hamburger, the page
-/// navigation destinations, a region reserved for the chat history list
-/// (added in a later slice), and Settings pinned at the bottom.
+/// navigation destinations, the recent chat history list, and Settings
+/// pinned at the bottom.
 class MenuSidebar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onCollapse;
   final VoidCallback onOpenSettings;
+  final List<Conversation> conversations;
+  final String? activeConversationId;
+  final ValueChanged<String> onConversationSelected;
+  final VoidCallback onNewChat;
 
   const MenuSidebar({
     super.key,
@@ -17,6 +22,10 @@ class MenuSidebar extends StatelessWidget {
     required this.onDestinationSelected,
     required this.onCollapse,
     required this.onOpenSettings,
+    this.conversations = const [],
+    this.activeConversationId,
+    required this.onConversationSelected,
+    required this.onNewChat,
   });
 
   static const List<({IconData icon, String label})> _destinations = [
@@ -47,8 +56,34 @@ class MenuSidebar extends StatelessWidget {
                 onTap: () => onDestinationSelected(i),
               ),
             const Divider(height: 1),
-            // Reserved for the chat history list (later slice).
-            const Expanded(child: SizedBox.shrink()),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: onNewChat,
+                  icon: const Icon(Icons.add),
+                  label: const Text('New chat'),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: conversations.length,
+                itemBuilder: (context, i) {
+                  final conversation = conversations[i];
+                  return ListTile(
+                    title: Text(
+                      conversation.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    selected: conversation.id == activeConversationId,
+                    onTap: () => onConversationSelected(conversation.id),
+                  );
+                },
+              ),
+            ),
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.settings),

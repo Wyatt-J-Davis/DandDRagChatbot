@@ -49,6 +49,15 @@ class AppStateNotifier extends ChangeNotifier {
 
   List<Conversation> get conversations => List.unmodifiable(_conversations);
 
+  String? get activeConversationId => _activeConversationId;
+
+  // Non-archived conversations, newest-first by updatedAt, for the history list.
+  List<Conversation> get recentConversations {
+    final recent = _conversations.where((c) => !c.archived).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return List.unmodifiable(recent);
+  }
+
   Conversation? get activeConversation {
     if (_activeConversationId == null) return null;
     for (final conversation in _conversations) {
@@ -75,18 +84,31 @@ class AppStateNotifier extends ChangeNotifier {
       _conversations.insert(0, conversation);
       _activeConversationId = conversation.id;
     } else {
-      _replaceConversation(active.copyWith(
+      // Appending bumps updatedAt and moves the conversation to the top of
+      // the recent list (story 92).
+      final updated = active.copyWith(
         messages: [...active.messages, message],
         updatedAt: now,
-      ));
+      );
+      _conversations.removeWhere((c) => c.id == updated.id);
+      _conversations.insert(0, updated);
     }
     notifyListeners();
     _persistConversations();
   }
 
-  void _replaceConversation(Conversation updated) {
-    final index = _conversations.indexWhere((c) => c.id == updated.id);
-    if (index >= 0) _conversations[index] = updated;
+  void setActiveConversation(String? id) {
+    if (_activeConversationId == id) return;
+    _activeConversationId = id;
+    notifyListeners();
+  }
+
+  // Resets the Q&A view to the welcome/empty state without writing an entry;
+  // a new conversation is only created when the next question is sent.
+  void startNewChat() {
+    if (_activeConversationId == null) return;
+    _activeConversationId = null;
+    notifyListeners();
   }
 
   static String _generateConversationId(DateTime now) =>

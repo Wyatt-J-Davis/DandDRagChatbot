@@ -138,6 +138,16 @@ class _MainShellState extends State<MainShell> {
     _savePreferences();
   }
 
+  void _onConversationSelected(String id) {
+    widget.appState.setActiveConversation(id);
+    _onDestinationSelected(0);
+  }
+
+  void _onNewChat() {
+    widget.appState.startNewChat();
+    _onDestinationSelected(0);
+  }
+
   void _onDestinationSelected(int index) {
     setState(() => _selectedIndex = index);
     if (index == 2) {
@@ -265,11 +275,18 @@ class _MainShellState extends State<MainShell> {
   Widget _buildExpanded() {
     return Row(
       children: [
-        MenuSidebar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _onDestinationSelected,
-          onCollapse: () => _setSidebarCollapsed(true),
-          onOpenSettings: _openSettings,
+        ListenableBuilder(
+          listenable: widget.appState,
+          builder: (context, _) => MenuSidebar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: _onDestinationSelected,
+            onCollapse: () => _setSidebarCollapsed(true),
+            onOpenSettings: _openSettings,
+            conversations: widget.appState.recentConversations,
+            activeConversationId: widget.appState.activeConversationId,
+            onConversationSelected: _onConversationSelected,
+            onNewChat: _onNewChat,
+          ),
         ),
         const VerticalDivider(thickness: 1, width: 1),
         Expanded(child: _buildPage()),

@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ttrpg_chatbot/models/conversation.dart';
 import 'package:ttrpg_chatbot/widgets/menu_sidebar.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
+
+Conversation _conv(String id, String title) => Conversation(
+      id: id,
+      title: title,
+      createdAt: DateTime(2026, 5, 1),
+      updatedAt: DateTime(2026, 5, 1),
+    );
 
 void main() {
   group('MenuSidebar', () {
@@ -10,6 +18,10 @@ void main() {
       ValueChanged<int>? onDestinationSelected,
       VoidCallback? onCollapse,
       VoidCallback? onOpenSettings,
+      List<Conversation> conversations = const [],
+      String? activeConversationId,
+      ValueChanged<String>? onConversationSelected,
+      VoidCallback? onNewChat,
     }) {
       return MaterialApp(
         home: Scaffold(
@@ -20,6 +32,10 @@ void main() {
                 onDestinationSelected: onDestinationSelected ?? (_) {},
                 onCollapse: onCollapse ?? () {},
                 onOpenSettings: onOpenSettings ?? () {},
+                conversations: conversations,
+                activeConversationId: activeConversationId,
+                onConversationSelected: onConversationSelected ?? (_) {},
+                onNewChat: onNewChat ?? () {},
               ),
             ],
           ),
@@ -89,6 +105,64 @@ void main() {
         ),
       );
       expect(selectedTile.selected, isTrue);
+    });
+
+    group('chat history list', () {
+      testWidgets('shows a New chat button', (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        expect(find.text('New chat'), findsOneWidget);
+      });
+
+      testWidgets('tapping New chat invokes onNewChat',
+          (WidgetTester tester) async {
+        var started = false;
+        await tester.pumpWidget(buildSubject(onNewChat: () => started = true));
+        await tester.tap(find.text('New chat'));
+        expect(started, isTrue);
+      });
+
+      testWidgets('renders a row per conversation showing its title',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(conversations: [
+          _conv('a', 'Who is the villain?'),
+          _conv('b', 'Where is the treasure?'),
+        ]));
+        expect(find.text('Who is the villain?'), findsOneWidget);
+        expect(find.text('Where is the treasure?'), findsOneWidget);
+      });
+
+      testWidgets('tapping a conversation reports its id',
+          (WidgetTester tester) async {
+        String? selected;
+        await tester.pumpWidget(buildSubject(
+          conversations: [_conv('a', 'First'), _conv('b', 'Second')],
+          onConversationSelected: (id) => selected = id,
+        ));
+        await tester.tap(find.text('Second'));
+        expect(selected, 'b');
+      });
+
+      testWidgets('highlights the active conversation',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(
+          conversations: [_conv('a', 'First'), _conv('b', 'Second')],
+          activeConversationId: 'b',
+        ));
+        final activeTile = tester.widget<ListTile>(
+          find.ancestor(
+            of: find.text('Second'),
+            matching: find.byType(ListTile),
+          ),
+        );
+        final inactiveTile = tester.widget<ListTile>(
+          find.ancestor(
+            of: find.text('First'),
+            matching: find.byType(ListTile),
+          ),
+        );
+        expect(activeTile.selected, isTrue);
+        expect(inactiveTile.selected, isFalse);
+      });
     });
   });
 }

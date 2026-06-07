@@ -543,7 +543,15 @@ void main() {
         // 500ms per pump covers the 18-char typewriter (18×20ms=360ms)
         await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
-        expect(find.text('What is the dragon?'), findsOneWidget);
+        // The question also appears as the sidebar conversation title, so scope
+        // the chat-bubble assertion to the Q&A page.
+        expect(
+          find.descendant(
+            of: find.byType(QAPage),
+            matching: find.text('What is the dragon?'),
+          ),
+          findsOneWidget,
+        );
         expect(find.text('The dragon is red.'), findsOneWidget);
 
         // Navigate away and back
@@ -553,8 +561,95 @@ void main() {
         await tester.pumpAndSettle();
 
         // History must still be present
-        expect(find.text('What is the dragon?'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(QAPage),
+            matching: find.text('What is the dragon?'),
+          ),
+          findsOneWidget,
+        );
         expect(find.text('The dragon is red.'), findsOneWidget);
+      });
+    });
+
+    group('chat history list', () {
+      Conversation seededConversation(String id, String title, String message) =>
+          Conversation(
+            id: id,
+            title: title,
+            createdAt: DateTime(2026, 5, 1),
+            updatedAt: DateTime(2026, 5, 1),
+            messages: [ChatMessage(sender: ChatSender.user, text: message)],
+          );
+
+      testWidgets('recent conversations appear in the sidebar',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier(initialConversations: [
+          seededConversation('a', 'Villain question', 'Who is the villain?'),
+        ]);
+
+        await tester.pumpWidget(buildSubject(appState: appState));
+        await tester.pump();
+
+        expect(find.text('Villain question'), findsOneWidget);
+      });
+
+      testWidgets('clicking a conversation loads its messages on the Q&A page',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier(initialConversations: [
+          seededConversation('a', 'Villain question', 'Who is the villain?'),
+        ]);
+
+        await tester.pumpWidget(buildSubject(appState: appState));
+        await tester.pump();
+
+        await tester.tap(find.text('Villain question'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(QAPage), findsOneWidget);
+        expect(find.text('Who is the villain?'), findsOneWidget);
+      });
+
+      testWidgets('clicking a conversation from Summary switches to the Q&A page',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier(initialConversations: [
+          seededConversation('a', 'Villain question', 'Who is the villain?'),
+        ]);
+
+        await tester.pumpWidget(buildSubject(appState: appState));
+        await tester.pump();
+
+        await tester.tap(find.text('Summary'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SummaryPage), findsOneWidget);
+
+        await tester.tap(find.text('Villain question'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(QAPage), findsOneWidget);
+        expect(find.text('Who is the villain?'), findsOneWidget);
+      });
+
+      testWidgets('New chat clears the Q&A view to the welcome state',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier(initialConversations: [
+          seededConversation('a', 'Villain question', 'Who is the villain?'),
+        ]);
+
+        await tester.pumpWidget(buildSubject(appState: appState));
+        await tester.pump();
+
+        await tester.tap(find.text('Villain question'));
+        await tester.pumpAndSettle();
+        expect(find.text('Who is the villain?'), findsOneWidget);
+
+        await tester.tap(find.text('New chat'));
+        await tester.pumpAndSettle();
+
+        expect(appState.activeConversationId, isNull);
+        expect(find.byType(QAPage), findsOneWidget);
+        expect(find.text('Who is the villain?'), findsNothing);
+        expect(appState.conversations, hasLength(1));
       });
     });
 
