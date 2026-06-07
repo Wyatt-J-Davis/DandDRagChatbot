@@ -1,15 +1,28 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ttrpg_chatbot/models/conversation.dart';
 import 'package:ttrpg_chatbot/widgets/menu_sidebar.dart';
 import 'package:ttrpg_chatbot/widgets/sidebar_panel.dart';
 
-Conversation _conv(String id, String title) => Conversation(
+Conversation _conv(String id, String title, {bool archived = false}) =>
+    Conversation(
       id: id,
       title: title,
       createdAt: DateTime(2026, 5, 1),
       updatedAt: DateTime(2026, 5, 1),
+      archived: archived,
     );
+
+/// Moves a synthetic mouse pointer over [finder] so hover-revealed controls
+/// become visible.
+Future<void> _hoverOver(WidgetTester tester, Finder finder) async {
+  final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+  await gesture.addPointer(location: Offset.zero);
+  addTearDown(gesture.removePointer);
+  await gesture.moveTo(tester.getCenter(finder));
+  await tester.pumpAndSettle();
+}
 
 void main() {
   group('MenuSidebar', () {
@@ -19,9 +32,13 @@ void main() {
       VoidCallback? onCollapse,
       VoidCallback? onOpenSettings,
       List<Conversation> conversations = const [],
+      List<Conversation> archivedConversations = const [],
       String? activeConversationId,
       ValueChanged<String>? onConversationSelected,
       VoidCallback? onNewChat,
+      ValueChanged<String>? onRenameConversation,
+      ValueChanged<String>? onArchiveConversation,
+      ValueChanged<String>? onDeleteConversation,
     }) {
       return MaterialApp(
         home: Scaffold(
@@ -33,9 +50,13 @@ void main() {
                 onCollapse: onCollapse ?? () {},
                 onOpenSettings: onOpenSettings ?? () {},
                 conversations: conversations,
+                archivedConversations: archivedConversations,
                 activeConversationId: activeConversationId,
                 onConversationSelected: onConversationSelected ?? (_) {},
                 onNewChat: onNewChat ?? () {},
+                onRenameConversation: onRenameConversation ?? (_) {},
+                onArchiveConversation: onArchiveConversation ?? (_) {},
+                onDeleteConversation: onDeleteConversation ?? (_) {},
               ),
             ],
           ),
@@ -162,6 +183,131 @@ void main() {
         );
         expect(activeTile.selected, isTrue);
         expect(inactiveTile.selected, isFalse);
+      });
+    });
+
+    group('conversation management', () {
+      testWidgets('overflow menu is hidden until the row is hovered',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(conversations: [
+          _conv('a', 'First'),
+        ]));
+        expect(find.byIcon(Icons.more_vert), findsNothing);
+
+        await _hoverOver(tester, find.text('First'));
+        expect(find.byIcon(Icons.more_vert), findsOneWidget);
+      });
+
+      testWidgets('overflow menu offers Rename, Archive, and Delete',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(conversations: [
+          _conv('a', 'First'),
+        ]));
+        await _hoverOver(tester, find.text('First'));
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Rename'), findsOneWidget);
+        expect(find.text('Archive'), findsOneWidget);
+        expect(find.text('Delete'), findsOneWidget);
+      });
+
+      testWidgets('selecting Rename reports the conversation id',
+          (WidgetTester tester) async {
+        String? renamed;
+        await tester.pumpWidget(buildSubject(
+          conversations: [_conv('a', 'First')],
+          onRenameConversation: (id) => renamed = id,
+        ));
+        await _hoverOver(tester, find.text('First'));
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Rename'));
+        await tester.pumpAndSettle();
+        expect(renamed, 'a');
+      });
+
+      testWidgets('selecting Archive reports the conversation id',
+          (WidgetTester tester) async {
+        String? archived;
+        await tester.pumpWidget(buildSubject(
+          conversations: [_conv('a', 'First')],
+          onArchiveConversation: (id) => archived = id,
+        ));
+        await _hoverOver(tester, find.text('First'));
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Archive'));
+        await tester.pumpAndSettle();
+        expect(archived, 'a');
+      });
+
+      testWidgets('selecting Delete reports the conversation id',
+          (WidgetTester tester) async {
+        String? deleted;
+        await tester.pumpWidget(buildSubject(
+          conversations: [_conv('a', 'First')],
+          onDeleteConversation: (id) => deleted = id,
+        ));
+        await _hoverOver(tester, find.text('First'));
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+        expect(deleted, 'a');
+      });
+
+      testWidgets('archived rows offer Unarchive instead of Archive',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(
+          archivedConversations: [_conv('a', 'Old chat', archived: true)],
+        ));
+        // Expand the Archived section first.
+        await tester.tap(find.text('Archived'));
+        await tester.pumpAndSettle();
+
+        await _hoverOver(tester, find.text('Old chat'));
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Unarchive'), findsOneWidget);
+        expect(find.text('Archive'), findsNothing);
+      });
+
+      testWidgets('no Archived section when there are no archived conversations',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(conversations: [
+          _conv('a', 'First'),
+        ]));
+        expect(find.text('Archived'), findsNothing);
+      });
+
+      testWidgets('Archived section lists archived conversations when expanded',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject(
+          conversations: [_conv('a', 'Recent chat')],
+          archivedConversations: [_conv('b', 'Archived chat', archived: true)],
+        ));
+        expect(find.text('Archived'), findsOneWidget);
+        // Collapsed by default: archived title not yet shown.
+        expect(find.text('Archived chat'), findsNothing);
+
+        await tester.tap(find.text('Archived'));
+        await tester.pumpAndSettle();
+        expect(find.text('Archived chat'), findsOneWidget);
+      });
+
+      testWidgets('tapping an archived conversation reports its id',
+          (WidgetTester tester) async {
+        String? selected;
+        await tester.pumpWidget(buildSubject(
+          archivedConversations: [_conv('b', 'Archived chat', archived: true)],
+          onConversationSelected: (id) => selected = id,
+        ));
+        await tester.tap(find.text('Archived'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Archived chat'));
+        expect(selected, 'b');
       });
     });
   });

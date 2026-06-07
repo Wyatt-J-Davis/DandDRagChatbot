@@ -148,6 +148,65 @@ class _MainShellState extends State<MainShell> {
     _onDestinationSelected(0);
   }
 
+  Future<void> _onRenameConversation(String id) async {
+    final matches = widget.appState.conversations.where((c) => c.id == id);
+    if (matches.isEmpty) return;
+    final controller = TextEditingController(text: matches.first.title);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename conversation'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Name'),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newName != null && newName.trim().isNotEmpty) {
+      widget.appState.renameConversation(id, newName);
+    }
+  }
+
+  void _onArchiveConversation(String id) {
+    widget.appState.toggleArchiveConversation(id);
+  }
+
+  Future<void> _onDeleteConversation(String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete conversation'),
+        content: const Text(
+            'This conversation will be permanently deleted. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      widget.appState.deleteConversation(id);
+    }
+  }
+
   void _onDestinationSelected(int index) {
     setState(() => _selectedIndex = index);
     if (index == 2) {
@@ -283,9 +342,13 @@ class _MainShellState extends State<MainShell> {
             onCollapse: () => _setSidebarCollapsed(true),
             onOpenSettings: _openSettings,
             conversations: widget.appState.recentConversations,
+            archivedConversations: widget.appState.archivedConversations,
             activeConversationId: widget.appState.activeConversationId,
             onConversationSelected: _onConversationSelected,
             onNewChat: _onNewChat,
+            onRenameConversation: _onRenameConversation,
+            onArchiveConversation: _onArchiveConversation,
+            onDeleteConversation: _onDeleteConversation,
           ),
         ),
         const VerticalDivider(thickness: 1, width: 1),

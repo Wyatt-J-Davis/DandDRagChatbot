@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -649,6 +650,114 @@ void main() {
         expect(appState.activeConversationId, isNull);
         expect(find.byType(QAPage), findsOneWidget);
         expect(find.text('Who is the villain?'), findsNothing);
+        expect(appState.conversations, hasLength(1));
+      });
+    });
+
+    group('conversation management', () {
+      Conversation seededConversation(String id, String title) => Conversation(
+            id: id,
+            title: title,
+            createdAt: DateTime(2026, 5, 1),
+            updatedAt: DateTime(2026, 5, 1),
+            messages: const [ChatMessage(sender: ChatSender.user, text: 'q')],
+          );
+
+      Future<void> openRowMenu(WidgetTester tester, Finder rowTitle) async {
+        final gesture =
+            await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await gesture.addPointer(location: Offset.zero);
+        addTearDown(gesture.removePointer);
+        await gesture.moveTo(tester.getCenter(rowTitle));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('Rename opens a dialog and updates the title',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier(initialConversations: [
+          seededConversation('a', 'Old title'),
+        ]);
+
+        await tester.pumpWidget(buildSubject(appState: appState));
+        await tester.pump();
+
+        await openRowMenu(tester, find.text('Old title'));
+        await tester.tap(find.text('Rename'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(TextField),
+          ),
+          'Brand new title',
+        );
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+
+        expect(appState.conversations.first.title, 'Brand new title');
+        expect(appState.conversations.first.titleOverridden, isTrue);
+      });
+
+      testWidgets('Archive moves a conversation into the Archived section',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier(initialConversations: [
+          seededConversation('a', 'To archive'),
+        ]);
+
+        await tester.pumpWidget(buildSubject(appState: appState));
+        await tester.pump();
+
+        await openRowMenu(tester, find.text('To archive'));
+        await tester.tap(find.text('Archive'));
+        await tester.pumpAndSettle();
+
+        expect(appState.recentConversations, isEmpty);
+        expect(appState.archivedConversations.map((c) => c.id), ['a']);
+        expect(find.text('Archived'), findsOneWidget);
+      });
+
+      testWidgets('Delete asks for confirmation and removes on confirm',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier(initialConversations: [
+          seededConversation('a', 'Doomed chat'),
+        ]);
+
+        await tester.pumpWidget(buildSubject(appState: appState));
+        await tester.pump();
+
+        await openRowMenu(tester, find.text('Doomed chat'));
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+
+        // Confirmation dialog visible; nothing deleted yet.
+        expect(find.text('Delete conversation'), findsOneWidget);
+        expect(appState.conversations, hasLength(1));
+
+        await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+        await tester.pumpAndSettle();
+
+        expect(appState.conversations, isEmpty);
+      });
+
+      testWidgets('Delete is cancellable and keeps the conversation',
+          (WidgetTester tester) async {
+        final appState = AppStateNotifier(initialConversations: [
+          seededConversation('a', 'Keep me'),
+        ]);
+
+        await tester.pumpWidget(buildSubject(appState: appState));
+        await tester.pump();
+
+        await openRowMenu(tester, find.text('Keep me'));
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await tester.pumpAndSettle();
+
         expect(appState.conversations, hasLength(1));
       });
     });

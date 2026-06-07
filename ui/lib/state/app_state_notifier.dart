@@ -58,6 +58,14 @@ class AppStateNotifier extends ChangeNotifier {
     return List.unmodifiable(recent);
   }
 
+  // Archived conversations, newest-first by updatedAt, for the Archived
+  // section. Archived conversations are exempt from the 14-day prune.
+  List<Conversation> get archivedConversations {
+    final archived = _conversations.where((c) => c.archived).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return List.unmodifiable(archived);
+  }
+
   Conversation? get activeConversation {
     if (_activeConversationId == null) return null;
     for (final conversation in _conversations) {
@@ -109,6 +117,43 @@ class AppStateNotifier extends ChangeNotifier {
     if (_activeConversationId == null) return;
     _activeConversationId = null;
     notifyListeners();
+  }
+
+  // Overrides the auto-derived title with a custom name. Sets titleOverridden
+  // so the first-question auto-title logic never overwrites it later.
+  void renameConversation(String id, String title) {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return;
+    final index = _conversations.indexWhere((c) => c.id == id);
+    if (index == -1) return;
+    _conversations[index] = _conversations[index]
+        .copyWith(title: trimmed, titleOverridden: true);
+    notifyListeners();
+    _persistConversations();
+  }
+
+  // Flips the archived flag. Archiving moves a conversation into the Archived
+  // section (and exempts it from the prune); unarchiving returns it to the
+  // recent, prunable list.
+  void toggleArchiveConversation(String id) {
+    final index = _conversations.indexWhere((c) => c.id == id);
+    if (index == -1) return;
+    final conversation = _conversations[index];
+    _conversations[index] =
+        conversation.copyWith(archived: !conversation.archived);
+    notifyListeners();
+    _persistConversations();
+  }
+
+  // Removes the conversation from the list (and from chat_history.json on the
+  // next save). Works on archived conversations too.
+  void deleteConversation(String id) {
+    final index = _conversations.indexWhere((c) => c.id == id);
+    if (index == -1) return;
+    _conversations.removeAt(index);
+    if (_activeConversationId == id) _activeConversationId = null;
+    notifyListeners();
+    _persistConversations();
   }
 
   static String _generateConversationId(DateTime now) =>

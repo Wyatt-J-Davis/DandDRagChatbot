@@ -801,6 +801,226 @@ void main() {
     });
   });
 
+  group('renameConversation', () {
+    Conversation conv(String id) => Conversation(
+          id: id,
+          title: 'conv $id',
+          createdAt: DateTime(2026, 5, 1),
+          updatedAt: DateTime(2026, 5, 1),
+          messages: const [ChatMessage(sender: ChatSender.user, text: 'q')],
+        );
+
+    test('updates the title and sets titleOverridden', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      notifier.renameConversation('a', 'My custom title');
+      final renamed = notifier.conversations.first;
+      expect(renamed.title, 'My custom title');
+      expect(renamed.titleOverridden, isTrue);
+    });
+
+    test('trims the new title', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      notifier.renameConversation('a', '  Trimmed  ');
+      expect(notifier.conversations.first.title, 'Trimmed');
+    });
+
+    test('ignores an empty or whitespace-only title', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      notifier.renameConversation('a', '   ');
+      expect(notifier.conversations.first.title, 'conv a');
+      expect(notifier.conversations.first.titleOverridden, isFalse);
+    });
+
+    test('notifies listeners', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.renameConversation('a', 'New');
+      expect(calls, 1);
+    });
+
+    test('does nothing for an unknown id', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.renameConversation('missing', 'New');
+      expect(calls, 0);
+      expect(notifier.conversations.first.title, 'conv a');
+    });
+
+    test('persists the rename', () async {
+      final fake = _FakeConversationStore();
+      final notifier = AppStateNotifier(
+        initialConversations: [conv('a')],
+        conversationStore: fake,
+      );
+      notifier.renameConversation('a', 'Saved title');
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.saved.last.first.title, 'Saved title');
+    });
+
+    test('sending further messages does not revert a renamed title', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      notifier.setActiveConversation('a');
+      notifier.renameConversation('a', 'Locked title');
+      notifier.addChatMessage(
+          const ChatMessage(sender: ChatSender.assistant, text: 'reply'));
+      expect(notifier.activeConversation!.title, 'Locked title');
+      expect(notifier.activeConversation!.titleOverridden, isTrue);
+    });
+  });
+
+  group('archiving', () {
+    Conversation conv(String id, DateTime updatedAt, {bool archived = false}) =>
+        Conversation(
+          id: id,
+          title: 'conv $id',
+          createdAt: updatedAt,
+          updatedAt: updatedAt,
+          archived: archived,
+        );
+
+    test('toggleArchiveConversation archives a recent conversation', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1)),
+      ]);
+      notifier.toggleArchiveConversation('a');
+      expect(notifier.recentConversations, isEmpty);
+      expect(notifier.archivedConversations.map((c) => c.id), ['a']);
+    });
+
+    test('toggleArchiveConversation unarchives an archived conversation', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1), archived: true),
+      ]);
+      notifier.toggleArchiveConversation('a');
+      expect(notifier.archivedConversations, isEmpty);
+      expect(notifier.recentConversations.map((c) => c.id), ['a']);
+    });
+
+    test('notifies listeners', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1)),
+      ]);
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.toggleArchiveConversation('a');
+      expect(calls, 1);
+    });
+
+    test('does nothing for an unknown id', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1)),
+      ]);
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.toggleArchiveConversation('missing');
+      expect(calls, 0);
+    });
+
+    test('persists the archive toggle', () async {
+      final fake = _FakeConversationStore();
+      final notifier = AppStateNotifier(
+        initialConversations: [conv('a', DateTime(2026, 5, 1))],
+        conversationStore: fake,
+      );
+      notifier.toggleArchiveConversation('a');
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.saved.last.first.archived, isTrue);
+    });
+
+    test('archivedConversations is newest-first by updatedAt', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1), archived: true),
+        conv('b', DateTime(2026, 5, 3), archived: true),
+        conv('c', DateTime(2026, 5, 2), archived: true),
+      ]);
+      expect(notifier.archivedConversations.map((c) => c.id), ['b', 'c', 'a']);
+    });
+
+    test('archivedConversations is unmodifiable', () {
+      final notifier = AppStateNotifier(initialConversations: [
+        conv('a', DateTime(2026, 5, 1), archived: true),
+      ]);
+      expect(
+        () => notifier.archivedConversations
+            .add(conv('z', DateTime(2026, 5, 9))),
+        throwsUnsupportedError,
+      );
+    });
+  });
+
+  group('deleteConversation', () {
+    Conversation conv(String id, {bool archived = false}) => Conversation(
+          id: id,
+          title: 'conv $id',
+          createdAt: DateTime(2026, 5, 1),
+          updatedAt: DateTime(2026, 5, 1),
+          archived: archived,
+          messages: const [ChatMessage(sender: ChatSender.user, text: 'q')],
+        );
+
+    test('removes the conversation from the list', () {
+      final notifier =
+          AppStateNotifier(initialConversations: [conv('a'), conv('b')]);
+      notifier.deleteConversation('a');
+      expect(notifier.conversations.map((c) => c.id), ['b']);
+    });
+
+    test('clears the active conversation when the active one is deleted', () {
+      final notifier =
+          AppStateNotifier(initialConversations: [conv('a'), conv('b')]);
+      notifier.setActiveConversation('a');
+      notifier.deleteConversation('a');
+      expect(notifier.activeConversationId, isNull);
+      expect(notifier.chatHistory, isEmpty);
+    });
+
+    test('keeps the active conversation when a different one is deleted', () {
+      final notifier =
+          AppStateNotifier(initialConversations: [conv('a'), conv('b')]);
+      notifier.setActiveConversation('a');
+      notifier.deleteConversation('b');
+      expect(notifier.activeConversationId, 'a');
+    });
+
+    test('deletes an archived conversation', () {
+      final notifier = AppStateNotifier(
+          initialConversations: [conv('a', archived: true), conv('b')]);
+      notifier.deleteConversation('a');
+      expect(notifier.conversations.map((c) => c.id), ['b']);
+      expect(notifier.archivedConversations, isEmpty);
+    });
+
+    test('notifies listeners', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.deleteConversation('a');
+      expect(calls, 1);
+    });
+
+    test('does nothing for an unknown id', () {
+      final notifier = AppStateNotifier(initialConversations: [conv('a')]);
+      int calls = 0;
+      notifier.addListener(() => calls++);
+      notifier.deleteConversation('missing');
+      expect(calls, 0);
+      expect(notifier.conversations, hasLength(1));
+    });
+
+    test('persists the deletion', () async {
+      final fake = _FakeConversationStore();
+      final notifier = AppStateNotifier(
+        initialConversations: [conv('a'), conv('b')],
+        conversationStore: fake,
+      );
+      notifier.deleteConversation('a');
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.saved.last.map((c) => c.id), ['b']);
+    });
+  });
+
   group('append moves a reopened conversation to the top', () {
     test('asking in a reopened conversation moves it newest-first', () async {
       final older = Conversation(
