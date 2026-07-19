@@ -54,7 +54,7 @@ extra_hiddenimports = [
     "langchain_core",
     "langchain_core.prompts",
     "langchain_core.prompts.chat",
-    "langchain_ollama",
+    "langchain_openai",
     "langchain_chroma",
     "langchain_experimental",
     "langchain_experimental.text_splitter",
@@ -85,7 +85,7 @@ extra_hiddenimports = [
     "streamlit_lottie",
     "streamlit_quill",
     # ---- LLM client ----
-    "ollama",
+    "openai",
     # ---- stdlib ----
     "uuid",
     "json",

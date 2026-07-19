@@ -44,37 +44,51 @@ class TestSaveUserData:
         bot = _make_bot()
         data_file = tmp_path / "user_data.json"
         data_file.write_text(json.dumps({
-            "summary_model_name": "mistral",
-            "summary_model_temperature": 0.3,
+            "summary_model_name": "gpt-5.4",
         }))
         bot._USERDATAFILE = str(data_file)
         ss = _SS(
-            model_name="llama3:latest",
-            model_temperature=0.7,
+            model_name="gpt-5.4-nano",
+            openai_api_key="sk-secret",
             notes_uploaded=True,
             party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
         )
         with patch("streamlit.session_state", ss):
             bot._TTRPGChatbot__save_user_data()
         saved = json.loads(data_file.read_text())
-        assert saved["summary_model_name"] == "mistral"
-        assert saved["summary_model_temperature"] == 0.3
-        assert saved["model_name"] == "llama3:latest"
+        assert saved["summary_model_name"] == "gpt-5.4"
+        assert saved["model_name"] == "gpt-5.4-nano"
+
+    def test_never_persists_api_key_or_temperature(self, tmp_path):
+        bot = _make_bot()
+        data_file = tmp_path / "user_data.json"
+        bot._USERDATAFILE = str(data_file)
+        ss = _SS(
+            model_name="gpt-5.4-nano",
+            openai_api_key="sk-secret",
+            notes_uploaded=True,
+            party_members=[],
+        )
+        with patch("streamlit.session_state", ss):
+            bot._TTRPGChatbot__save_user_data()
+        saved = json.loads(data_file.read_text())
+        assert "openai_api_key" not in saved
+        assert "model_temperature" not in saved
+        assert "sk-secret" not in data_file.read_text()
 
     def test_writes_qa_fields_when_no_prior_file(self, tmp_path):
         bot = _make_bot()
         data_file = tmp_path / "user_data.json"
         bot._USERDATAFILE = str(data_file)
         ss = _SS(
-            model_name="llama3:latest",
-            model_temperature=0.5,
+            model_name="gpt-5.4-nano",
             notes_uploaded=False,
             party_members=[],
         )
         with patch("streamlit.session_state", ss):
             bot._TTRPGChatbot__save_user_data()
         saved = json.loads(data_file.read_text())
-        assert saved["model_name"] == "llama3:latest"
+        assert saved["model_name"] == "gpt-5.4-nano"
         assert saved["notes_uploaded"] is False
 
 
@@ -83,8 +97,8 @@ class TestSaveUserData:
 # ---------------------------------------------------------------------------
 
 class TestInitStateVariablesMissingModel:
-    """If user_data.json names a model no longer installed in ollama, startup
-    must not crash; the app falls back to no model so the user can pick one."""
+    """If user_data.json names a model that is no longer offered, startup must
+    not crash; the app falls back to no model so the user can pick one."""
 
     def _bot_with_userdata(self, tmp_path, user_data):
         bot = _make_bot()
@@ -96,36 +110,44 @@ class TestInitStateVariablesMissingModel:
         return bot
 
     _UD = {
-        "model_name": "llama3:latest",
-        "model_temperature": 0.7,
+        "model_name": "gpt-5.4-mini",
         "notes_uploaded": False,
         "party_members": [{"id": "p1", "name": "", "note_taker": True}],
     }
 
     def test_does_not_raise_when_model_unavailable(self, tmp_path):
         bot = self._bot_with_userdata(tmp_path, self._UD)
-        bot.llmhandler.load_model.side_effect = ValueError("Model llama3:latest not found")
-        ss = _SS()
+        bot.llmhandler.load_model.side_effect = ValueError("Model gpt-5.4-mini is not supported")
+        ss = _SS(openai_api_key="sk-test")
         with patch("streamlit.session_state", ss), patch("streamlit.warning"):
             result = bot._TTRPGChatbot__init_state_variables()
         assert result is True
 
     def test_clears_model_when_unavailable(self, tmp_path):
         bot = self._bot_with_userdata(tmp_path, self._UD)
-        bot.llmhandler.load_model.side_effect = ValueError("Model llama3:latest not found")
-        ss = _SS()
+        bot.llmhandler.load_model.side_effect = ValueError("Model gpt-5.4-mini is not supported")
+        ss = _SS(openai_api_key="sk-test")
         with patch("streamlit.session_state", ss), patch("streamlit.warning"):
             bot._TTRPGChatbot__init_state_variables()
         assert ss["model_name"] is None
-        assert ss["model_temperature"] is None
 
     def test_keeps_model_when_available(self, tmp_path):
+        bot = self._bot_with_userdata(tmp_path, self._UD)
+        ss = _SS(openai_api_key="sk-test")
+        with patch("streamlit.session_state", ss):
+            bot._TTRPGChatbot__init_state_variables()
+        assert ss["model_name"] == "gpt-5.4-mini"
+        bot.llmhandler.load_model.assert_called_once_with("gpt-5.4-mini", "sk-test")
+
+    def test_skips_eager_load_when_no_api_key(self, tmp_path):
+        """Without a key there is nothing to construct — the saved model is kept
+        and loading is deferred until the user supplies one."""
         bot = self._bot_with_userdata(tmp_path, self._UD)
         ss = _SS()
         with patch("streamlit.session_state", ss):
             bot._TTRPGChatbot__init_state_variables()
-        assert ss["model_name"] == "llama3:latest"
-        bot.llmhandler.load_model.assert_called_once()
+        assert ss["model_name"] == "gpt-5.4-mini"
+        bot.llmhandler.load_model.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

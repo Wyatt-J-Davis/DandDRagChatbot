@@ -22,7 +22,11 @@ class CampaignSummarizer:
         if 'is_processing' not in st.session_state:
             st.session_state.is_processing = False
 
-        needs_model_init = "summary_model_name" not in st.session_state or "summary_model_temperature" not in st.session_state
+        # The API key is session-only and never restored from disk.
+        if 'openai_api_key' not in st.session_state:
+            st.session_state.openai_api_key = ""
+
+        needs_model_init = "summary_model_name" not in st.session_state
         needs_party_init = "party_members" not in st.session_state
 
         if needs_model_init or needs_party_init:
@@ -36,40 +40,33 @@ class CampaignSummarizer:
 
             if needs_model_init:
                 st.session_state.summary_model_name = user_data.get("summary_model_name")
-                st.session_state.summary_model_temperature = user_data.get("summary_model_temperature", 0.7)
 
             if needs_party_init:
                 st.session_state.party_members = user_data.get("party_members", [])
 
     def __process_model_options(self):
-        local_model_names = [model.model for model in self.llm_handler.get_available_models()]
+        available_model_names = self.llm_handler.get_available_models()
         with st.sidebar:
             st.header("🔧 Model Options")
-            selected_model = st.selectbox(
-                "Select Model",
-                local_model_names,
-                placeholder="Select local LLM...",
-                index=local_model_names.index(st.session_state.summary_model_name)
-                      if st.session_state.summary_model_name in local_model_names else None,
+            st.session_state.openai_api_key = st.text_input(
+                "OpenAI API Key",
+                type="password",
+                value=st.session_state.openai_api_key,
+                help="Your key is used only for this session and is never saved to disk.",
                 disabled=st.session_state.is_processing,
             )
-            selected_temperature = st.slider(
-                "Select Model Temperature",
-                min_value=0.0,
-                max_value=1.0,
-                value=st.session_state.summary_model_temperature
-                      if st.session_state.summary_model_temperature is not None else 0.7,
-                step=0.1,
-                key="summary_model_temperature_slider",
+            selected_model = st.selectbox(
+                "Select Model",
+                available_model_names,
+                index=available_model_names.index(st.session_state.summary_model_name)
+                      if st.session_state.summary_model_name in available_model_names else 0,
                 disabled=st.session_state.is_processing,
             )
             if selected_model is not None:
                 st.session_state.summary_model_name = selected_model
-                st.session_state.summary_model_temperature = selected_temperature
                 self.__save_user_data()
             else:
                 st.session_state.summary_model_name = None
-                st.session_state.summary_model_temperature = None
 
     def __save_user_data(self):
         existing = {}
@@ -80,7 +77,6 @@ class CampaignSummarizer:
             except Exception:
                 pass
         existing["summary_model_name"] = st.session_state.summary_model_name
-        existing["summary_model_temperature"] = st.session_state.summary_model_temperature
         os.makedirs("data", exist_ok=True)
         with open(self._USERDATAFILE, "w") as f:
             json.dump(existing, f)
@@ -190,11 +186,10 @@ class CampaignSummarizer:
 
     def __generate_and_display(self):
         model_name = st.session_state.summary_model_name
-        model_temp = st.session_state.get("summary_model_temperature", 0.7)
         party_members = st.session_state.get("party_members", [])
 
         try:
-            self.llm_handler.load_model(str(model_name), float(model_temp), disable_thinking=True)
+            self.llm_handler.load_model(str(model_name), st.session_state.openai_api_key, disable_thinking=True)
         except Exception as e:
             st.session_state._summary_error = f"Could not load model **{model_name}**: {e}"
             st.session_state.pop("_regenerating_summary", None)

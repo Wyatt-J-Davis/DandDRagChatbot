@@ -10,18 +10,13 @@ from unittest.mock import MagicMock
 # Ensure project root is on path for absolute imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# --- ollama ---
-mock_ollama = MagicMock()
-mock_model = MagicMock()
-mock_model.model = "llama3:latest"
-# LLMHandler uses both item['model'] and item.model access patterns
-mock_model.__getitem__ = MagicMock(side_effect=lambda key: "llama3:latest" if key == "model" else None)
-mock_ollama.list.return_value.models = [mock_model]
-sys.modules["ollama"] = mock_ollama
+# --- openai ---
+mock_openai = MagicMock()
+sys.modules["openai"] = mock_openai
 
-# --- langchain_ollama ---
-mock_langchain_ollama = MagicMock()
-sys.modules["langchain_ollama"] = mock_langchain_ollama
+# --- langchain_openai ---
+mock_langchain_openai = MagicMock()
+sys.modules["langchain_openai"] = mock_langchain_openai
 
 # --- FastEmbed embeddings (replaces HuggingFace) ---
 mock_fastembed = MagicMock()

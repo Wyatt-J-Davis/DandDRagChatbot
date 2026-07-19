@@ -197,7 +197,7 @@ class SummaryHandler:
         """
         Determine the safe content chunk size (in characters) for the selected model.
 
-        Uses the same effective context window that load_model passes to Ollama so
+        Uses the same effective context window that LLMHandler reports so
         that chunks are always sized to fit within the runtime context.
         """
         context_tokens = self.llm_handler.get_context_tokens(model_name)

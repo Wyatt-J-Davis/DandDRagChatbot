@@ -1,75 +1,45 @@
-from langchain_ollama import OllamaLLM
+from langchain_openai import ChatOpenAI
 from langchain.schema.output_parser import StrOutputParser
-import ollama
 
-# Cap context to a value that fits comfortably in consumer RAM for 3B-class models.
-# Ollama's runtime default num_ctx can be far smaller than the model's declared
-# training context (e.g. 2048 vs 131072 for llama3.2), which silently truncates
-# large inputs.  Explicitly setting num_ctx to this cap overrides that default
-# while keeping KV-cache memory manageable (~1.75 GB for llama3.2 3B).
+# Curated list of supported OpenAI models, cheapest first.  Verified against
+# OpenAI's published pricing page so the app can never send a model id that
+# 404s.  The first entry is the default offered to the user.
+_SUPPORTED_MODELS = ["gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
+
+# Cap the context budget used for chunk sizing.  Kept at the previous value so
+# the summarizer's char-based chunking behaviour is unchanged.
 _MAX_CONTEXT_TOKENS = 16384
 
-# Summarization tasks use a bounded output budget to prevent thinking models from
-# generating unbounded reasoning traces that cause the summarizer to hang.
+# Summarization tasks use a bounded output budget to prevent reasoning models
+# from generating unbounded traces that cause the summarizer to hang.
 _SUMMARY_MAX_PREDICT = 4096
 
 
 class LLMHandler:
     def __init__(self):
         self.currnet_model = None
-        self.availble_models = ollama.list().models
+        self.availble_models = list(_SUPPORTED_MODELS)
 
     def get_available_models(self):
         return self.availble_models
 
     def is_thinking_model(self, model_name):
-        """Return True if *model_name* has thinking/reasoning capability per Ollama."""
-        try:
-            info = ollama.show(model_name)
-            caps = getattr(info, "capabilities", None)
-            if caps:
-                return "thinking" in caps
-        except Exception:
-            pass
-        return False
+        """Return True if *model_name* has thinking/reasoning capability.
+
+        Every supported model is a GPT-5 reasoning model.
+        """
+        return model_name in _SUPPORTED_MODELS
 
     def get_context_tokens(self, model_name):
-        """Return the effective context size (tokens) to use for *model_name*.
+        """Return the effective context size (tokens) to use for *model_name*."""
+        return _MAX_CONTEXT_TOKENS
 
-        Reads the model's declared context length from Ollama and clamps it to
-        _MAX_CONTEXT_TOKENS so the KV cache stays within practical RAM limits.
-        Falls back to 4096 if the query fails.
-        """
-        context_tokens = 4096
-        try:
-            info = ollama.show(model_name)
-            if hasattr(info, "modelinfo") and info.modelinfo:
-                for key in ("llama.context_length", "context_length"):
-                    if key in info.modelinfo:
-                        context_tokens = int(info.modelinfo[key])
-                        break
-        except Exception:
-            pass
-        return min(context_tokens, _MAX_CONTEXT_TOKENS)
-
-    def load_model(self, model_name, model_temperature, disable_thinking=False):
-        temp_model = self.currnet_model
-        for item in self.availble_models:
-            if item['model'] == model_name:
-                num_ctx = self.get_context_tokens(model_name)
-                kwargs = dict(
-                    model=model_name,
-                    temperature=model_temperature,
-                    num_predict=-1,
-                    num_ctx=num_ctx,
-                )
-                if disable_thinking:
-                    kwargs["num_predict"] = _SUMMARY_MAX_PREDICT
-                    if self.is_thinking_model(model_name):
-                        kwargs["reasoning"] = False
-                self.currnet_model = OllamaLLM(**kwargs)
-        if self.currnet_model == temp_model:
-            raise ValueError(f"Model {model_name} not found in local ollama list. Please select an installed model or download it.")
+    def load_model(self, model_name, api_key, disable_thinking=False):
+        if model_name not in _SUPPORTED_MODELS:
+            raise ValueError(f"Model {model_name} is not supported. Please select one of: {', '.join(_SUPPORTED_MODELS)}.")
+        if not api_key:
+            raise ValueError("No OpenAI API key provided. Please enter your API key in Model Options.")
+        self.currnet_model = ChatOpenAI(model=model_name, api_key=api_key)
 
     def invoke_model(self, prompt, mappings):
         if self.currnet_model is not None:

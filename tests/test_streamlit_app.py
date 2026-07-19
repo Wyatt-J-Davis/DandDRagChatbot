@@ -1,7 +1,7 @@
 """Streamlit AppTest integration tests for streamlit_app.py.
 
 These tests use st.testing.v1.AppTest to run the app headlessly.
-Heavy external dependencies (ollama, HuggingFace, Chroma) are mocked
+Heavy external dependencies (openai, FastEmbed, Chroma) are mocked
 in conftest.py so the app boots without real services.
 """
 import os
@@ -10,6 +10,8 @@ import pytest
 from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
+import src.app.TTRPGChatBot as _chatbot_module
+
 APP_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "streamlit_app.py")
 TIMEOUT = 30
 
@@ -17,7 +19,7 @@ TIMEOUT = 30
 _ALL_KEYS = {
     "reupload_key": 0,
     "model_name": None,
-    "model_temperature": None,
+    "openai_api_key": "",
     "notes_uploaded": False,
     "messages": [],
     "buttoninfo": [],
@@ -130,15 +132,24 @@ class TestSidebarModelOptions:
         # sidebar selectbox for model selection should exist
         assert len(at.sidebar.selectbox) >= 1
 
-    def test_temperature_slider_present(self):
+    def test_no_temperature_slider(self):
         at = _run_app()
-        assert len(at.sidebar.slider) >= 1
+        assert len(at.sidebar.slider) == 0
 
-    def test_temperature_slider_default_value(self):
+    def test_api_key_field_is_password_masked(self):
         at = _run_app()
-        slider = at.sidebar.slider[0]
-        # Default is 0.7 when no user_data.json exists
-        assert slider.value == pytest.approx(0.7, abs=0.05)
+        # proto.type == 1 is TextInput.Type.PASSWORD
+        key_inputs = [t for t in at.sidebar.text_input if t.proto.type == 1]
+        assert len(key_inputs) == 1
+        assert "API Key" in key_inputs[0].label
+
+    def test_model_selectbox_lists_supported_models(self):
+        at = _run_app()
+        assert list(at.sidebar.selectbox[0].options) == ["gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
+
+    def test_cheapest_model_preselected_on_first_run(self):
+        at = _run_app()
+        assert at.sidebar.selectbox[0].value == "gpt-5.4-nano"
 
 
 # ---------------------------------------------------------------------------
@@ -189,9 +200,13 @@ class TestSessionStateInit:
         at = _run_app()
         assert at.session_state.messages == []
 
-    def test_model_name_is_none_initially(self):
+    def test_cheapest_model_selected_initially(self):
         at = _run_app()
-        assert at.session_state.model_name is None
+        assert at.session_state.model_name == "gpt-5.4-nano"
+
+    def test_api_key_is_empty_initially(self):
+        at = _run_app()
+        assert at.session_state.openai_api_key == ""
 
     def test_party_members_initialized(self):
         at = _run_app()
@@ -282,12 +297,24 @@ class TestUserDataInitCoverage:
 # ---------------------------------------------------------------------------
 
 class TestModelSelectionSavesState:
-    def test_model_and_temperature_written_to_session_state(self):
+    def test_model_written_to_session_state(self):
         """When model_name is already set the selectbox resolves it and loads the model."""
-        at = _run_preloaded(model_name="llama3:latest", model_temperature=0.7)
+        at = _run_preloaded(model_name="gpt-5.4-mini", openai_api_key="sk-test")
         assert not at.exception
-        assert at.session_state.model_name == "llama3:latest"
-        assert at.session_state.model_temperature == pytest.approx(0.7, abs=0.05)
+        assert at.session_state.model_name == "gpt-5.4-mini"
+
+    def test_api_key_never_written_to_user_data(self, tmp_path):
+        """The key lives in session state only — it must not reach user_data.json."""
+        data_file = tmp_path / "user_data.json"
+        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
+        for k, v in {**_ALL_KEYS, "openai_api_key": "sk-secret"}.items():
+            at.session_state[k] = v
+        with patch.object(_chatbot_module.TTRPGChatbot, "_USERDATAFILE", str(data_file)), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
+            at.run()
+        assert not at.exception
+        assert data_file.is_file()
+        assert "sk-secret" not in data_file.read_text()
 
 
 # ---------------------------------------------------------------------------

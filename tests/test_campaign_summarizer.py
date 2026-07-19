@@ -44,8 +44,7 @@ class TestInitStateVariables:
         saved_members = [{"id": "1", "name": "Aria", "note_taker": True}]
         data_file = tmp_path / "user_data.json"
         data_file.write_text(json.dumps({
-            "summary_model_name": "llama3:latest",
-            "summary_model_temperature": 0.5,
+            "summary_model_name": "gpt-5.4-nano",
             "party_members": saved_members,
         }))
         cs._USERDATAFILE = str(data_file)
@@ -141,7 +140,7 @@ class TestRunPartyMemberGate:
         cs = _make_summarizer()
         cs.summary_handler.raw_notes_exist.return_value = True
         cs.summary_handler.get_saved_summary.return_value = None
-        ss = _SS(summary_model_name="llama3:latest", party_members=[])
+        ss = _SS(summary_model_name="gpt-5.4-nano", party_members=[])
         info_calls = self._run_to_stop(cs, ss)
         assert any("party member" in msg.lower() for msg in info_calls)
 
@@ -149,7 +148,7 @@ class TestRunPartyMemberGate:
         cs = _make_summarizer()
         cs.summary_handler.raw_notes_exist.return_value = True
         cs.summary_handler.get_saved_summary.return_value = None
-        ss = _SS(summary_model_name="llama3:latest", party_members=[
+        ss = _SS(summary_model_name="gpt-5.4-nano", party_members=[
             {"id": "1", "name": "", "note_taker": False},
             {"id": "2", "name": "   ", "note_taker": False},
         ])
@@ -160,7 +159,7 @@ class TestRunPartyMemberGate:
         cs = _make_summarizer()
         cs.summary_handler.raw_notes_exist.return_value = True
         cs.summary_handler.get_saved_summary.return_value = None
-        ss = _SS(summary_model_name="llama3:latest")
+        ss = _SS(summary_model_name="gpt-5.4-nano")
         info_calls = self._run_to_stop(cs, ss)
         assert any("party member" in msg.lower() for msg in info_calls)
 
@@ -169,7 +168,7 @@ class TestRunPartyMemberGate:
         cs.summary_handler.raw_notes_exist.return_value = True
         cs.summary_handler.get_saved_summary.return_value = None
         ss = _SS(
-            summary_model_name="llama3:latest",
+            summary_model_name="gpt-5.4-nano",
             party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
             is_processing=False,
         )
@@ -203,7 +202,7 @@ class TestRunTimeWarning:
         cs.summary_handler.raw_notes_exist.return_value = True
         cs.summary_handler.get_saved_summary.return_value = None
         ss = _SS(
-            summary_model_name="llama3:latest",
+            summary_model_name="gpt-5.4-nano",
             party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
             is_processing=False,
         )
@@ -234,7 +233,7 @@ class TestGenerateAndDisplay:
         cs.summary_handler.generate_summary_streaming.return_value = iter(streaming_results)
         cs.summary_handler.get_saved_summary.return_value = {
             "summary": "Final text.",
-            "model": "llama3:latest",
+            "model": "gpt-5.4-nano",
             "generated_at": "2026-01-01T00:00:00",
         }
         mock_slot = MagicMock()
@@ -259,21 +258,21 @@ class TestGenerateAndDisplay:
         cs.llm_handler.load_model.return_value = None
         party = [{"id": "1", "name": "Aria", "note_taker": True}]
         ss = _SS(
-            summary_model_name="llama3:latest",
-            summary_model_temperature=0.7,
+            summary_model_name="gpt-5.4-nano",
+            openai_api_key="sk-test",
             party_members=party,
         )
         self._run_generate(cs, ss, [(False, 50, "Working..."), (True, 100, "Done")])
         cs.summary_handler.generate_summary_streaming.assert_called_once_with(
-            "llama3:latest", party
+            "gpt-5.4-nano", party
         )
 
     def test_sets_summary_generated_true_on_success(self):
         cs = _make_summarizer()
         cs.llm_handler.load_model.return_value = None
         ss = _SS(
-            summary_model_name="llama3:latest",
-            summary_model_temperature=0.7,
+            summary_model_name="gpt-5.4-nano",
+            openai_api_key="sk-test",
             party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
             summary_generated=False,
         )
@@ -287,7 +286,7 @@ class TestGenerateAndDisplay:
 
 _SAVED_SUMMARY = {
     "summary": "The campaign so far.",
-    "model": "llama3:latest",
+    "model": "gpt-5.4-nano",
     "generated_at": "2026-01-01T00:00:00",
 }
 
@@ -320,7 +319,7 @@ class TestSummaryPersistence:
         cs = _make_summarizer()
         cs.summary_handler.get_saved_summary.return_value = _SAVED_SUMMARY
         with patch.object(cs, "_notes_in_database", return_value=False):
-            ss = _SS(summary_model_name="llama3:latest", party_members=[])
+            ss = _SS(summary_model_name="gpt-5.4-nano", party_members=[])
             assert self._run_expecting_render(cs, ss)
 
     def test_shows_summary_when_raw_notes_missing(self):
@@ -328,7 +327,7 @@ class TestSummaryPersistence:
         cs.summary_handler.get_saved_summary.return_value = _SAVED_SUMMARY
         cs.summary_handler.raw_notes_exist.return_value = False
         with patch.object(cs, "_notes_in_database", return_value=True):
-            ss = _SS(summary_model_name="llama3:latest", party_members=[])
+            ss = _SS(summary_model_name="gpt-5.4-nano", party_members=[])
             assert self._run_expecting_render(cs, ss)
 
     def test_shows_summary_when_no_named_party_members(self):
@@ -336,7 +335,7 @@ class TestSummaryPersistence:
         cs.summary_handler.get_saved_summary.return_value = _SAVED_SUMMARY
         cs.summary_handler.raw_notes_exist.return_value = True
         with patch.object(cs, "_notes_in_database", return_value=True):
-            ss = _SS(summary_model_name="llama3:latest", party_members=[])
+            ss = _SS(summary_model_name="gpt-5.4-nano", party_members=[])
             assert self._run_expecting_render(cs, ss)
 
 
@@ -347,8 +346,8 @@ class TestSummaryPersistence:
 class TestGenerateAndDisplayErrorHandling:
     def _make_ss(self):
         return _SS(
-            summary_model_name="llama3:latest",
-            summary_model_temperature=0.7,
+            summary_model_name="gpt-5.4-nano",
+            openai_api_key="sk-test",
             party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
         )
 
@@ -361,7 +360,7 @@ class TestGenerateAndDisplayErrorHandling:
              patch("json.load", return_value={}):
             cs._CampaignSummarizer__generate_and_display()
         assert "_summary_error" in ss
-        assert "llama3:latest" in ss["_summary_error"]
+        assert "gpt-5.4-nano" in ss["_summary_error"]
 
     def test_stores_error_in_session_state_on_generation_failure(self):
         cs = _make_summarizer()
@@ -447,7 +446,7 @@ class TestRunPhase2Rerun:
 
     def _make_phase2_ss(self):
         return _SS(
-            summary_model_name="llama3:latest",
+            summary_model_name="gpt-5.4-nano",
             is_processing=True,
             _pending_summary_gen=True,
             party_members=self._PARTY,

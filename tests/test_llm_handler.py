@@ -1,162 +1,98 @@
-"""Unit tests for LLMHandler — ollama and OllamaLLM are mocked in conftest."""
+"""Unit tests for LLMHandler — openai and ChatOpenAI are mocked in conftest."""
 import pytest
 from unittest.mock import MagicMock, patch
 
-from src.utils.LLMHandler import LLMHandler, _MAX_CONTEXT_TOKENS
+from src.utils.LLMHandler import LLMHandler, _MAX_CONTEXT_TOKENS, _SUPPORTED_MODELS
+
+_API_KEY = "sk-test-key"
 
 
-def _make_model(name: str) -> MagicMock:
-    m = MagicMock()
-    m.model = name
-    m.__getitem__ = lambda self, key: name if key == "model" else None
-    return m
+def _capture_chatopenai_kwargs(handler, *args, **kwargs):
+    """Run load_model with ChatOpenAI swapped for a recorder; return captured kwargs."""
+    import src.utils.LLMHandler as llm_module
+    calls = []
+    original = llm_module.ChatOpenAI
+    llm_module.ChatOpenAI = lambda **kw: calls.append(kw) or MagicMock()
+    try:
+        handler.load_model(*args, **kwargs)
+    finally:
+        llm_module.ChatOpenAI = original
+    return calls
 
 
 class TestGetAvailableModels:
-    def test_returns_list_from_ollama(self):
+    def test_returns_hardcoded_supported_models(self):
         handler = LLMHandler()
-        models = handler.get_available_models()
-        # conftest sets one model: "llama3:latest"
-        assert len(models) == 1
-        assert models[0].model == "llama3:latest"
+        assert handler.get_available_models() == ["gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
+
+    def test_cheapest_model_is_first(self):
+        handler = LLMHandler()
+        assert handler.get_available_models()[0] == "gpt-5.4-nano"
+
+    def test_requires_no_api_key_and_no_network(self):
+        # Constructing the handler and listing models must not touch openai at all.
+        import src.utils.LLMHandler as llm_module
+        handler = LLMHandler()
+        assert not hasattr(llm_module, "ollama")
+        assert handler.get_available_models()
 
 
 class TestGetContextTokens:
-    def test_returns_declared_context_when_below_cap(self):
-        import src.utils.LLMHandler as llm_module
+    def test_returns_max_context_for_supported_model(self):
         handler = LLMHandler()
-        mock_info = MagicMock()
-        mock_info.modelinfo = {"llama.context_length": 4096}
-        with patch.object(llm_module.ollama, "show", return_value=mock_info):
-            result = handler.get_context_tokens("some-model")
-        assert result == 4096
+        assert handler.get_context_tokens("gpt-5.4-nano") == _MAX_CONTEXT_TOKENS
 
-    def test_clamps_to_max_when_declared_context_is_large(self):
-        import src.utils.LLMHandler as llm_module
+    def test_returns_max_context_for_every_supported_model(self):
         handler = LLMHandler()
-        mock_info = MagicMock()
-        mock_info.modelinfo = {"llama.context_length": 131072}
-        with patch.object(llm_module.ollama, "show", return_value=mock_info):
-            result = handler.get_context_tokens("some-model")
-        assert result == _MAX_CONTEXT_TOKENS
-
-    def test_returns_default_when_ollama_show_raises(self):
-        import src.utils.LLMHandler as llm_module
-        handler = LLMHandler()
-        with patch.object(llm_module.ollama, "show", side_effect=Exception("API error")):
-            result = handler.get_context_tokens("some-model")
-        assert result == 4096
+        for name in _SUPPORTED_MODELS:
+            assert handler.get_context_tokens(name) == 16384
 
 
 class TestIsThinkingModel:
-    def test_returns_true_when_thinking_in_capabilities(self):
-        import src.utils.LLMHandler as llm_module
+    def test_returns_true_for_supported_models(self):
         handler = LLMHandler()
-        mock_info = MagicMock()
-        mock_info.capabilities = ["completion", "thinking", "tools"]
-        with patch.object(llm_module.ollama, "show", return_value=mock_info):
-            assert handler.is_thinking_model("qwen3:9b") is True
-
-    def test_returns_false_when_thinking_not_in_capabilities(self):
-        import src.utils.LLMHandler as llm_module
-        handler = LLMHandler()
-        mock_info = MagicMock()
-        mock_info.capabilities = ["completion", "tools"]
-        with patch.object(llm_module.ollama, "show", return_value=mock_info):
-            assert handler.is_thinking_model("llama3:latest") is False
-
-    def test_returns_false_when_capabilities_is_none(self):
-        import src.utils.LLMHandler as llm_module
-        handler = LLMHandler()
-        mock_info = MagicMock()
-        mock_info.capabilities = None
-        with patch.object(llm_module.ollama, "show", return_value=mock_info):
-            assert handler.is_thinking_model("some-model") is False
-
-    def test_returns_false_on_exception(self):
-        import src.utils.LLMHandler as llm_module
-        handler = LLMHandler()
-        with patch.object(llm_module.ollama, "show", side_effect=Exception("API error")):
-            assert handler.is_thinking_model("some-model") is False
+        for name in _SUPPORTED_MODELS:
+            assert handler.is_thinking_model(name) is True
 
 
 class TestLoadModel:
     def test_raises_value_error_for_unknown_model(self):
         handler = LLMHandler()
-        with pytest.raises(ValueError, match="not found"):
-            handler.load_model("nonexistent:model", 0.7)
-
-    def test_loads_known_model_successfully(self):
-        handler = LLMHandler()
-        handler.load_model("llama3:latest", 0.5)
-        assert handler.currnet_model is not None
+        with pytest.raises(ValueError, match="not supported"):
+            handler.load_model("llama3:latest", _API_KEY)
 
     def test_current_model_is_none_before_load(self):
         handler = LLMHandler()
         assert handler.currnet_model is None
 
-    def test_loading_sets_current_model_to_non_none(self):
+    def test_loads_supported_model_successfully(self):
         handler = LLMHandler()
-        assert handler.currnet_model is None
-        handler.load_model("llama3:latest", 0.7)
+        handler.load_model("gpt-5.4-nano", _API_KEY)
         assert handler.currnet_model is not None
 
-    def test_load_model_sets_num_predict_unlimited_and_explicit_num_ctx(self):
-        import src.utils.LLMHandler as llm_module
+    def test_passes_model_name_and_api_key_to_chatopenai(self):
         handler = LLMHandler()
-        calls = []
-        original = llm_module.OllamaLLM
-        llm_module.OllamaLLM = lambda **kw: calls.append(kw) or MagicMock()
-        try:
-            handler.load_model("llama3:latest", 0.7)
-        finally:
-            llm_module.OllamaLLM = original
-        assert calls
-        assert calls[0].get("num_predict") == -1
-        assert "num_ctx" in calls[0]
+        calls = _capture_chatopenai_kwargs(handler, "gpt-5.4-mini", _API_KEY)
+        assert calls[0]["model"] == "gpt-5.4-mini"
+        assert calls[0]["api_key"] == _API_KEY
 
-
-class TestLoadModelDisableThinking:
-    def _capture_ollama_calls(self, handler, disable_thinking, is_thinking_return):
-        import src.utils.LLMHandler as llm_module
-        calls = []
-        original = llm_module.OllamaLLM
-        llm_module.OllamaLLM = lambda **kw: calls.append(kw) or MagicMock()
-        try:
-            with patch.object(handler, "is_thinking_model", return_value=is_thinking_return):
-                handler.load_model("llama3:latest", 0.7, disable_thinking=disable_thinking)
-        finally:
-            llm_module.OllamaLLM = original
-        return calls
-
-    def test_disable_thinking_caps_num_predict(self):
-        import src.utils.LLMHandler as llm_module
+    def test_does_not_send_temperature(self):
         handler = LLMHandler()
-        calls = self._capture_ollama_calls(handler, disable_thinking=True, is_thinking_return=False)
-        assert calls[0].get("num_predict") == llm_module._SUMMARY_MAX_PREDICT
+        calls = _capture_chatopenai_kwargs(handler, "gpt-5.4", _API_KEY)
+        assert "temperature" not in calls[0]
 
-    def test_disable_thinking_sets_reasoning_false_for_thinking_model(self):
+    def test_rejects_missing_api_key(self):
         handler = LLMHandler()
-        calls = self._capture_ollama_calls(handler, disable_thinking=True, is_thinking_return=True)
-        assert calls[0].get("reasoning") is False
+        with pytest.raises(ValueError, match="API key"):
+            handler.load_model("gpt-5.4-nano", "")
 
-    def test_disable_thinking_does_not_set_reasoning_for_non_thinking_model(self):
+    def test_unknown_model_leaves_current_model_unchanged(self):
         handler = LLMHandler()
-        calls = self._capture_ollama_calls(handler, disable_thinking=True, is_thinking_return=False)
-        assert "reasoning" not in calls[0]
-
-    def test_default_leaves_num_predict_unlimited_and_no_reasoning(self):
-        import src.utils.LLMHandler as llm_module
-        handler = LLMHandler()
-        calls = []
-        original = llm_module.OllamaLLM
-        llm_module.OllamaLLM = lambda **kw: calls.append(kw) or MagicMock()
-        try:
-            handler.load_model("llama3:latest", 0.7)
-        finally:
-            llm_module.OllamaLLM = original
-        assert calls[0].get("num_predict") == -1
-        assert "reasoning" not in calls[0]
+        handler.load_model("gpt-5.4-nano", _API_KEY)
+        loaded = handler.currnet_model
+        with pytest.raises(ValueError):
+            handler.load_model("bogus-model", _API_KEY)
+        assert handler.currnet_model is loaded
 
 
 class TestInvokeModel:
@@ -168,7 +104,7 @@ class TestInvokeModel:
 
     def test_invokes_chain_with_mappings(self):
         handler = LLMHandler()
-        handler.load_model("llama3:latest", 0.7)
+        handler.load_model("gpt-5.4-nano", _API_KEY)
 
         mock_prompt = MagicMock()
         mock_chain = MagicMock()

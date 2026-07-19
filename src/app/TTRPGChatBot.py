@@ -4,7 +4,6 @@ from langchain_core.prompts import ChatPromptTemplate
 import json
 import time
 import os
-import numpy as np
 import uuid
 
 #import local modules
@@ -47,7 +46,11 @@ class TTRPGChatbot:
             st.session_state.is_processing = False
 
         # Initialize session state variables for model, database upload handling, and document retriever for storing in memory to avoid reload
-        if ("reupload_key" not in st.session_state) or ("model_name" not in st.session_state) or ("model_temperature" not in st.session_state) or ("notes_uploaded" not in st.session_state) or ("messages" not in st.session_state) or ("buttoninfo" not in st.session_state) or ("button_key" not in st.session_state) or ("party_members" not in st.session_state) or ("delete_index" not in st.session_state) or ("summary_generated" not in st.session_state):
+        # The API key is session-only and never restored from disk.
+        if 'openai_api_key' not in st.session_state:
+            st.session_state.openai_api_key = ""
+
+        if ("reupload_key" not in st.session_state) or ("model_name" not in st.session_state) or ("notes_uploaded" not in st.session_state) or ("messages" not in st.session_state) or ("buttoninfo" not in st.session_state) or ("button_key" not in st.session_state) or ("party_members" not in st.session_state) or ("delete_index" not in st.session_state) or ("summary_generated" not in st.session_state):
             if os.path.isfile(self._USERDATAFILE):
                 try:
                     with open(self._USERDATAFILE, "r") as f:
@@ -58,7 +61,6 @@ class TTRPGChatbot:
                     return False
                 st.session_state.reupload_key = 0
                 st.session_state.model_name = user_data.get("model_name")
-                st.session_state.model_temperature = user_data.get("model_temperature")
                 st.session_state.notes_uploaded = user_data.get("notes_uploaded")
                 st.session_state.messages = []
                 st.session_state.buttoninfo = []
@@ -66,18 +68,16 @@ class TTRPGChatbot:
                 st.session_state.party_members = user_data.get("party_members")
                 st.session_state.delete_index = None
                 st.session_state.summary_generated = self.summaryhandler.summary_exists()
-                if st.session_state.model_name is not None and st.session_state.model_temperature:
+                if st.session_state.model_name is not None and st.session_state.openai_api_key:
                     try:
-                        self.llmhandler.load_model(str(st.session_state.model_name), st.session_state.model_temperature)
+                        self.llmhandler.load_model(str(st.session_state.model_name), st.session_state.openai_api_key)
                     except ValueError:
-                        st.warning(f"Previously selected model '{st.session_state.model_name}' is no longer available in Ollama. Please select a model in Model Options.")
+                        st.warning(f"Previously selected model '{st.session_state.model_name}' is no longer offered. Please select a model in Model Options.")
                         st.session_state.model_name = None
-                        st.session_state.model_temperature = None
             # 1st run or missing user options data file, initialize session state variables to default values
             else:
                 st.session_state.reupload_key = 0
                 st.session_state.model_name = None
-                st.session_state.model_temperature = None
                 st.session_state.notes_uploaded = False
                 st.session_state.messages = []
                 st.session_state.buttoninfo = []
@@ -89,31 +89,26 @@ class TTRPGChatbot:
         return True
 
     def __process_model_options(self):
-        # Find local ollama models
-        local_model_names = [model.model for model in self.llmhandler.get_available_models()]
-        temperature_options = np.round(np.linspace(0.1, 1.0, 10), 1)
+        available_model_names = self.llmhandler.get_available_models()
         # Generate sidebar options
         with st.sidebar:
             st.header("🔧 Model Options")
-            sidebar_model_select = st.sidebar.selectbox("Select Model", local_model_names,
-                                                        placeholder="Select local LLM...",
-                                                        index=local_model_names.index(st.session_state.model_name) if st.session_state.model_name in local_model_names else None,
+            api_key = st.sidebar.text_input("OpenAI API Key",
+                                            type="password",
+                                            value=st.session_state.openai_api_key,
+                                            help="Your key is used only for this session and is never saved to disk.",
+                                            disabled=st.session_state.is_processing)
+            st.session_state.openai_api_key = api_key
+            sidebar_model_select = st.sidebar.selectbox("Select Model", available_model_names,
+                                                        index=available_model_names.index(st.session_state.model_name) if st.session_state.model_name in available_model_names else 0,
                                                         disabled=st.session_state.is_processing)
-            sidebar_model_temperature = st.sidebar.slider("Select Model Temperature",
-                                                        min_value=0.0,
-                                                        max_value=1.0,
-                                                        value=st.session_state.model_temperature if st.session_state.model_temperature is not None else 0.7,
-                                                        step=0.1,
-                                                        key="model_temperature_slider",
-                                                        disabled=st.session_state.is_processing)
-            if ((sidebar_model_select is not None) and (sidebar_model_temperature is not None)):
+            if sidebar_model_select is not None:
                 st.session_state.model_name = sidebar_model_select
-                st.session_state.model_temperature = sidebar_model_temperature
-                self.llmhandler.load_model(sidebar_model_select, sidebar_model_temperature)
+                if api_key:
+                    self.llmhandler.load_model(sidebar_model_select, api_key)
                 self.__save_user_data()
             else:
                 st.session_state.model_name = None
-                st.session_state.model_temperature = None
 
     def __save_user_data(self):
         existing = {}
@@ -125,7 +120,6 @@ class TTRPGChatbot:
                 pass
         existing.update({
             "model_name": st.session_state.model_name,
-            "model_temperature": st.session_state.model_temperature,
             "notes_uploaded": st.session_state.notes_uploaded,
             "party_members": st.session_state.party_members,
         })
