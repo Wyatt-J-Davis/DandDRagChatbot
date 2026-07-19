@@ -2,7 +2,12 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from src.utils.LLMHandler import LLMHandler, _MAX_CONTEXT_TOKENS, _SUPPORTED_MODELS
+from src.utils.LLMHandler import (
+    LLMHandler,
+    _MAX_CONTEXT_TOKENS,
+    _SUMMARY_MAX_PREDICT,
+    _SUPPORTED_MODELS,
+)
 
 _API_KEY = "sk-test-key"
 
@@ -85,6 +90,38 @@ class TestLoadModel:
         handler = LLMHandler()
         with pytest.raises(ValueError, match="API key"):
             handler.load_model("gpt-5.4-nano", "")
+
+    def test_disable_thinking_sets_minimal_reasoning_effort(self):
+        handler = LLMHandler()
+        calls = _capture_chatopenai_kwargs(handler, "gpt-5.4-nano", _API_KEY, disable_thinking=True)
+        assert calls[0]["reasoning_effort"] == "minimal"
+
+    def test_disable_thinking_caps_completion_tokens(self):
+        handler = LLMHandler()
+        calls = _capture_chatopenai_kwargs(handler, "gpt-5.4-nano", _API_KEY, disable_thinking=True)
+        assert calls[0]["max_completion_tokens"] == _SUMMARY_MAX_PREDICT
+
+    def test_disable_thinking_bound_is_positive_and_finite(self):
+        # A -1 / unbounded budget is what caused reasoning models to hang.
+        assert isinstance(_SUMMARY_MAX_PREDICT, int)
+        assert _SUMMARY_MAX_PREDICT > 0
+
+    def test_default_load_does_not_constrain_reasoning(self):
+        handler = LLMHandler()
+        calls = _capture_chatopenai_kwargs(handler, "gpt-5.4-nano", _API_KEY)
+        assert "reasoning_effort" not in calls[0]
+        assert "max_completion_tokens" not in calls[0]
+
+    def test_disable_thinking_still_passes_model_and_key(self):
+        handler = LLMHandler()
+        calls = _capture_chatopenai_kwargs(handler, "gpt-5.4-mini", _API_KEY, disable_thinking=True)
+        assert calls[0]["model"] == "gpt-5.4-mini"
+        assert calls[0]["api_key"] == _API_KEY
+
+    def test_disable_thinking_does_not_send_temperature(self):
+        handler = LLMHandler()
+        calls = _capture_chatopenai_kwargs(handler, "gpt-5.4", _API_KEY, disable_thinking=True)
+        assert "temperature" not in calls[0]
 
     def test_unknown_model_leaves_current_model_unchanged(self):
         handler = LLMHandler()

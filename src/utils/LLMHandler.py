@@ -39,7 +39,15 @@ class LLMHandler:
             raise ValueError(f"Model {model_name} is not supported. Please select one of: {', '.join(_SUPPORTED_MODELS)}.")
         if not api_key:
             raise ValueError("No OpenAI API key provided. Please enter your API key in Model Options.")
-        self.currnet_model = ChatOpenAI(model=model_name, api_key=api_key)
+        kwargs = {"model": model_name, "api_key": api_key}
+        if disable_thinking:
+            # Every supported model is a reasoning model, so an unconstrained
+            # call can emit an unbounded reasoning trace and stall the
+            # summarizer.  Minimal effort plus a hard output cap keeps each
+            # map-reduce step terminating (and billable) within known bounds.
+            kwargs["reasoning_effort"] = "minimal"
+            kwargs["max_completion_tokens"] = _SUMMARY_MAX_PREDICT
+        self.currnet_model = ChatOpenAI(**kwargs)
 
     def invoke_model(self, prompt, mappings):
         if self.currnet_model is not None:

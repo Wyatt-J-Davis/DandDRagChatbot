@@ -267,6 +267,30 @@ class TestGenerateAndDisplay:
             "gpt-5.4-nano", party
         )
 
+    def test_threads_session_api_key_into_load_model(self):
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.return_value = None
+        ss = _SS(
+            summary_model_name="gpt-5.4-nano",
+            openai_api_key="sk-session-key",
+            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
+        )
+        self._run_generate(cs, ss, [(True, 100, "Done")])
+        args, kwargs = cs.llm_handler.load_model.call_args
+        assert args[0] == "gpt-5.4-nano"
+        assert args[1] == "sk-session-key"
+
+    def test_loads_summary_model_with_thinking_disabled(self):
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.return_value = None
+        ss = _SS(
+            summary_model_name="gpt-5.4-nano",
+            openai_api_key="sk-session-key",
+            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
+        )
+        self._run_generate(cs, ss, [(True, 100, "Done")])
+        assert cs.llm_handler.load_model.call_args.kwargs["disable_thinking"] is True
+
     def test_sets_summary_generated_true_on_success(self):
         cs = _make_summarizer()
         cs.llm_handler.load_model.return_value = None

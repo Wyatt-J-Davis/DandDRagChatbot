@@ -61,11 +61,11 @@ class TestFileChecks:
 
     def test_get_saved_summary_returns_dict_when_present(self, tmp_path):
         h = _make_handler(tmp_path)
-        data = {"summary": "Campaign started.", "model": "llama3:latest"}
+        data = {"summary": "Campaign started.", "model": "gpt-5.4-nano"}
         (tmp_path / "campaign_summary.json").write_text(json.dumps(data))
         result = h.get_saved_summary()
         assert result["summary"] == "Campaign started."
-        assert result["model"] == "llama3:latest"
+        assert result["model"] == "gpt-5.4-nano"
 
 
 # ---------------------------------------------------------------------------
@@ -218,17 +218,17 @@ class TestGetChunkCharSize:
 
     def test_returns_int(self):
         self.mock_llm.get_context_tokens.return_value = 4096
-        assert isinstance(self.h._get_chunk_char_size("llama3:latest"), int)
+        assert isinstance(self.h._get_chunk_char_size("gpt-5.4-nano"), int)
 
     def test_uses_context_tokens_from_llm_handler(self):
         self.mock_llm.get_context_tokens.return_value = 8192
-        size = self.h._get_chunk_char_size("llama3:latest")
+        size = self.h._get_chunk_char_size("gpt-5.4-nano")
         # 8192 * 0.5 (usage ratio) * 4 (chars/token)
         assert size == 16384
 
     def test_chunk_size_matches_default_context_tokens(self):
         self.mock_llm.get_context_tokens.return_value = 4096
-        size = self.h._get_chunk_char_size("llama3:latest")
+        size = self.h._get_chunk_char_size("gpt-5.4-nano")
         assert size == 8192
 
     def test_delegates_model_name_to_llm_handler(self):
@@ -245,7 +245,7 @@ class TestGenerateSummaryStreaming:
     def test_raises_when_raw_notes_missing(self, tmp_path):
         h = _make_handler(tmp_path)
         with pytest.raises(FileNotFoundError):
-            list(h.generate_summary_streaming("llama3:latest"))
+            list(h.generate_summary_streaming("gpt-5.4-nano"))
 
     def test_yields_only_false_then_true(self, tmp_path):
         _write_raw_notes(tmp_path)
@@ -254,7 +254,7 @@ class TestGenerateSummaryStreaming:
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000), \
              patch.object(h, "_sort_chronologically", side_effect=lambda df: df):
-            results = list(h.generate_summary_streaming("llama3:latest"))
+            results = list(h.generate_summary_streaming("gpt-5.4-nano"))
 
         done_results = [r for r in results if r[0] is True]
         progress_results = [r for r in results if r[0] is False]
@@ -267,7 +267,7 @@ class TestGenerateSummaryStreaming:
         h.llm_handler.invoke_model.return_value = "Narrative summary text."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
-            results = list(h.generate_summary_streaming("llama3:latest"))
+            results = list(h.generate_summary_streaming("gpt-5.4-nano"))
 
         is_done, progress, text = results[-1]
         assert is_done is True
@@ -280,13 +280,13 @@ class TestGenerateSummaryStreaming:
         h.llm_handler.invoke_model.return_value = "Saved summary."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
-            list(h.generate_summary_streaming("llama3:latest"))
+            list(h.generate_summary_streaming("gpt-5.4-nano"))
 
         assert os.path.isfile(h.SUMMARY_FILE)
         with open(h.SUMMARY_FILE) as f:
             data = json.load(f)
         assert data["summary"] == "Saved summary."
-        assert data["model"] == "llama3:latest"
+        assert data["model"] == "gpt-5.4-nano"
         assert "generated_at" in data
 
     def test_multi_chunk_calls_invoke_multiple_times(self, tmp_path):
@@ -298,7 +298,7 @@ class TestGenerateSummaryStreaming:
         h.llm_handler.invoke_model.return_value = "chunk summary"
 
         with patch.object(h, "_get_chunk_char_size", return_value=200):
-            list(h.generate_summary_streaming("llama3:latest"))
+            list(h.generate_summary_streaming("gpt-5.4-nano"))
 
         assert h.llm_handler.invoke_model.call_count > 1
 
@@ -308,7 +308,7 @@ class TestGenerateSummaryStreaming:
         h.llm_handler.invoke_model.return_value = "ok"
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
-            results = list(h.generate_summary_streaming("llama3:latest"))
+            results = list(h.generate_summary_streaming("gpt-5.4-nano"))
 
         for _, progress, _ in results:
             assert 0 <= progress <= 100
@@ -324,7 +324,7 @@ class TestGenerateSummaryStreaming:
         ]
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
-            list(h.generate_summary_streaming("llama3:latest", party_members=party))
+            list(h.generate_summary_streaming("gpt-5.4-nano", party_members=party))
 
         # The final invoke_model call should include party_members in its input dict
         last_call_kwargs = h.llm_handler.invoke_model.call_args
@@ -339,7 +339,7 @@ class TestGenerateSummaryStreaming:
         h.llm_handler.invoke_model.return_value = "Summary."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
-            results = list(h.generate_summary_streaming("llama3:latest", party_members=None))
+            results = list(h.generate_summary_streaming("gpt-5.4-nano", party_members=None))
 
         assert results[-1][0] is True
 
@@ -349,9 +349,69 @@ class TestGenerateSummaryStreaming:
         h.llm_handler.invoke_model.return_value = "Summary."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
-            results = list(h.generate_summary_streaming("llama3:latest", party_members=[]))
+            results = list(h.generate_summary_streaming("gpt-5.4-nano", party_members=[]))
 
         assert results[-1][0] is True
+
+    def test_chunk_sizing_uses_llm_handler_context_clamp(self, tmp_path):
+        from src.utils.LLMHandler import _MAX_CONTEXT_TOKENS
+
+        h = _make_handler(tmp_path)
+        h.llm_handler.get_context_tokens.return_value = _MAX_CONTEXT_TOKENS
+        assert h._get_chunk_char_size("gpt-5.4-nano") == 32768
+
+    def test_multi_chunk_runs_full_map_reduce_to_completion(self, tmp_path):
+        _write_raw_notes(tmp_path, rows=[
+            {"Date": "2023-01-01", "Contents": "A " * 2000},
+            {"Date": "2023-01-02", "Contents": "B " * 2000},
+            {"Date": "2023-01-03", "Contents": "C " * 2000},
+        ])
+        h = _make_handler(tmp_path)
+        # Map output is verbose enough to force a reduce pass; the combine pass
+        # then returns something short, so the loop converges.
+        state = {"calls": 0}
+
+        def _shrinking(*a, **k):
+            state["calls"] += 1
+            return "summary text " * 20 if state["calls"] <= 30 else "short summary"
+
+        h.llm_handler.invoke_model.side_effect = _shrinking
+
+        with patch.object(h, "_get_chunk_char_size", return_value=500):
+            results = list(h.generate_summary_streaming("gpt-5.4-nano"))
+
+        statuses = [text for done, _, text in results if not done]
+        assert any("Summarizing section" in s for s in statuses)
+        assert any("Combining summaries" in s for s in statuses)
+        assert any("Writing final campaign summary" in s for s in statuses)
+        assert results[-1][0] is True
+
+        with open(h.SUMMARY_FILE) as f:
+            data = json.load(f)
+        assert data["model"] == "gpt-5.4-nano"
+        assert data["summary"]
+
+    def test_reduce_loop_raises_when_it_does_not_converge(self, tmp_path):
+        from src.utils.SummaryHandler import _MAX_REDUCE_PASSES
+
+        _write_raw_notes(tmp_path, rows=[
+            {"Date": "2023-01-01", "Contents": "A " * 2000},
+            {"Date": "2023-01-02", "Contents": "B " * 2000},
+        ])
+        h = _make_handler(tmp_path)
+        # Each pass makes real progress but shrinks the material only slowly,
+        # so it would need far more than the cap to fit — the pass cap is the
+        # only thing that stops this, and it must, so the summarizer can't hang.
+        def _slowly_shrinking(prompt, mappings):
+            return "x" * max(int(len(mappings["text"]) * 0.7), 1)
+
+        h.llm_handler.invoke_model.side_effect = _slowly_shrinking
+
+        with patch.object(h, "_get_chunk_char_size", return_value=300):
+            with pytest.raises(RuntimeError, match="did not converge"):
+                list(h.generate_summary_streaming("gpt-5.4-nano"))
+
+        assert h.llm_handler.invoke_model.call_count <= _MAX_REDUCE_PASSES * 50
 
     def test_reduce_loop_raises_when_model_output_does_not_shrink(self, tmp_path):
         _write_raw_notes(tmp_path, rows=[
@@ -364,4 +424,4 @@ class TestGenerateSummaryStreaming:
 
         with patch.object(h, "_get_chunk_char_size", return_value=200):
             with pytest.raises(RuntimeError):
-                list(h.generate_summary_streaming("llama3:latest"))
+                list(h.generate_summary_streaming("gpt-5.4-nano"))
