@@ -1,3 +1,4 @@
+import openai
 from langchain_openai import ChatOpenAI
 from langchain.schema.output_parser import StrOutputParser
 
@@ -13,6 +14,19 @@ _MAX_CONTEXT_TOKENS = 16384
 # Summarization tasks use a bounded output budget to prevent reasoning models
 # from generating unbounded traces that cause the summarizer to hang.
 _SUMMARY_MAX_PREDICT = 4096
+
+# The key is never validated up front, so the first real call is where a bad
+# key, a throttle, or a dead network shows up.  These are the only forms of
+# those failures the user ever sees.
+_AUTH_ERROR_MESSAGE = (
+    "Your OpenAI API key was rejected. Please check your key in Model Options."
+)
+_RATE_LIMIT_ERROR_MESSAGE = (
+    "OpenAI is rate limiting requests right now. Please wait a moment and try again."
+)
+_CONNECTION_ERROR_MESSAGE = (
+    "Could not reach OpenAI. Please check your internet connection and try again."
+)
 
 
 class LLMHandler:
@@ -50,12 +64,20 @@ class LLMHandler:
         self.currnet_model = ChatOpenAI(**kwargs)
 
     def invoke_model(self, prompt, mappings):
-        if self.currnet_model is not None:
-            chain = (
-                prompt
-                | self.currnet_model
-                | StrOutputParser()
-            )
-            return chain.invoke(mappings)
-        else:
+        if self.currnet_model is None:
             raise ValueError("No model loaded. Please load a model before invoking.")
+
+        chain = (
+            prompt
+            | self.currnet_model
+            | StrOutputParser()
+        )
+        try:
+            return chain.invoke(mappings)
+        except (openai.AuthenticationError, openai.PermissionDeniedError) as e:
+            raise ValueError(_AUTH_ERROR_MESSAGE) from e
+        except openai.RateLimitError as e:
+            raise ValueError(_RATE_LIMIT_ERROR_MESSAGE) from e
+        except openai.APIConnectionError as e:
+            # APITimeoutError subclasses this, so timeouts read as connectivity too.
+            raise ValueError(_CONNECTION_ERROR_MESSAGE) from e

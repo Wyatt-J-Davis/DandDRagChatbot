@@ -1,15 +1,25 @@
-"""Unit tests for LLMHandler — openai and ChatOpenAI are mocked in conftest."""
+"""Unit tests for LLMHandler — ChatOpenAI is mocked in conftest."""
+import httpx
+import openai
 import pytest
 from unittest.mock import MagicMock, patch
 
 from src.utils.LLMHandler import (
     LLMHandler,
+    _AUTH_ERROR_MESSAGE,
+    _CONNECTION_ERROR_MESSAGE,
     _MAX_CONTEXT_TOKENS,
+    _RATE_LIMIT_ERROR_MESSAGE,
     _SUMMARY_MAX_PREDICT,
     _SUPPORTED_MODELS,
 )
 
 _API_KEY = "sk-test-key"
+_REQUEST = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+
+
+def _status_error(cls, status_code):
+    return cls("boom", response=httpx.Response(status_code, request=_REQUEST), body=None)
 
 
 def _capture_chatopenai_kwargs(handler, *args, **kwargs):
@@ -153,3 +163,96 @@ class TestInvokeModel:
         result = handler.invoke_model(mock_prompt, {"question": "Where is the dragon?"})
         assert result == "The dragon appeared at dawn."
         mock_chain.invoke.assert_called_once_with({"question": "Where is the dragon?"})
+
+
+class TestInvokeModelErrorTranslation:
+    """Raw OpenAI failures must become ValueErrors carrying readable text."""
+
+    def _handler_raising(self, error):
+        handler = LLMHandler()
+        handler.load_model("gpt-5.4-nano", _API_KEY)
+
+        mock_prompt = MagicMock()
+        mock_chain = MagicMock()
+        mock_chain.invoke.side_effect = error
+        mock_prompt.__or__ = MagicMock(return_value=mock_chain)
+        mock_chain.__or__ = MagicMock(return_value=mock_chain)
+        return handler, mock_prompt
+
+    def _invoke_expecting_value_error(self, error):
+        handler, mock_prompt = self._handler_raising(error)
+        with pytest.raises(ValueError) as excinfo:
+            handler.invoke_model(mock_prompt, {"question": "Where is the dragon?"})
+        return excinfo.value
+
+    def test_authentication_error_becomes_value_error(self):
+        err = self._invoke_expecting_value_error(
+            _status_error(openai.AuthenticationError, 401)
+        )
+        assert str(err) == _AUTH_ERROR_MESSAGE
+
+    def test_authentication_message_points_at_model_options(self):
+        err = self._invoke_expecting_value_error(
+            _status_error(openai.AuthenticationError, 401)
+        )
+        assert "Model Options" in str(err)
+
+    def test_permission_denied_is_treated_as_a_key_problem(self):
+        err = self._invoke_expecting_value_error(
+            _status_error(openai.PermissionDeniedError, 403)
+        )
+        assert str(err) == _AUTH_ERROR_MESSAGE
+
+    def test_rate_limit_error_becomes_value_error(self):
+        err = self._invoke_expecting_value_error(
+            _status_error(openai.RateLimitError, 429)
+        )
+        assert str(err) == _RATE_LIMIT_ERROR_MESSAGE
+
+    def test_rate_limit_message_invites_a_retry(self):
+        err = self._invoke_expecting_value_error(
+            _status_error(openai.RateLimitError, 429)
+        )
+        assert "try again" in str(err).lower()
+
+    def test_connection_error_becomes_value_error(self):
+        err = self._invoke_expecting_value_error(
+            openai.APIConnectionError(request=_REQUEST)
+        )
+        assert str(err) == _CONNECTION_ERROR_MESSAGE
+
+    def test_timeout_is_treated_as_a_connection_problem(self):
+        err = self._invoke_expecting_value_error(
+            openai.APITimeoutError(request=_REQUEST)
+        )
+        assert str(err) == _CONNECTION_ERROR_MESSAGE
+
+    def test_connection_message_mentions_connectivity(self):
+        err = self._invoke_expecting_value_error(
+            openai.APIConnectionError(request=_REQUEST)
+        )
+        assert "connection" in str(err).lower()
+
+    def test_each_error_class_has_distinct_text(self):
+        messages = {_AUTH_ERROR_MESSAGE, _RATE_LIMIT_ERROR_MESSAGE, _CONNECTION_ERROR_MESSAGE}
+        assert len(messages) == 3
+
+    def test_friendly_messages_carry_no_stack_trace_noise(self):
+        for error in (
+            _status_error(openai.AuthenticationError, 401),
+            _status_error(openai.RateLimitError, 429),
+            openai.APIConnectionError(request=_REQUEST),
+        ):
+            err = self._invoke_expecting_value_error(error)
+            assert "Traceback" not in str(err)
+            assert "openai." not in str(err)
+
+    def test_original_error_is_kept_as_the_cause(self):
+        original = _status_error(openai.AuthenticationError, 401)
+        err = self._invoke_expecting_value_error(original)
+        assert err.__cause__ is original
+
+    def test_unrelated_errors_are_not_swallowed(self):
+        handler, mock_prompt = self._handler_raising(RuntimeError("something else"))
+        with pytest.raises(RuntimeError, match="something else"):
+            handler.invoke_model(mock_prompt, {})

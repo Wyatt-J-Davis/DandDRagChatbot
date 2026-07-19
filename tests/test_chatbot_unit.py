@@ -348,3 +348,98 @@ class TestProcessChatHappyPath:
         ]
         self._run_chat(bot, ss, "What happened?", notes)
         assert ss["button_key"] == 3
+
+
+# ---------------------------------------------------------------------------
+# __process_chat — LLM failures surface as friendly messages, not stack traces
+# ---------------------------------------------------------------------------
+
+_KEY_REJECTED = "Your OpenAI API key was rejected. Please check your key in Model Options."
+
+
+class TestProcessChatErrorSurfacing:
+    """A ValueError out of invoke_model must reach the user as readable text."""
+
+    def _make_ready_bot(self):
+        bot = _make_bot()
+        ss = _SS(
+            notes_uploaded=True,
+            model_name="gpt-5.4-nano",
+            messages=[],
+            buttoninfo=[],
+            button_key=0,
+            party_members=[{"id": "p1", "name": "Aria", "note_taker": True}],
+            is_processing=True,
+        )
+        return bot, ss
+
+    def _mock_note(self):
+        note = MagicMock()
+        note.page_content = "The party defeated the dragon."
+        note.metadata = {"Date": "2023-10-27"}
+        return note
+
+    def _run_failing_chat(self, bot, ss, error):
+        ss["_pending_chat"] = "What happened?"
+        bot.databasehandler.retrieve_notes.return_value = [self._mock_note()]
+        bot.llmhandler.invoke_model.side_effect = error
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.chat_input", return_value=None), \
+             patch("streamlit.chat_message", return_value=MagicMock()), \
+             patch("streamlit.markdown"), \
+             patch("streamlit.write_stream"), \
+             patch("streamlit.button"), \
+             patch("streamlit.error") as mock_error, \
+             patch("streamlit.empty", return_value=MagicMock()), \
+             patch("streamlit.rerun"), \
+             patch("time.sleep"), \
+             patch("builtins.open", mock_open(read_data="{}")), \
+             patch("json.load", return_value={}):
+            bot._TTRPGChatbot__process_chat()
+        return mock_error
+
+    def test_friendly_message_stashed_for_display(self):
+        bot, ss = self._make_ready_bot()
+        self._run_failing_chat(bot, ss, ValueError(_KEY_REJECTED))
+        assert ss.get("_chat_error") == _KEY_REJECTED
+
+    def test_rate_limit_message_stashed_for_display(self):
+        bot, ss = self._make_ready_bot()
+        self._run_failing_chat(bot, ss, ValueError("Rate limited. Please try again."))
+        assert ss.get("_chat_error") == "Rate limited. Please try again."
+
+    def test_connection_message_stashed_for_display(self):
+        bot, ss = self._make_ready_bot()
+        self._run_failing_chat(bot, ss, ValueError("Could not connect to OpenAI."))
+        assert ss.get("_chat_error") == "Could not connect to OpenAI."
+
+    def test_no_assistant_message_recorded_on_failure(self):
+        bot, ss = self._make_ready_bot()
+        self._run_failing_chat(bot, ss, ValueError(_KEY_REJECTED))
+        assert [m["role"] for m in ss["messages"]] == ["user"]
+
+    def test_buttoninfo_stays_aligned_with_assistant_messages(self):
+        bot, ss = self._make_ready_bot()
+        self._run_failing_chat(bot, ss, ValueError(_KEY_REJECTED))
+        assert ss["buttoninfo"] == []
+
+    def test_processing_flag_cleared_so_ui_is_usable_again(self):
+        bot, ss = self._make_ready_bot()
+        self._run_failing_chat(bot, ss, ValueError(_KEY_REJECTED))
+        assert ss["is_processing"] is False
+
+    def test_stashed_error_is_displayed_on_the_next_run(self):
+        bot, ss = self._make_ready_bot()
+        ss["is_processing"] = False
+        ss["_chat_error"] = _KEY_REJECTED
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.chat_input", return_value=None), \
+             patch("streamlit.error") as mock_error:
+            bot._TTRPGChatbot__process_chat()
+        mock_error.assert_called_once_with(_KEY_REJECTED)
+        assert "_chat_error" not in ss
+
+    def test_unexpected_errors_are_not_swallowed(self):
+        bot, ss = self._make_ready_bot()
+        with pytest.raises(RuntimeError):
+            self._run_failing_chat(bot, ss, RuntimeError("programming error"))

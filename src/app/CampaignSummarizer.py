@@ -218,6 +218,13 @@ class CampaignSummarizer:
                     st.session_state.summary_generated = True
                 else:
                     progress_bar.progress(progress / 100, text=text)
+        except ValueError as e:
+            # LLMHandler already translated this into user-facing text.
+            animation_slot.empty()
+            progress_slot.empty()
+            st.session_state.pop("_regenerating_summary", None)
+            st.session_state._summary_error = str(e)
+            return
         except Exception as e:
             animation_slot.empty()
             progress_slot.empty()

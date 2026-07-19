@@ -11,8 +11,9 @@ from unittest.mock import MagicMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # --- openai ---
-mock_openai = MagicMock()
-sys.modules["openai"] = mock_openai
+# Deliberately NOT mocked: LLMHandler catches openai's real exception classes to
+# translate them into user-facing messages, and `except <MagicMock>` is a
+# TypeError.  The package is a thin HTTP client, so importing it is cheap.
 
 # --- langchain_openai ---
 mock_langchain_openai = MagicMock()

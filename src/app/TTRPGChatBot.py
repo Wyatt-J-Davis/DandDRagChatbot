@@ -274,6 +274,12 @@ class TTRPGChatbot:
                     i = i + 1
 
     def __process_chat(self):
+        # A failed LLM call from the previous run is stashed rather than shown
+        # inline, because that run ends in a rerun that would wipe the message.
+        chat_error = st.session_state.pop('_chat_error', None)
+        if chat_error:
+            st.error(chat_error)
+
         if st.session_state.notes_uploaded and (st.session_state.model_name is not None):
             # Phase 2: process a pending question (widgets already disabled from Phase 1 rerun)
             user_question = st.session_state.pop('_pending_chat', None)
@@ -300,7 +306,15 @@ class TTRPGChatbot:
                     else:
                         formatted_members = ', '.join(members)
                     note_taker = [member['name'] for member in st.session_state.party_members if member.get('note_taker', False)][0]
-                    response = self.llmhandler.invoke_model(self._PROMPTEMPLATE, {"question": user_question, "partymembers": formatted_members, "notes": notes, "notetaker": note_taker})
+                    try:
+                        response = self.llmhandler.invoke_model(self._PROMPTEMPLATE, {"question": user_question, "partymembers": formatted_members, "notes": notes, "notetaker": note_taker})
+                    except ValueError as e:
+                        # LLMHandler already translated this into user-facing text.
+                        placeholder.empty()
+                        st.session_state._chat_error = str(e)
+                        st.session_state.is_processing = False
+                        st.rerun()
+                        return
 
                     placeholder.empty()
                     references_found = True

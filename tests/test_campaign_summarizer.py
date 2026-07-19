@@ -419,6 +419,60 @@ class TestGenerateAndDisplayErrorHandling:
         assert ss.get("_summary_success") is True
         assert "_summary_error" not in ss
 
+    def _run_with_generation_error(self, cs, ss, error):
+        cs.llm_handler.load_model.return_value = None
+        cs.summary_handler.generate_summary_streaming.side_effect = error
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.empty", return_value=MagicMock()), \
+             patch("streamlit.progress", return_value=MagicMock()), \
+             patch("builtins.open", mock_open(read_data="{}")), \
+             patch("json.load", return_value={}):
+            cs._CampaignSummarizer__generate_and_display()
+        return ss.get("_summary_error", "")
+
+    def test_friendly_key_error_surfaces_verbatim(self):
+        cs = _make_summarizer()
+        message = self._run_with_generation_error(
+            cs, self._make_ss(),
+            ValueError("Your OpenAI API key was rejected. Please check your key in Model Options."),
+        )
+        assert message == "Your OpenAI API key was rejected. Please check your key in Model Options."
+
+    def test_friendly_rate_limit_error_surfaces_verbatim(self):
+        cs = _make_summarizer()
+        message = self._run_with_generation_error(
+            cs, self._make_ss(), ValueError("Rate limited. Please try again in a moment."),
+        )
+        assert message == "Rate limited. Please try again in a moment."
+
+    def test_friendly_connection_error_surfaces_verbatim(self):
+        cs = _make_summarizer()
+        message = self._run_with_generation_error(
+            cs, self._make_ss(), ValueError("Could not connect to OpenAI."),
+        )
+        assert message == "Could not connect to OpenAI."
+
+    def test_friendly_error_is_not_wrapped_in_boilerplate(self):
+        cs = _make_summarizer()
+        message = self._run_with_generation_error(
+            cs, self._make_ss(), ValueError("Your OpenAI API key was rejected."),
+        )
+        assert "Summary generation failed" not in message
+
+    def test_unexpected_errors_still_get_the_generic_prefix(self):
+        cs = _make_summarizer()
+        message = self._run_with_generation_error(
+            cs, self._make_ss(), RuntimeError("did not converge"),
+        )
+        assert message.startswith("Summary generation failed")
+
+    def test_friendly_error_clears_regenerating_flag(self):
+        cs = _make_summarizer()
+        ss = self._make_ss()
+        ss["_regenerating_summary"] = True
+        self._run_with_generation_error(cs, ss, ValueError("Rate limited. Please try again."))
+        assert "_regenerating_summary" not in ss
+
     def test_does_not_call_st_stop_on_error(self):
         cs = _make_summarizer()
         cs.llm_handler.load_model.side_effect = RuntimeError("boom")
