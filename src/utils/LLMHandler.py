@@ -28,6 +28,13 @@ _CONNECTION_ERROR_MESSAGE = (
     "Could not reach OpenAI. Please check your internet connection and try again."
 )
 
+# Shown by every page that gates an action behind the session key, so the
+# instruction stays identical wherever the user runs into it.
+MISSING_KEY_MESSAGE = (
+    "🔑 Enter your OpenAI API key in **Model Options** on the sidebar to enable "
+    "chat and campaign summaries. Uploading notes does not require a key."
+)
+
 
 class LLMHandler:
     def __init__(self):

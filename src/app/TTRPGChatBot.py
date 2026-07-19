@@ -68,12 +68,14 @@ class TTRPGChatbot:
                 st.session_state.party_members = user_data.get("party_members")
                 st.session_state.delete_index = None
                 st.session_state.summary_generated = self.summaryhandler.summary_exists()
-                if st.session_state.model_name is not None and st.session_state.openai_api_key:
-                    try:
-                        self.llmhandler.load_model(str(st.session_state.model_name), st.session_state.openai_api_key)
-                    except ValueError:
+                if st.session_state.model_name is not None:
+                    # Validating against the model list rather than a load attempt keeps
+                    # this reachable without a key, which is the normal startup state.
+                    if st.session_state.model_name not in self.llmhandler.get_available_models():
                         st.warning(f"Previously selected model '{st.session_state.model_name}' is no longer offered. Please select a model in Model Options.")
                         st.session_state.model_name = None
+                    elif st.session_state.openai_api_key:
+                        self.llmhandler.load_model(str(st.session_state.model_name), st.session_state.openai_api_key)
             # 1st run or missing user options data file, initialize session state variables to default values
             else:
                 st.session_state.reupload_key = 0
@@ -340,8 +342,12 @@ class TTRPGChatbot:
                 st.rerun()
 
             # Phase 1: capture a new chat question and rerun with UI disabled
-            user_question = st.chat_input("Ask a question about the campaign...", disabled=st.session_state.is_processing)
-            if user_question:
+            has_key = bool(st.session_state.get('openai_api_key'))
+            if not has_key:
+                st.info(LLMHandler.MISSING_KEY_MESSAGE)
+            user_question = st.chat_input("Ask a question about the campaign...",
+                                          disabled=st.session_state.is_processing or not has_key)
+            if user_question and has_key:
                 st.session_state._pending_chat = user_question
                 st.session_state.is_processing = True
                 st.rerun()

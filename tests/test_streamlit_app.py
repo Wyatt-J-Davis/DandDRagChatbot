@@ -188,6 +188,111 @@ class TestChatInput:
 
 
 # ---------------------------------------------------------------------------
+# Key gating — chat needs a key, note upload does not
+# ---------------------------------------------------------------------------
+
+class TestKeyGating:
+    def _boot_ready_to_chat(self, api_key):
+        """Boot with notes uploaded and a model selected, varying only the key."""
+        _isfile = _db_patches()
+        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
+        for k, v in _ALL_KEYS.items():
+            at.session_state[k] = v
+        at.session_state["model_name"] = "gpt-5.4-nano"
+        at.session_state["openai_api_key"] = api_key
+        with patch("os.path.isfile", side_effect=_isfile):
+            at.run()
+        return at
+
+    def test_chat_input_disabled_without_key(self):
+        at = self._boot_ready_to_chat("")
+        assert not at.exception
+        assert len(at.chat_input) == 1
+        assert at.chat_input[0].disabled is True
+
+    def test_key_banner_shown_without_key(self):
+        at = self._boot_ready_to_chat("")
+        messages = [i.value for i in at.info]
+        assert any("API key" in m and "Model Options" in m for m in messages)
+
+    def test_chat_input_enabled_with_key(self):
+        at = self._boot_ready_to_chat("sk-test")
+        assert not at.exception
+        assert at.chat_input[0].disabled is False
+
+    def test_note_upload_available_without_key(self):
+        """Embeddings are local, so ingestion must stay keyless."""
+        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
+        for k, v in {**_ALL_KEYS, "model_name": "gpt-5.4-nano",
+                     "openai_api_key": ""}.items():
+            at.session_state[k] = v
+        # Hide raw_notes.json so the uploader is shown rather than Re-Upload.
+        real_isfile = os.path.isfile
+
+        def _isfile(path):
+            if "user_data" in str(path) or "raw_notes" in str(path):
+                return False
+            return real_isfile(path)
+
+        with patch("os.path.isfile", side_effect=_isfile), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
+            at.run()
+        assert not at.exception
+        uploaders = at.get("file_uploader")
+        assert len(uploaders) == 1
+        assert uploaders[0].disabled is False
+
+    def test_model_dropdown_renders_without_key(self):
+        at = _run_preloaded(model_name="gpt-5.4-nano", openai_api_key="")
+        assert len(at.sidebar.selectbox) == 1
+
+
+# ---------------------------------------------------------------------------
+# Startup restore — saved model + session-only key
+# ---------------------------------------------------------------------------
+
+class TestStartupRestore:
+    def _boot_with_saved_model(self, tmp_path, model_name, api_key=""):
+        data_file = tmp_path / "user_data.json"
+        data_file.write_text(json.dumps({
+            "model_name": model_name,
+            "notes_uploaded": False,
+            "party_members": [{"id": "abc", "name": "Aria", "note_taker": True}],
+        }))
+        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
+        at.session_state["openai_api_key"] = api_key
+        with patch.object(_chatbot_module.TTRPGChatbot, "_USERDATAFILE", str(data_file)), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
+            at.run()
+        return at
+
+    def test_saved_model_restored_without_key_and_no_error(self, tmp_path):
+        at = self._boot_with_saved_model(tmp_path, "gpt-5.4-mini")
+        assert not at.exception
+        assert at.session_state.model_name == "gpt-5.4-mini"
+
+    def test_stale_saved_model_cleared_with_reselect_prompt(self, tmp_path):
+        at = self._boot_with_saved_model(tmp_path, "llama3:latest")
+        assert not at.exception
+        warnings = [w.value for w in at.warning]
+        assert any("llama3:latest" in w and "Model Options" in w for w in warnings)
+
+    def test_model_name_persisted_but_key_is_not(self, tmp_path):
+        data_file = tmp_path / "user_data.json"
+        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
+        for k, v in {**_ALL_KEYS, "model_name": "gpt-5.4-mini",
+                     "openai_api_key": "sk-secret"}.items():
+            at.session_state[k] = v
+        with patch.object(_chatbot_module.TTRPGChatbot, "_USERDATAFILE", str(data_file)), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
+            at.run()
+        saved = json.loads(data_file.read_text())
+        assert saved["model_name"] == "gpt-5.4-mini"
+        assert "openai_api_key" not in saved
+        assert "sk-secret" not in data_file.read_text()
+
+
+# ---------------------------------------------------------------------------
 # Session state — initial values
 # ---------------------------------------------------------------------------
 
@@ -388,8 +493,8 @@ class TestProcessChatFlow:
         at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
         for k, v in _ALL_KEYS.items():
             at.session_state[k] = v
-        at.session_state["model_name"] = "llama3:latest"
-        at.session_state["model_temperature"] = 0.7
+        at.session_state["model_name"] = "gpt-5.4-nano"
+        at.session_state["openai_api_key"] = "sk-test"
         for k, v in state_overrides.items():
             at.session_state[k] = v
         return at, _isfile

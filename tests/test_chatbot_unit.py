@@ -104,6 +104,9 @@ class TestInitStateVariablesMissingModel:
         bot = _make_bot()
         bot.summaryhandler = MagicMock()
         bot.summaryhandler.summary_exists.return_value = False
+        bot.llmhandler.get_available_models.return_value = [
+            "gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4",
+        ]
         data_file = tmp_path / "user_data.json"
         data_file.write_text(json.dumps(user_data))
         bot._USERDATAFILE = str(data_file)
@@ -115,21 +118,39 @@ class TestInitStateVariablesMissingModel:
         "party_members": [{"id": "p1", "name": "", "note_taker": True}],
     }
 
+    _STALE_UD = {**_UD, "model_name": "llama3:latest"}
+
     def test_does_not_raise_when_model_unavailable(self, tmp_path):
-        bot = self._bot_with_userdata(tmp_path, self._UD)
-        bot.llmhandler.load_model.side_effect = ValueError("Model gpt-5.4-mini is not supported")
+        bot = self._bot_with_userdata(tmp_path, self._STALE_UD)
         ss = _SS(openai_api_key="sk-test")
         with patch("streamlit.session_state", ss), patch("streamlit.warning"):
             result = bot._TTRPGChatbot__init_state_variables()
         assert result is True
 
     def test_clears_model_when_unavailable(self, tmp_path):
-        bot = self._bot_with_userdata(tmp_path, self._UD)
-        bot.llmhandler.load_model.side_effect = ValueError("Model gpt-5.4-mini is not supported")
+        bot = self._bot_with_userdata(tmp_path, self._STALE_UD)
         ss = _SS(openai_api_key="sk-test")
         with patch("streamlit.session_state", ss), patch("streamlit.warning"):
             bot._TTRPGChatbot__init_state_variables()
         assert ss["model_name"] is None
+
+    def test_prompts_user_to_reselect_when_model_unavailable(self, tmp_path):
+        bot = self._bot_with_userdata(tmp_path, self._STALE_UD)
+        ss = _SS(openai_api_key="sk-test")
+        with patch("streamlit.session_state", ss), patch("streamlit.warning") as mock_warning:
+            bot._TTRPGChatbot__init_state_variables()
+        message = mock_warning.call_args.args[0]
+        assert "llama3:latest" in message
+        assert "Model Options" in message
+
+    def test_stale_model_cleared_even_without_a_key(self, tmp_path):
+        """Validation is a list lookup, not a load attempt, so it does not need a key."""
+        bot = self._bot_with_userdata(tmp_path, self._STALE_UD)
+        ss = _SS(openai_api_key="")
+        with patch("streamlit.session_state", ss), patch("streamlit.warning"):
+            bot._TTRPGChatbot__init_state_variables()
+        assert ss["model_name"] is None
+        bot.llmhandler.load_model.assert_not_called()
 
     def test_keeps_model_when_available(self, tmp_path):
         bot = self._bot_with_userdata(tmp_path, self._UD)
@@ -148,6 +169,73 @@ class TestInitStateVariablesMissingModel:
             bot._TTRPGChatbot__init_state_variables()
         assert ss["model_name"] == "gpt-5.4-mini"
         bot.llmhandler.load_model.assert_not_called()
+
+    def test_no_warning_when_no_api_key_and_model_is_valid(self, tmp_path):
+        """A keyless startup is a normal state, not something to warn about."""
+        bot = self._bot_with_userdata(tmp_path, self._UD)
+        ss = _SS()
+        with patch("streamlit.session_state", ss), patch("streamlit.warning") as mock_warning:
+            bot._TTRPGChatbot__init_state_variables()
+        mock_warning.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# __process_chat — chat is gated behind a session API key
+# ---------------------------------------------------------------------------
+
+class TestProcessChatKeyGating:
+    """Chat requires a key; without one the input is disabled behind a banner."""
+
+    def _make_ss(self, api_key):
+        return _SS(
+            notes_uploaded=True,
+            model_name="gpt-5.4-nano",
+            openai_api_key=api_key,
+            messages=[],
+            buttoninfo=[],
+            button_key=0,
+            party_members=[{"id": "p1", "name": "Aria", "note_taker": True}],
+            is_processing=False,
+        )
+
+    def _run(self, bot, ss):
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.chat_input", return_value=None) as mock_chat_input, \
+             patch("streamlit.info") as mock_info, \
+             patch("streamlit.error"), \
+             patch("streamlit.rerun"):
+            bot._TTRPGChatbot__process_chat()
+        return mock_chat_input, mock_info
+
+    def test_chat_input_disabled_without_key(self):
+        bot = _make_bot()
+        mock_chat_input, _ = self._run(bot, self._make_ss(""))
+        assert mock_chat_input.call_args.kwargs["disabled"] is True
+
+    def test_info_banner_tells_user_to_enter_key(self):
+        bot = _make_bot()
+        _, mock_info = self._run(bot, self._make_ss(""))
+        messages = [c.args[0] for c in mock_info.call_args_list]
+        assert any("API key" in m and "Model Options" in m for m in messages)
+
+    def test_chat_input_enabled_with_key(self):
+        bot = _make_bot()
+        mock_chat_input, mock_info = self._run(bot, self._make_ss("sk-test"))
+        assert mock_chat_input.call_args.kwargs["disabled"] is False
+        assert not mock_info.call_args_list
+
+    def test_question_not_captured_without_key(self):
+        """The widget is disabled, but a stale value must not start a run either."""
+        bot = _make_bot()
+        ss = self._make_ss("")
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.chat_input", return_value="What happened?"), \
+             patch("streamlit.info"), \
+             patch("streamlit.error"), \
+             patch("streamlit.rerun"):
+            bot._TTRPGChatbot__process_chat()
+        assert "_pending_chat" not in ss
+        assert ss["is_processing"] is False
 
 
 # ---------------------------------------------------------------------------

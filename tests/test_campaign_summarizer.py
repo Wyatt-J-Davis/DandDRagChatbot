@@ -193,6 +193,104 @@ class TestRunPartyMemberGate:
 
 
 # ---------------------------------------------------------------------------
+# run() — summary generation is gated behind a session API key
+# ---------------------------------------------------------------------------
+
+class TestRunKeyGating:
+    """Generation requires a key; without one the button is disabled behind a banner."""
+
+    def _run_to_button(self, cs, ss):
+        """Run cs.run() to the generate button; return (info messages, button kwargs)."""
+        cs.summary_handler.raw_notes_exist.return_value = True
+        cs.summary_handler.get_saved_summary.return_value = None
+        info_calls = []
+        button_kwargs = []
+
+        def _button(*args, **kwargs):
+            button_kwargs.append(kwargs)
+            return False
+
+        with patch("streamlit.session_state", ss), \
+             patch.object(cs, "_CampaignSummarizer__init_state_variables"), \
+             patch.object(cs, "_CampaignSummarizer__process_model_options"), \
+             patch.object(cs, "_notes_in_database", return_value=True), \
+             patch("streamlit.title"), \
+             patch("streamlit.info", side_effect=lambda msg: info_calls.append(msg)), \
+             patch("streamlit.warning"), \
+             patch("streamlit.button", side_effect=_button), \
+             patch("streamlit.stop", side_effect=StopIteration), \
+             patch("streamlit.page_link"):
+            try:
+                cs.run()
+            except StopIteration:
+                pass
+        return info_calls, button_kwargs
+
+    def _ss(self, api_key):
+        return _SS(
+            summary_model_name="gpt-5.4-nano",
+            openai_api_key=api_key,
+            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
+            is_processing=False,
+        )
+
+    def test_generate_button_disabled_without_key(self):
+        cs = _make_summarizer()
+        _, button_kwargs = self._run_to_button(cs, self._ss(""))
+        assert button_kwargs
+        assert button_kwargs[-1]["disabled"] is True
+
+    def test_info_banner_tells_user_to_enter_key(self):
+        cs = _make_summarizer()
+        info_calls, _ = self._run_to_button(cs, self._ss(""))
+        assert any("API key" in msg and "Model Options" in msg for msg in info_calls)
+
+    def test_generate_button_enabled_with_key(self):
+        cs = _make_summarizer()
+        info_calls, button_kwargs = self._run_to_button(cs, self._ss("sk-test"))
+        assert button_kwargs[-1]["disabled"] is False
+        assert not any("API key" in msg for msg in info_calls)
+
+    def test_regenerate_button_disabled_without_key(self):
+        """An existing summary stays readable without a key; only regeneration is gated."""
+        cs = _make_summarizer()
+        button_kwargs = []
+
+        def _button(*args, **kwargs):
+            button_kwargs.append(kwargs)
+            return False
+
+        ss = self._ss("")
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.title"), \
+             patch("streamlit.write"), \
+             patch("streamlit.columns", return_value=(MagicMock(), MagicMock())), \
+             patch("streamlit.button", side_effect=_button), \
+             patch.object(cs, "_CampaignSummarizer__render_summary"):
+            cs._CampaignSummarizer__render_existing_summary(_SAVED_SUMMARY)
+        assert button_kwargs
+        assert button_kwargs[-1]["disabled"] is True
+
+    def test_regenerate_button_enabled_with_key(self):
+        cs = _make_summarizer()
+        button_kwargs = []
+
+        def _button(*args, **kwargs):
+            button_kwargs.append(kwargs)
+            return False
+
+        ss = self._ss("sk-test")
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.title"), \
+             patch("streamlit.write"), \
+             patch("streamlit.columns", return_value=(MagicMock(), MagicMock())), \
+             patch("streamlit.button", side_effect=_button), \
+             patch.object(cs, "_CampaignSummarizer__render_summary"):
+            cs._CampaignSummarizer__render_existing_summary(_SAVED_SUMMARY)
+        assert button_kwargs[-1]["disabled"] is False
+
+
+# ---------------------------------------------------------------------------
 # run() — time warning displayed before generate button
 # ---------------------------------------------------------------------------
 

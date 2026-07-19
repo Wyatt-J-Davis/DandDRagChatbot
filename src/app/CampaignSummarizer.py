@@ -140,8 +140,13 @@ class CampaignSummarizer:
             "of your notes and your hardware. Please be patient."
         )
 
+        has_key = bool(st.session_state.get("openai_api_key"))
+        if not has_key:
+            st.info(LLMHandler.MISSING_KEY_MESSAGE)
+
         # Phase 1: capture button click and rerun with UI disabled
-        if not st.button("✨ Generate Campaign Summary", type="primary", disabled=st.session_state.is_processing):
+        if not st.button("✨ Generate Campaign Summary", type="primary",
+                         disabled=st.session_state.is_processing or not has_key):
             st.stop()
 
         st.session_state.is_processing = True
@@ -157,7 +162,11 @@ class CampaignSummarizer:
             st.title("📖 Campaign Summary")
         with btn_col:
             st.write("")
-            if st.button("🔄 Regenerate", use_container_width=True, disabled=st.session_state.is_processing):
+            # A saved summary stays readable without a key; only regeneration is gated.
+            has_key = bool(st.session_state.get("openai_api_key"))
+            if st.button("🔄 Regenerate", use_container_width=True,
+                         disabled=st.session_state.is_processing or not has_key,
+                         help=LLMHandler.MISSING_KEY_MESSAGE if not has_key else None):
                 st.session_state._regenerating_summary = True
                 st.rerun()
 

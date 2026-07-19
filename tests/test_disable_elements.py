@@ -91,7 +91,8 @@ class TestChatPhase1:
     def _make_ss(self):
         return _SS(
             notes_uploaded=True,
-            model_name="llama3:latest",
+            model_name="gpt-5.4-nano",
+            openai_api_key="sk-test",
             messages=[],
             buttoninfo=[],
             button_key=0,
