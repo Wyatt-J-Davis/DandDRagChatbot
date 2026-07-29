@@ -111,6 +111,49 @@ class TestExtractHeaders:
 
 
 # ---------------------------------------------------------------------------
+# __process_model_options — provider selector + shared module routing
+# ---------------------------------------------------------------------------
+
+class TestProcessModelOptions:
+    """The summary page renders a Provider selector and routes its model list
+    through the shared module, exactly like the chat page."""
+
+    def _run(self, ss):
+        cs = _make_summarizer()
+        cs.llm_handler.get_available_models.return_value = ["gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
+        cs.llm_handler.fetch_available_models.return_value = ["gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
+        selectbox_labels = []
+
+        def _selectbox(label, options, **kwargs):
+            selectbox_labels.append(label)
+            return options[kwargs.get("index", 0)]
+
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.sidebar", MagicMock()), \
+             patch("streamlit.header"), \
+             patch("streamlit.text_input", return_value=""), \
+             patch("streamlit.selectbox", side_effect=_selectbox), \
+             patch.object(cs, "_CampaignSummarizer__save_user_data"):
+            cs._CampaignSummarizer__process_model_options()
+        return selectbox_labels
+
+    def test_renders_provider_selector(self):
+        ss = _SS(is_processing=False, openai_api_key="", summary_model_name="gpt-5.4-nano")
+        labels = self._run(ss)
+        assert "Provider" in labels
+
+    def test_still_renders_model_selector(self):
+        ss = _SS(is_processing=False, openai_api_key="", summary_model_name="gpt-5.4-nano")
+        labels = self._run(ss)
+        assert "Select Model" in labels
+
+    def test_defaults_provider_to_openai(self):
+        ss = _SS(is_processing=False, openai_api_key="", summary_model_name="gpt-5.4-nano")
+        self._run(ss)
+        assert ss.get("provider") == "OpenAI"
+
+
+# ---------------------------------------------------------------------------
 # run() — party member gate
 # ---------------------------------------------------------------------------
 

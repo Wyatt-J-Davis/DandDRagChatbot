@@ -126,6 +126,16 @@ class TestAppBoots:
 # Sidebar — Model Options
 # ---------------------------------------------------------------------------
 
+def _model_selectbox(at):
+    """The 'Select Model' dropdown — now that a Provider dropdown precedes it,
+    targeting by label is more robust than by index."""
+    return [s for s in at.sidebar.selectbox if s.label == "Select Model"][0]
+
+
+def _provider_selectbox(at):
+    return [s for s in at.sidebar.selectbox if s.label == "Provider"][0]
+
+
 class TestSidebarModelOptions:
     def test_model_selectbox_present(self):
         at = _run_app()
@@ -145,11 +155,17 @@ class TestSidebarModelOptions:
 
     def test_model_selectbox_lists_supported_models(self):
         at = _run_app()
-        assert list(at.sidebar.selectbox[0].options) == ["gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
+        assert list(_model_selectbox(at).options) == ["gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
 
     def test_cheapest_model_preselected_on_first_run(self):
         at = _run_app()
-        assert at.sidebar.selectbox[0].value == "gpt-5.4-nano"
+        assert _model_selectbox(at).value == "gpt-5.4-nano"
+
+    def test_provider_selector_present_with_openai_selected(self):
+        at = _run_app()
+        provider = _provider_selectbox(at)
+        assert "OpenAI" in list(provider.options)
+        assert provider.value == "OpenAI"
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +260,9 @@ class TestKeyGating:
 
     def test_model_dropdown_renders_without_key(self):
         at = _run_preloaded(model_name="gpt-5.4-nano", openai_api_key="")
-        assert len(at.sidebar.selectbox) == 1
+        # Provider + Select Model both render keylessly; the curated OpenAI list
+        # needs no key.
+        assert _model_selectbox(at).value == "gpt-5.4-nano"
 
 
 # ---------------------------------------------------------------------------

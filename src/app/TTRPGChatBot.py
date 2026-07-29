@@ -10,6 +10,7 @@ import uuid
 from ..utils import DatabaseHandler
 from ..utils import LLMHandler
 from ..utils import SummaryHandler
+from ..utils.ModelOptions import ModelOptions
 
 class TTRPGChatbot:
     _USERDATAFILE = "data//user_data.json"
@@ -50,6 +51,9 @@ class TTRPGChatbot:
         if 'openai_api_key' not in st.session_state:
             st.session_state.openai_api_key = ""
 
+        if 'provider' not in st.session_state:
+            st.session_state.provider = ModelOptions.default_provider()
+
         if ("reupload_key" not in st.session_state) or ("model_name" not in st.session_state) or ("notes_uploaded" not in st.session_state) or ("messages" not in st.session_state) or ("buttoninfo" not in st.session_state) or ("button_key" not in st.session_state) or ("party_members" not in st.session_state) or ("delete_index" not in st.session_state) or ("summary_generated" not in st.session_state):
             if os.path.isfile(self._USERDATAFILE):
                 try:
@@ -61,6 +65,7 @@ class TTRPGChatbot:
                     return False
                 st.session_state.reupload_key = 0
                 st.session_state.model_name = user_data.get("model_name")
+                st.session_state.provider = ModelOptions.normalize_provider(user_data.get("provider"))
                 st.session_state.notes_uploaded = user_data.get("notes_uploaded")
                 st.session_state.messages = []
                 st.session_state.buttoninfo = []
@@ -69,13 +74,18 @@ class TTRPGChatbot:
                 st.session_state.delete_index = None
                 st.session_state.summary_generated = self.summaryhandler.summary_exists()
                 if st.session_state.model_name is not None:
+                    modeloptions = ModelOptions(self.llmhandler)
+                    provider = st.session_state.provider
                     # Validating against the model list rather than a load attempt keeps
                     # this reachable without a key, which is the normal startup state.
-                    if st.session_state.model_name not in self.llmhandler.get_available_models():
-                        st.warning(f"Previously selected model '{st.session_state.model_name}' is no longer offered. Please select a model in Model Options.")
-                        st.session_state.model_name = None
-                    elif st.session_state.openai_api_key:
-                        self.llmhandler.load_model(str(st.session_state.model_name), st.session_state.openai_api_key)
+                    valid_model, warning = modeloptions.validate_persisted_model(
+                        st.session_state.model_name, modeloptions.known_models(provider))
+                    st.session_state.model_name = valid_model
+                    if warning:
+                        st.warning(warning)
+                    api_key = st.session_state.get(modeloptions.key_slot(provider))
+                    if valid_model is not None and api_key:
+                        self.llmhandler.load_model(str(valid_model), api_key)
             # 1st run or missing user options data file, initialize session state variables to default values
             else:
                 st.session_state.reupload_key = 0
@@ -91,23 +101,35 @@ class TTRPGChatbot:
         return True
 
     def __process_model_options(self):
-        available_model_names = self.llmhandler.get_available_models()
+        modeloptions = ModelOptions(self.llmhandler)
+        providers = modeloptions.providers()
         # Generate sidebar options
         with st.sidebar:
             st.header("🔧 Model Options")
-            api_key = st.sidebar.text_input("OpenAI API Key",
+            provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
+            provider = st.sidebar.selectbox("Provider", providers,
+                                            index=providers.index(provider) if provider in providers else 0,
+                                            disabled=st.session_state.is_processing)
+            st.session_state.provider = provider
+
+            key_slot = ModelOptions.key_slot(provider)
+            api_key = st.sidebar.text_input(ModelOptions.key_label(provider),
                                             type="password",
-                                            value=st.session_state.openai_api_key,
+                                            value=st.session_state.get(key_slot, ""),
                                             help="Your key is used only for this session and is never saved to disk.",
                                             disabled=st.session_state.is_processing)
-            st.session_state.openai_api_key = api_key
+            st.session_state[key_slot] = api_key
+
+            available_model_names, _, cache = modeloptions.resolve_models(
+                provider, api_key, st.session_state.get("_model_cache"))
+            st.session_state._model_cache = cache
             sidebar_model_select = st.sidebar.selectbox("Select Model", available_model_names,
-                                                        index=available_model_names.index(st.session_state.model_name) if st.session_state.model_name in available_model_names else 0,
+                                                        index=ModelOptions.preselect_index(st.session_state.model_name, available_model_names),
                                                         disabled=st.session_state.is_processing)
             if sidebar_model_select is not None:
                 st.session_state.model_name = sidebar_model_select
                 if api_key:
-                    self.llmhandler.load_model(sidebar_model_select, api_key)
+                    self.llmhandler.load_model(sidebar_model_select, api_key, provider=provider)
                 self.__save_user_data()
             else:
                 st.session_state.model_name = None
@@ -122,6 +144,7 @@ class TTRPGChatbot:
                 pass
         existing.update({
             "model_name": st.session_state.model_name,
+            "provider": st.session_state.get("provider", ModelOptions.default_provider()),
             "notes_uploaded": st.session_state.notes_uploaded,
             "party_members": st.session_state.party_members,
         })
@@ -342,7 +365,8 @@ class TTRPGChatbot:
                 st.rerun()
 
             # Phase 1: capture a new chat question and rerun with UI disabled
-            has_key = bool(st.session_state.get('openai_api_key'))
+            provider = ModelOptions.normalize_provider(st.session_state.get('provider'))
+            has_key = bool(st.session_state.get(ModelOptions.key_slot(provider)))
             if not has_key:
                 st.info(LLMHandler.MISSING_KEY_MESSAGE)
             user_question = st.chat_input("Ask a question about the campaign...",

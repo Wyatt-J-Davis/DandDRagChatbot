@@ -6,6 +6,7 @@ from streamlit_lottie import st_lottie
 
 from ..utils import LLMHandler
 from ..utils import SummaryHandler
+from ..utils.ModelOptions import ModelOptions
 
 
 class CampaignSummarizer:
@@ -28,8 +29,9 @@ class CampaignSummarizer:
 
         needs_model_init = "summary_model_name" not in st.session_state
         needs_party_init = "party_members" not in st.session_state
+        needs_provider_init = "provider" not in st.session_state
 
-        if needs_model_init or needs_party_init:
+        if needs_model_init or needs_party_init or needs_provider_init:
             user_data = {}
             if os.path.isfile(self._USERDATAFILE):
                 try:
@@ -44,22 +46,38 @@ class CampaignSummarizer:
             if needs_party_init:
                 st.session_state.party_members = user_data.get("party_members", [])
 
+            if needs_provider_init:
+                st.session_state.provider = ModelOptions.normalize_provider(user_data.get("provider"))
+
     def __process_model_options(self):
-        available_model_names = self.llm_handler.get_available_models()
+        modeloptions = ModelOptions(self.llm_handler)
+        providers = modeloptions.providers()
         with st.sidebar:
             st.header("🔧 Model Options")
-            st.session_state.openai_api_key = st.text_input(
-                "OpenAI API Key",
+            provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
+            provider = st.selectbox(
+                "Provider",
+                providers,
+                index=providers.index(provider) if provider in providers else 0,
+                disabled=st.session_state.is_processing,
+            )
+            st.session_state.provider = provider
+
+            key_slot = ModelOptions.key_slot(provider)
+            st.session_state[key_slot] = st.text_input(
+                ModelOptions.key_label(provider),
                 type="password",
-                value=st.session_state.openai_api_key,
+                value=st.session_state.get(key_slot, ""),
                 help="Your key is used only for this session and is never saved to disk.",
                 disabled=st.session_state.is_processing,
             )
+            available_model_names, _, cache = modeloptions.resolve_models(
+                provider, st.session_state[key_slot], st.session_state.get("_model_cache"))
+            st.session_state._model_cache = cache
             selected_model = st.selectbox(
                 "Select Model",
                 available_model_names,
-                index=available_model_names.index(st.session_state.summary_model_name)
-                      if st.session_state.summary_model_name in available_model_names else 0,
+                index=ModelOptions.preselect_index(st.session_state.summary_model_name, available_model_names),
                 disabled=st.session_state.is_processing,
             )
             if selected_model is not None:
@@ -77,6 +95,7 @@ class CampaignSummarizer:
             except Exception:
                 pass
         existing["summary_model_name"] = st.session_state.summary_model_name
+        existing["provider"] = st.session_state.get("provider", ModelOptions.default_provider())
         os.makedirs("data", exist_ok=True)
         with open(self._USERDATAFILE, "w") as f:
             json.dump(existing, f)
@@ -140,7 +159,8 @@ class CampaignSummarizer:
             "of your notes and your hardware. Please be patient."
         )
 
-        has_key = bool(st.session_state.get("openai_api_key"))
+        provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
+        has_key = bool(st.session_state.get(ModelOptions.key_slot(provider)))
         if not has_key:
             st.info(LLMHandler.MISSING_KEY_MESSAGE)
 
@@ -163,7 +183,8 @@ class CampaignSummarizer:
         with btn_col:
             st.write("")
             # A saved summary stays readable without a key; only regeneration is gated.
-            has_key = bool(st.session_state.get("openai_api_key"))
+            provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
+            has_key = bool(st.session_state.get(ModelOptions.key_slot(provider)))
             if st.button("🔄 Regenerate", use_container_width=True,
                          disabled=st.session_state.is_processing or not has_key,
                          help=LLMHandler.MISSING_KEY_MESSAGE if not has_key else None):
@@ -196,9 +217,11 @@ class CampaignSummarizer:
     def __generate_and_display(self):
         model_name = st.session_state.summary_model_name
         party_members = st.session_state.get("party_members", [])
+        provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
+        api_key = st.session_state.get(ModelOptions.key_slot(provider), "")
 
         try:
-            self.llm_handler.load_model(str(model_name), st.session_state.openai_api_key, disable_thinking=True)
+            self.llm_handler.load_model(str(model_name), api_key, disable_thinking=True, provider=provider)
         except Exception as e:
             st.session_state._summary_error = f"Could not load model **{model_name}**: {e}"
             st.session_state.pop("_regenerating_summary", None)

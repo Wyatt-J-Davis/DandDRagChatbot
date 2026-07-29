@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from src.utils.LLMHandler import (
     LLMHandler,
+    PROVIDER_OPENAI,
     _AUTH_ERROR_MESSAGE,
     _CONNECTION_ERROR_MESSAGE,
     _MAX_CONTEXT_TOKENS,
@@ -50,6 +51,57 @@ class TestGetAvailableModels:
         handler = LLMHandler()
         assert not hasattr(llm_module, "ollama")
         assert handler.get_available_models()
+
+
+class TestProviderAwareModelListing:
+    """The provider dimension: OpenAI returns its curated list through both the
+    provider-aware getter and the stateless fetch, with no network call."""
+
+    def test_get_available_models_accepts_provider(self):
+        handler = LLMHandler()
+        assert handler.get_available_models(PROVIDER_OPENAI) == list(_SUPPORTED_MODELS)
+
+    def test_fetch_available_models_returns_curated_openai_list(self):
+        handler = LLMHandler()
+        assert handler.fetch_available_models(PROVIDER_OPENAI, "") == list(_SUPPORTED_MODELS)
+
+    def test_fetch_available_models_needs_no_key_for_openai(self):
+        handler = LLMHandler()
+        # No key, and constructing/listing must not touch openai.
+        assert handler.fetch_available_models(PROVIDER_OPENAI, None) == list(_SUPPORTED_MODELS)
+
+    def test_fetch_available_models_returns_a_fresh_list(self):
+        handler = LLMHandler()
+        handler.fetch_available_models(PROVIDER_OPENAI, "").append("gpt-bogus")
+        assert "gpt-bogus" not in handler.fetch_available_models(PROVIDER_OPENAI, "")
+
+    def test_fetch_rejects_unknown_provider(self):
+        handler = LLMHandler()
+        with pytest.raises(ValueError):
+            handler.fetch_available_models("Anthropic", "key")
+
+
+class TestLoadModelProvider:
+    def test_load_model_accepts_openai_provider(self):
+        handler = LLMHandler()
+        handler.load_model("gpt-5.4-nano", _API_KEY, provider=PROVIDER_OPENAI)
+        assert handler.provider == PROVIDER_OPENAI
+
+    def test_load_model_still_builds_chatopenai_for_openai(self):
+        handler = LLMHandler()
+        calls = _capture_chatopenai_kwargs(handler, "gpt-5.4-mini", _API_KEY, provider=PROVIDER_OPENAI)
+        assert calls[0]["model"] == "gpt-5.4-mini"
+        assert calls[0]["api_key"] == _API_KEY
+
+    def test_load_model_defaults_to_openai(self):
+        handler = LLMHandler()
+        handler.load_model("gpt-5.4-nano", _API_KEY)
+        assert handler.provider == PROVIDER_OPENAI
+
+    def test_load_model_rejects_unknown_provider(self):
+        handler = LLMHandler()
+        with pytest.raises(ValueError):
+            handler.load_model("gpt-5.4-nano", _API_KEY, provider="Anthropic")
 
 
 class TestGetContextTokens:
