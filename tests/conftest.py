@@ -19,6 +19,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 mock_langchain_openai = MagicMock()
 sys.modules["langchain_openai"] = mock_langchain_openai
 
+# --- anthropic ---
+# Deliberately NOT mocked, for the same reason as openai: LLMHandler catches
+# anthropic's real exception classes to translate them into user-facing
+# messages, and `except <MagicMock>` is a TypeError.  The package is a thin
+# HTTP client, so importing it is cheap.
+
+# --- langchain_anthropic ---
+mock_langchain_anthropic = MagicMock()
+sys.modules["langchain_anthropic"] = mock_langchain_anthropic
+
 # --- FastEmbed embeddings (replaces HuggingFace) ---
 mock_fastembed = MagicMock()
 sys.modules["fastembed"] = mock_fastembed

@@ -47,9 +47,13 @@ class TTRPGChatbot:
             st.session_state.is_processing = False
 
         # Initialize session state variables for model, database upload handling, and document retriever for storing in memory to avoid reload
-        # The API key is session-only and never restored from disk.
+        # The API keys are session-only and never restored from disk.  Each
+        # provider has its own slot so switching providers never erases the key
+        # entered for the other one.
         if 'openai_api_key' not in st.session_state:
             st.session_state.openai_api_key = ""
+        if 'anthropic_api_key' not in st.session_state:
+            st.session_state.anthropic_api_key = ""
 
         if 'provider' not in st.session_state:
             st.session_state.provider = ModelOptions.default_provider()
@@ -76,16 +80,23 @@ class TTRPGChatbot:
                 if st.session_state.model_name is not None:
                     modeloptions = ModelOptions(self.llmhandler)
                     provider = st.session_state.provider
-                    # Validating against the model list rather than a load attempt keeps
-                    # this reachable without a key, which is the normal startup state.
-                    valid_model, warning = modeloptions.validate_persisted_model(
-                        st.session_state.model_name, modeloptions.known_models(provider))
-                    st.session_state.model_name = valid_model
-                    if warning:
-                        st.warning(warning)
                     api_key = st.session_state.get(modeloptions.key_slot(provider))
-                    if valid_model is not None and api_key:
-                        self.llmhandler.load_model(str(valid_model), api_key)
+                    if provider == LLMHandler.PROVIDER_OPENAI:
+                        # OpenAI's curated list needs no key, so a saved model can
+                        # be validated immediately at startup.  Validating against
+                        # the model list rather than a load attempt keeps this
+                        # reachable without a key, the normal startup state.
+                        valid_model, warning = modeloptions.validate_persisted_model(
+                            st.session_state.model_name, modeloptions.known_models(provider))
+                        st.session_state.model_name = valid_model
+                        if warning:
+                            st.warning(warning)
+                        if valid_model is not None and api_key:
+                            self.llmhandler.load_model(str(valid_model), api_key, provider=provider)
+                    # Anthropic's list is fetched from the key, which the session
+                    # starts without.  The saved model is restored optimistically
+                    # and validated lazily in __process_model_options once the key
+                    # and list are available.
             # 1st run or missing user options data file, initialize session state variables to default values
             else:
                 st.session_state.reupload_key = 0
@@ -120,19 +131,37 @@ class TTRPGChatbot:
                                             disabled=st.session_state.is_processing)
             st.session_state[key_slot] = api_key
 
-            available_model_names, _, cache = modeloptions.resolve_models(
+            available_model_names, model_error, cache = modeloptions.resolve_models(
                 provider, api_key, st.session_state.get("_model_cache"))
             st.session_state._model_cache = cache
+
+            if model_error:
+                # A failed Anthropic models-list call (bad key, network) surfaces
+                # a readable, provider-named message — de-facto early validation.
+                st.sidebar.error(model_error)
+            elif not available_model_names and provider == LLMHandler.PROVIDER_ANTHROPIC and not api_key:
+                st.sidebar.info(f"Enter your {provider} API key above to load available models.")
+
+            if available_model_names:
+                # Deferred validation: once the Anthropic list is available, drop
+                # a saved model the key can no longer use (OpenAI is validated at
+                # startup).  With no list yet, the saved model is kept untouched.
+                valid_model, warning = modeloptions.validate_persisted_model_deferred(
+                    st.session_state.model_name, available_model_names)
+                st.session_state.model_name = valid_model
+                if warning:
+                    st.sidebar.warning(warning)
+
             sidebar_model_select = st.sidebar.selectbox("Select Model", available_model_names,
-                                                        index=ModelOptions.preselect_index(st.session_state.model_name, available_model_names),
-                                                        disabled=st.session_state.is_processing)
+                                                        index=ModelOptions.preselect_index(st.session_state.model_name, available_model_names) if available_model_names else None,
+                                                        disabled=st.session_state.is_processing or not available_model_names)
             if sidebar_model_select is not None:
                 st.session_state.model_name = sidebar_model_select
                 if api_key:
                     self.llmhandler.load_model(sidebar_model_select, api_key, provider=provider)
                 self.__save_user_data()
-            else:
-                st.session_state.model_name = None
+            # When the list is empty (e.g. Anthropic before a key), leave the
+            # saved model_name untouched so it can be preselected once it loads.
 
     def __save_user_data(self):
         existing = {}
@@ -368,7 +397,7 @@ class TTRPGChatbot:
             provider = ModelOptions.normalize_provider(st.session_state.get('provider'))
             has_key = bool(st.session_state.get(ModelOptions.key_slot(provider)))
             if not has_key:
-                st.info(LLMHandler.MISSING_KEY_MESSAGE)
+                st.info(LLMHandler.missing_key_message(provider))
             user_question = st.chat_input("Ask a question about the campaign...",
                                           disabled=st.session_state.is_processing or not has_key)
             if user_question and has_key:

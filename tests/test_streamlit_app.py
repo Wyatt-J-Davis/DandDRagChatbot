@@ -167,6 +167,60 @@ class TestSidebarModelOptions:
         assert "OpenAI" in list(provider.options)
         assert provider.value == "OpenAI"
 
+    def test_provider_selector_lists_anthropic(self):
+        at = _run_app()
+        provider = _provider_selectbox(at)
+        assert "Anthropic" in list(provider.options)
+
+
+# ---------------------------------------------------------------------------
+# Anthropic provider path — empty-until-key dropdown, provider-named gating,
+# per-provider key slots
+# ---------------------------------------------------------------------------
+
+class TestAnthropicProviderPath:
+    def test_dropdown_empty_with_hint_when_no_key(self):
+        """Anthropic active, no key: the model dropdown is empty/disabled and a
+        hint tells the user to enter the key."""
+        at = _run_preloaded(provider="Anthropic", anthropic_api_key="",
+                            openai_api_key="", model_name="claude-opus-5")
+        assert not at.exception
+        model_box = _model_selectbox(at)
+        assert list(model_box.options) == []
+        assert model_box.disabled is True
+        infos = [i.value for i in at.info]
+        assert any("Anthropic API key" in m for m in infos)
+
+    def test_chat_gating_names_anthropic(self):
+        """With notes + a saved model but no Anthropic key, chat is disabled and
+        the banner names Anthropic."""
+        _isfile = _db_patches()
+        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
+        for k, v in _ALL_KEYS.items():
+            at.session_state[k] = v
+        at.session_state["provider"] = "Anthropic"
+        at.session_state["model_name"] = "claude-opus-5"
+        at.session_state["anthropic_api_key"] = ""
+        at.session_state["openai_api_key"] = ""
+        with patch("os.path.isfile", side_effect=_isfile):
+            at.run()
+        assert not at.exception
+        assert len(at.chat_input) == 1
+        assert at.chat_input[0].disabled is True
+        messages = [i.value for i in at.info]
+        assert any("Anthropic API key" in m and "Model Options" in m for m in messages)
+
+    def test_per_provider_keys_survive_a_provider_switch(self):
+        """Both key slots persist across a provider switch — neither is erased."""
+        at = _run_preloaded(provider="OpenAI", openai_api_key="sk-openai",
+                            anthropic_api_key="sk-ant", model_name="gpt-5.4-nano")
+        assert not at.exception
+        # Flip to Anthropic; the OpenAI key must remain in its own slot.
+        _provider_selectbox(at).set_value("Anthropic").run()
+        assert not at.exception
+        assert at.session_state["openai_api_key"] == "sk-openai"
+        assert at.session_state["anthropic_api_key"] == "sk-ant"
+
 
 # ---------------------------------------------------------------------------
 # Sidebar — Journal Options

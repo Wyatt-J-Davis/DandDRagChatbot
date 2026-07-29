@@ -23,9 +23,13 @@ class CampaignSummarizer:
         if 'is_processing' not in st.session_state:
             st.session_state.is_processing = False
 
-        # The API key is session-only and never restored from disk.
+        # The API keys are session-only and never restored from disk.  Each
+        # provider has its own slot so switching providers never erases the key
+        # entered for the other one.
         if 'openai_api_key' not in st.session_state:
             st.session_state.openai_api_key = ""
+        if 'anthropic_api_key' not in st.session_state:
+            st.session_state.anthropic_api_key = ""
 
         needs_model_init = "summary_model_name" not in st.session_state
         needs_party_init = "party_members" not in st.session_state
@@ -71,20 +75,38 @@ class CampaignSummarizer:
                 help="Your key is used only for this session and is never saved to disk.",
                 disabled=st.session_state.is_processing,
             )
-            available_model_names, _, cache = modeloptions.resolve_models(
+            available_model_names, model_error, cache = modeloptions.resolve_models(
                 provider, st.session_state[key_slot], st.session_state.get("_model_cache"))
             st.session_state._model_cache = cache
+
+            if model_error:
+                # A failed Anthropic models-list call (bad key, network) surfaces
+                # a readable, provider-named message — de-facto early validation.
+                st.error(model_error)
+            elif not available_model_names and provider == LLMHandler.PROVIDER_ANTHROPIC and not st.session_state[key_slot]:
+                st.info(f"Enter your {provider} API key above to load available models.")
+
+            if available_model_names:
+                # Deferred validation: drop a saved model the Anthropic key can no
+                # longer use once its list is available (OpenAI validates against
+                # the curated list immediately, on both pages).
+                valid_model, warning = modeloptions.validate_persisted_model_deferred(
+                    st.session_state.summary_model_name, available_model_names)
+                st.session_state.summary_model_name = valid_model
+                if warning:
+                    st.warning(warning)
+
             selected_model = st.selectbox(
                 "Select Model",
                 available_model_names,
-                index=ModelOptions.preselect_index(st.session_state.summary_model_name, available_model_names),
-                disabled=st.session_state.is_processing,
+                index=ModelOptions.preselect_index(st.session_state.summary_model_name, available_model_names) if available_model_names else None,
+                disabled=st.session_state.is_processing or not available_model_names,
             )
             if selected_model is not None:
                 st.session_state.summary_model_name = selected_model
                 self.__save_user_data()
-            else:
-                st.session_state.summary_model_name = None
+            # When the list is empty (e.g. Anthropic before a key), leave the
+            # saved summary_model_name untouched so it survives until it loads.
 
     def __save_user_data(self):
         existing = {}
@@ -162,7 +184,7 @@ class CampaignSummarizer:
         provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
         has_key = bool(st.session_state.get(ModelOptions.key_slot(provider)))
         if not has_key:
-            st.info(LLMHandler.MISSING_KEY_MESSAGE)
+            st.info(LLMHandler.missing_key_message(provider))
 
         # Phase 1: capture button click and rerun with UI disabled
         if not st.button("✨ Generate Campaign Summary", type="primary",
@@ -187,7 +209,7 @@ class CampaignSummarizer:
             has_key = bool(st.session_state.get(ModelOptions.key_slot(provider)))
             if st.button("🔄 Regenerate", use_container_width=True,
                          disabled=st.session_state.is_processing or not has_key,
-                         help=LLMHandler.MISSING_KEY_MESSAGE if not has_key else None):
+                         help=LLMHandler.missing_key_message(provider) if not has_key else None):
                 st.session_state._regenerating_summary = True
                 st.rerun()
 

@@ -153,6 +153,69 @@ class TestProcessModelOptions:
         assert ss.get("provider") == "OpenAI"
 
 
+class TestProcessModelOptionsAnthropic:
+    """The summary page's Anthropic path mirrors the chat page: empty-until-key
+    dropdown with a hint, live fetch, deferred validation, error surfacing."""
+
+    def _run(self, ss, fetch_return=None, fetch_error=None):
+        cs = _make_summarizer()
+        if fetch_error is not None:
+            cs.llm_handler.fetch_available_models.side_effect = fetch_error
+        elif fetch_return is not None:
+            cs.llm_handler.fetch_available_models.return_value = fetch_return
+        infos, errors, warnings = [], [], []
+
+        def _selectbox(label, options, **kwargs):
+            idx = kwargs.get("index", 0)
+            if not options or idx is None:
+                return None
+            return options[idx]
+
+        with patch("streamlit.session_state", ss), \
+             patch("streamlit.sidebar", MagicMock()), \
+             patch("streamlit.header"), \
+             patch("streamlit.text_input", side_effect=lambda label, **kw: kw.get("value", "")), \
+             patch("streamlit.selectbox", side_effect=_selectbox), \
+             patch("streamlit.info", side_effect=lambda m: infos.append(m)), \
+             patch("streamlit.error", side_effect=lambda m: errors.append(m)), \
+             patch("streamlit.warning", side_effect=lambda m: warnings.append(m)), \
+             patch.object(cs, "_CampaignSummarizer__save_user_data"):
+            cs._CampaignSummarizer__process_model_options()
+        return infos, errors, warnings
+
+    def _ss(self, **overrides):
+        base = dict(provider="Anthropic", anthropic_api_key="", openai_api_key="",
+                    summary_model_name=None, is_processing=False, _model_cache=None)
+        base.update(overrides)
+        return _SS(**base)
+
+    def test_no_key_shows_enter_key_hint(self):
+        ss = self._ss(summary_model_name="claude-opus-5")
+        infos, _, _ = self._run(ss)
+        assert any("Anthropic API key" in m for m in infos)
+        # Saved model left untouched until the list loads.
+        assert ss["summary_model_name"] == "claude-opus-5"
+
+    def test_key_fetches_list_and_selects_model(self):
+        ss = self._ss(anthropic_api_key="sk-ant", summary_model_name="claude-sonnet-5")
+        self._run(ss, fetch_return=["claude-opus-5", "claude-sonnet-5"])
+        assert ss["summary_model_name"] == "claude-sonnet-5"
+
+    def test_deferred_validation_drops_stale_model(self):
+        ss = self._ss(anthropic_api_key="sk-ant", summary_model_name="claude-retired")
+        _, _, warnings = self._run(ss, fetch_return=["claude-opus-5", "claude-sonnet-5"])
+        assert any("claude-retired" in w for w in warnings)
+        assert ss["summary_model_name"] == "claude-opus-5"
+
+    def test_bad_key_surfaces_provider_named_error(self):
+        ss = self._ss(anthropic_api_key="badkey")
+        _, errors, _ = self._run(
+            ss,
+            fetch_error=ValueError(
+                "Your Anthropic API key was rejected. Please check your key in Model Options."))
+        assert any("Anthropic" in e for e in errors)
+
+
 # ---------------------------------------------------------------------------
 # run() — party member gate
 # ---------------------------------------------------------------------------
@@ -293,6 +356,20 @@ class TestRunKeyGating:
         info_calls, button_kwargs = self._run_to_button(cs, self._ss("sk-test"))
         assert button_kwargs[-1]["disabled"] is False
         assert not any("API key" in msg for msg in info_calls)
+
+    def test_banner_names_active_provider(self):
+        """Gating checks the active provider's key slot and names it."""
+        cs = _make_summarizer()
+        ss = _SS(
+            summary_model_name="claude-opus-5",
+            provider="Anthropic",
+            anthropic_api_key="",
+            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
+            is_processing=False,
+        )
+        info_calls, button_kwargs = self._run_to_button(cs, ss)
+        assert button_kwargs[-1]["disabled"] is True
+        assert any("Anthropic API key" in msg and "Model Options" in msg for msg in info_calls)
 
     def test_regenerate_button_disabled_without_key(self):
         """An existing summary stays readable without a key; only regeneration is gated."""
