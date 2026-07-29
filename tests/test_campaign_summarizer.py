@@ -509,6 +509,46 @@ class TestGenerateAndDisplay:
         self._run_generate(cs, ss, [(True, 100, "Done")])
         assert cs.llm_handler.load_model.call_args.kwargs["disable_thinking"] is True
 
+    def test_openai_path_threads_openai_provider_into_load_model(self):
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.return_value = None
+        ss = _SS(
+            provider="OpenAI",
+            summary_model_name="gpt-5.4-nano",
+            openai_api_key="sk-openai-key",
+            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
+        )
+        self._run_generate(cs, ss, [(True, 100, "Done")])
+        assert cs.llm_handler.load_model.call_args.kwargs["provider"] == "OpenAI"
+
+    def test_anthropic_path_threads_active_provider_into_load_model(self):
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.return_value = None
+        ss = _SS(
+            provider="Anthropic",
+            summary_model_name="claude-opus-5",
+            anthropic_api_key="sk-ant-session-key",
+            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
+        )
+        self._run_generate(cs, ss, [(True, 100, "Done")])
+        assert cs.llm_handler.load_model.call_args.kwargs["provider"] == "Anthropic"
+
+    def test_anthropic_path_threads_anthropic_key_not_openai_key(self):
+        # The active provider's key slot must be used; the other provider's key
+        # (present from an earlier switch) must never leak into the load.
+        cs = _make_summarizer()
+        cs.llm_handler.load_model.return_value = None
+        ss = _SS(
+            provider="Anthropic",
+            summary_model_name="claude-opus-5",
+            anthropic_api_key="sk-ant-session-key",
+            openai_api_key="sk-openai-should-not-be-used",
+            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
+        )
+        self._run_generate(cs, ss, [(True, 100, "Done")])
+        args, _ = cs.llm_handler.load_model.call_args
+        assert args[1] == "sk-ant-session-key"
+
     def test_sets_summary_generated_true_on_success(self):
         cs = _make_summarizer()
         cs.llm_handler.load_model.return_value = None
