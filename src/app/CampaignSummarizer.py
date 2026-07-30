@@ -23,19 +23,14 @@ class CampaignSummarizer:
         if 'is_processing' not in st.session_state:
             st.session_state.is_processing = False
 
-        # The API keys are session-only and never restored from disk.  Each
-        # provider has its own slot so switching providers never erases the key
-        # entered for the other one.
+        # The API key is session-only and never restored from disk.
         if 'openai_api_key' not in st.session_state:
             st.session_state.openai_api_key = ""
-        if 'anthropic_api_key' not in st.session_state:
-            st.session_state.anthropic_api_key = ""
 
         needs_model_init = "summary_model_name" not in st.session_state
         needs_party_init = "party_members" not in st.session_state
-        needs_provider_init = "provider" not in st.session_state
 
-        if needs_model_init or needs_party_init or needs_provider_init:
+        if needs_model_init or needs_party_init:
             user_data = {}
             if os.path.isfile(self._USERDATAFILE):
                 try:
@@ -50,47 +45,25 @@ class CampaignSummarizer:
             if needs_party_init:
                 st.session_state.party_members = user_data.get("party_members", [])
 
-            if needs_provider_init:
-                st.session_state.provider = ModelOptions.normalize_provider(user_data.get("provider"))
-
     def __process_model_options(self):
         modeloptions = ModelOptions(self.llm_handler)
-        providers = modeloptions.providers()
         with st.sidebar:
             st.header("🔧 Model Options")
-            provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
-            provider = st.selectbox(
-                "Provider",
-                providers,
-                index=providers.index(provider) if provider in providers else 0,
-                disabled=st.session_state.is_processing,
-            )
-            st.session_state.provider = provider
-
-            key_slot = ModelOptions.key_slot(provider)
-            st.session_state[key_slot] = st.text_input(
-                ModelOptions.key_label(provider),
+            st.session_state.openai_api_key = st.text_input(
+                "OpenAI API Key",
                 type="password",
-                value=st.session_state.get(key_slot, ""),
+                value=st.session_state.get("openai_api_key", ""),
                 help="Your key is used only for this session and is never saved to disk.",
                 disabled=st.session_state.is_processing,
             )
-            available_model_names, model_error, cache = modeloptions.resolve_models(
-                provider, st.session_state[key_slot], st.session_state.get("_model_cache"))
-            st.session_state._model_cache = cache
+            available_model_names, model_error = modeloptions.resolve_models(
+                st.session_state.openai_api_key)
 
             if model_error:
-                # A failed Anthropic models-list call (bad key, network) surfaces
-                # a readable, provider-named message — de-facto early validation.
                 st.error(model_error)
-            elif not available_model_names and provider == LLMHandler.PROVIDER_ANTHROPIC and not st.session_state[key_slot]:
-                st.info(f"Enter your {provider} API key above to load available models.")
 
             if available_model_names:
-                # Deferred validation: drop a saved model the Anthropic key can no
-                # longer use once its list is available (OpenAI validates against
-                # the curated list immediately, on both pages).
-                valid_model, warning = modeloptions.validate_persisted_model_deferred(
+                valid_model, warning = modeloptions.validate_persisted_model(
                     st.session_state.summary_model_name, available_model_names)
                 st.session_state.summary_model_name = valid_model
                 if warning:
@@ -105,8 +78,6 @@ class CampaignSummarizer:
             if selected_model is not None:
                 st.session_state.summary_model_name = selected_model
                 self.__save_user_data()
-            # When the list is empty (e.g. Anthropic before a key), leave the
-            # saved summary_model_name untouched so it survives until it loads.
 
     def __save_user_data(self):
         existing = {}
@@ -117,7 +88,6 @@ class CampaignSummarizer:
             except Exception:
                 pass
         existing["summary_model_name"] = st.session_state.summary_model_name
-        existing["provider"] = st.session_state.get("provider", ModelOptions.default_provider())
         os.makedirs("data", exist_ok=True)
         with open(self._USERDATAFILE, "w") as f:
             json.dump(existing, f)
@@ -181,10 +151,9 @@ class CampaignSummarizer:
             "of your notes and your hardware. Please be patient."
         )
 
-        provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
-        has_key = bool(st.session_state.get(ModelOptions.key_slot(provider)))
+        has_key = bool(st.session_state.get("openai_api_key"))
         if not has_key:
-            st.info(LLMHandler.missing_key_message(provider))
+            st.info(LLMHandler.missing_key_message())
 
         # Phase 1: capture button click and rerun with UI disabled
         if not st.button("✨ Generate Campaign Summary", type="primary",
@@ -205,11 +174,10 @@ class CampaignSummarizer:
         with btn_col:
             st.write("")
             # A saved summary stays readable without a key; only regeneration is gated.
-            provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
-            has_key = bool(st.session_state.get(ModelOptions.key_slot(provider)))
+            has_key = bool(st.session_state.get("openai_api_key"))
             if st.button("🔄 Regenerate", use_container_width=True,
                          disabled=st.session_state.is_processing or not has_key,
-                         help=LLMHandler.missing_key_message(provider) if not has_key else None):
+                         help=LLMHandler.missing_key_message() if not has_key else None):
                 st.session_state._regenerating_summary = True
                 st.rerun()
 
@@ -239,11 +207,10 @@ class CampaignSummarizer:
     def __generate_and_display(self):
         model_name = st.session_state.summary_model_name
         party_members = st.session_state.get("party_members", [])
-        provider = ModelOptions.normalize_provider(st.session_state.get("provider"))
-        api_key = st.session_state.get(ModelOptions.key_slot(provider), "")
+        api_key = st.session_state.get("openai_api_key", "")
 
         try:
-            self.llm_handler.load_model(str(model_name), api_key, disable_thinking=True, provider=provider)
+            self.llm_handler.load_model(str(model_name), api_key, disable_thinking=True)
         except Exception as e:
             st.session_state._summary_error = f"Could not load model **{model_name}**: {e}"
             st.session_state.pop("_regenerating_summary", None)

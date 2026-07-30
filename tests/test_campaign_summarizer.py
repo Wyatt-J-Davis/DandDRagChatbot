@@ -111,11 +111,11 @@ class TestExtractHeaders:
 
 
 # ---------------------------------------------------------------------------
-# __process_model_options — provider selector + shared module routing
+# __process_model_options — OpenAI key field + shared module routing
 # ---------------------------------------------------------------------------
 
 class TestProcessModelOptions:
-    """The summary page renders a Provider selector and routes its model list
+    """The summary page renders an OpenAI key field and a model selector routed
     through the shared module, exactly like the chat page."""
 
     def _run(self, ss):
@@ -137,83 +137,15 @@ class TestProcessModelOptions:
             cs._CampaignSummarizer__process_model_options()
         return selectbox_labels
 
-    def test_renders_provider_selector(self):
+    def test_no_provider_selector(self):
         ss = _SS(is_processing=False, openai_api_key="", summary_model_name="gpt-5.4-nano")
         labels = self._run(ss)
-        assert "Provider" in labels
+        assert "Provider" not in labels
 
     def test_still_renders_model_selector(self):
         ss = _SS(is_processing=False, openai_api_key="", summary_model_name="gpt-5.4-nano")
         labels = self._run(ss)
         assert "Select Model" in labels
-
-    def test_defaults_provider_to_openai(self):
-        ss = _SS(is_processing=False, openai_api_key="", summary_model_name="gpt-5.4-nano")
-        self._run(ss)
-        assert ss.get("provider") == "OpenAI"
-
-
-class TestProcessModelOptionsAnthropic:
-    """The summary page's Anthropic path mirrors the chat page: empty-until-key
-    dropdown with a hint, live fetch, deferred validation, error surfacing."""
-
-    def _run(self, ss, fetch_return=None, fetch_error=None):
-        cs = _make_summarizer()
-        if fetch_error is not None:
-            cs.llm_handler.fetch_available_models.side_effect = fetch_error
-        elif fetch_return is not None:
-            cs.llm_handler.fetch_available_models.return_value = fetch_return
-        infos, errors, warnings = [], [], []
-
-        def _selectbox(label, options, **kwargs):
-            idx = kwargs.get("index", 0)
-            if not options or idx is None:
-                return None
-            return options[idx]
-
-        with patch("streamlit.session_state", ss), \
-             patch("streamlit.sidebar", MagicMock()), \
-             patch("streamlit.header"), \
-             patch("streamlit.text_input", side_effect=lambda label, **kw: kw.get("value", "")), \
-             patch("streamlit.selectbox", side_effect=_selectbox), \
-             patch("streamlit.info", side_effect=lambda m: infos.append(m)), \
-             patch("streamlit.error", side_effect=lambda m: errors.append(m)), \
-             patch("streamlit.warning", side_effect=lambda m: warnings.append(m)), \
-             patch.object(cs, "_CampaignSummarizer__save_user_data"):
-            cs._CampaignSummarizer__process_model_options()
-        return infos, errors, warnings
-
-    def _ss(self, **overrides):
-        base = dict(provider="Anthropic", anthropic_api_key="", openai_api_key="",
-                    summary_model_name=None, is_processing=False, _model_cache=None)
-        base.update(overrides)
-        return _SS(**base)
-
-    def test_no_key_shows_enter_key_hint(self):
-        ss = self._ss(summary_model_name="claude-opus-5")
-        infos, _, _ = self._run(ss)
-        assert any("Anthropic API key" in m for m in infos)
-        # Saved model left untouched until the list loads.
-        assert ss["summary_model_name"] == "claude-opus-5"
-
-    def test_key_fetches_list_and_selects_model(self):
-        ss = self._ss(anthropic_api_key="sk-ant", summary_model_name="claude-sonnet-5")
-        self._run(ss, fetch_return=["claude-opus-5", "claude-sonnet-5"])
-        assert ss["summary_model_name"] == "claude-sonnet-5"
-
-    def test_deferred_validation_drops_stale_model(self):
-        ss = self._ss(anthropic_api_key="sk-ant", summary_model_name="claude-retired")
-        _, _, warnings = self._run(ss, fetch_return=["claude-opus-5", "claude-sonnet-5"])
-        assert any("claude-retired" in w for w in warnings)
-        assert ss["summary_model_name"] == "claude-opus-5"
-
-    def test_bad_key_surfaces_provider_named_error(self):
-        ss = self._ss(anthropic_api_key="badkey")
-        _, errors, _ = self._run(
-            ss,
-            fetch_error=ValueError(
-                "Your Anthropic API key was rejected. Please check your key in Model Options."))
-        assert any("Anthropic" in e for e in errors)
 
 
 # ---------------------------------------------------------------------------
@@ -357,20 +289,6 @@ class TestRunKeyGating:
         assert button_kwargs[-1]["disabled"] is False
         assert not any("API key" in msg for msg in info_calls)
 
-    def test_banner_names_active_provider(self):
-        """Gating checks the active provider's key slot and names it."""
-        cs = _make_summarizer()
-        ss = _SS(
-            summary_model_name="claude-opus-5",
-            provider="Anthropic",
-            anthropic_api_key="",
-            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
-            is_processing=False,
-        )
-        info_calls, button_kwargs = self._run_to_button(cs, ss)
-        assert button_kwargs[-1]["disabled"] is True
-        assert any("Anthropic API key" in msg and "Model Options" in msg for msg in info_calls)
-
     def test_regenerate_button_disabled_without_key(self):
         """An existing summary stays readable without a key; only regeneration is gated."""
         cs = _make_summarizer()
@@ -508,46 +426,6 @@ class TestGenerateAndDisplay:
         )
         self._run_generate(cs, ss, [(True, 100, "Done")])
         assert cs.llm_handler.load_model.call_args.kwargs["disable_thinking"] is True
-
-    def test_openai_path_threads_openai_provider_into_load_model(self):
-        cs = _make_summarizer()
-        cs.llm_handler.load_model.return_value = None
-        ss = _SS(
-            provider="OpenAI",
-            summary_model_name="gpt-5.4-nano",
-            openai_api_key="sk-openai-key",
-            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
-        )
-        self._run_generate(cs, ss, [(True, 100, "Done")])
-        assert cs.llm_handler.load_model.call_args.kwargs["provider"] == "OpenAI"
-
-    def test_anthropic_path_threads_active_provider_into_load_model(self):
-        cs = _make_summarizer()
-        cs.llm_handler.load_model.return_value = None
-        ss = _SS(
-            provider="Anthropic",
-            summary_model_name="claude-opus-5",
-            anthropic_api_key="sk-ant-session-key",
-            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
-        )
-        self._run_generate(cs, ss, [(True, 100, "Done")])
-        assert cs.llm_handler.load_model.call_args.kwargs["provider"] == "Anthropic"
-
-    def test_anthropic_path_threads_anthropic_key_not_openai_key(self):
-        # The active provider's key slot must be used; the other provider's key
-        # (present from an earlier switch) must never leak into the load.
-        cs = _make_summarizer()
-        cs.llm_handler.load_model.return_value = None
-        ss = _SS(
-            provider="Anthropic",
-            summary_model_name="claude-opus-5",
-            anthropic_api_key="sk-ant-session-key",
-            openai_api_key="sk-openai-should-not-be-used",
-            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
-        )
-        self._run_generate(cs, ss, [(True, 100, "Done")])
-        args, _ = cs.llm_handler.load_model.call_args
-        assert args[1] == "sk-ant-session-key"
 
     def test_sets_summary_generated_true_on_success(self):
         cs = _make_summarizer()

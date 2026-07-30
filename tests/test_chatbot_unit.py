@@ -158,7 +158,7 @@ class TestInitStateVariablesMissingModel:
         with patch("streamlit.session_state", ss):
             bot._TTRPGChatbot__init_state_variables()
         assert ss["model_name"] == "gpt-5.4-mini"
-        bot.llmhandler.load_model.assert_called_once_with("gpt-5.4-mini", "sk-test", provider="OpenAI")
+        bot.llmhandler.load_model.assert_called_once_with("gpt-5.4-mini", "sk-test")
 
     def test_skips_eager_load_when_no_api_key(self, tmp_path):
         """Without a key there is nothing to construct — the saved model is kept
@@ -532,89 +532,3 @@ class TestProcessChatErrorSurfacing:
         with pytest.raises(RuntimeError):
             self._run_failing_chat(bot, ss, RuntimeError("programming error"))
 
-
-# ---------------------------------------------------------------------------
-# __process_model_options — Anthropic provider path (switch, hint, deferred
-# validation, error surfacing)
-# ---------------------------------------------------------------------------
-
-class TestProcessModelOptionsAnthropic:
-    def _run(self, bot, ss, fetch_return=None, fetch_error=None):
-        if fetch_error is not None:
-            bot.llmhandler.fetch_available_models.side_effect = fetch_error
-        elif fetch_return is not None:
-            bot.llmhandler.fetch_available_models.return_value = fetch_return
-        # OpenAI curated fetch used only if provider is OpenAI; keep it sane.
-        infos, errors, warnings = [], [], []
-        sidebar = MagicMock()
-
-        def _selectbox(label, options, **kwargs):
-            idx = kwargs.get("index", 0)
-            if not options or idx is None:
-                return None
-            return options[idx]
-
-        sidebar.selectbox.side_effect = _selectbox
-        sidebar.text_input.side_effect = lambda label, **kw: kw.get("value", "")
-        sidebar.error.side_effect = lambda m: errors.append(m)
-        sidebar.info.side_effect = lambda m: infos.append(m)
-        sidebar.warning.side_effect = lambda m: warnings.append(m)
-        with patch("streamlit.session_state", ss), \
-             patch("streamlit.sidebar", sidebar), \
-             patch("streamlit.header"), \
-             patch.object(bot, "_TTRPGChatbot__save_user_data"):
-            bot._TTRPGChatbot__process_model_options()
-        return infos, errors, warnings
-
-    def _ss(self, **overrides):
-        base = dict(provider="Anthropic", anthropic_api_key="", openai_api_key="",
-                    model_name=None, is_processing=False, _model_cache=None)
-        base.update(overrides)
-        return _SS(**base)
-
-    def test_no_key_shows_enter_key_hint_and_empty_list(self):
-        bot = _make_bot()
-        ss = self._ss(model_name="claude-opus-5")
-        infos, errors, warnings = self._run(bot, ss)
-        assert any("Anthropic API key" in m for m in infos)
-        # The saved model is left untouched (deferred until a key + list exist).
-        assert ss["model_name"] == "claude-opus-5"
-        bot.llmhandler.load_model.assert_not_called()
-
-    def test_key_fetches_list_and_loads_selected_model(self):
-        bot = _make_bot()
-        ss = self._ss(anthropic_api_key="sk-ant", model_name="claude-sonnet-5")
-        self._run(bot, ss, fetch_return=["claude-opus-5", "claude-sonnet-5"])
-        assert ss["model_name"] == "claude-sonnet-5"
-        bot.llmhandler.load_model.assert_called_once_with(
-            "claude-sonnet-5", "sk-ant", provider="Anthropic")
-
-    def test_deferred_validation_drops_stale_saved_model(self):
-        bot = _make_bot()
-        ss = self._ss(anthropic_api_key="sk-ant", model_name="claude-retired")
-        infos, errors, warnings = self._run(bot, ss, fetch_return=["claude-opus-5", "claude-sonnet-5"])
-        assert any("claude-retired" in w and "Model Options" in w for w in warnings)
-        # Falls back to the first offered model.
-        assert ss["model_name"] == "claude-opus-5"
-
-    def test_bad_key_surfaces_provider_named_error(self):
-        bot = _make_bot()
-        ss = self._ss(anthropic_api_key="badkey")
-        infos, errors, warnings = self._run(
-            bot, ss,
-            fetch_error=ValueError(
-                "Your Anthropic API key was rejected. Please check your key in Model Options."))
-        assert any("Anthropic" in e and "Model Options" in e for e in errors)
-
-    def test_provider_persisted_to_session(self):
-        bot = _make_bot()
-        ss = self._ss()
-        self._run(bot, ss)
-        assert ss["provider"] == "Anthropic"
-
-    def test_openai_key_slot_untouched_while_anthropic_active(self):
-        # Per-provider slots: selecting Anthropic must not disturb the OpenAI key.
-        bot = _make_bot()
-        ss = self._ss(anthropic_api_key="", openai_api_key="sk-openai")
-        self._run(bot, ss)
-        assert ss["openai_api_key"] == "sk-openai"
