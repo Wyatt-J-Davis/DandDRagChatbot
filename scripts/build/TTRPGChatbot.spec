@@ -1,8 +1,8 @@
 import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 # TTRPGChatbot.spec  —  PyInstaller build configuration
 #
-# Build with:
-#   python3 -m PyInstaller TTRPGChatbot.spec
+# Build with (from the project root):
+#   python3 -m PyInstaller scripts/build/TTRPGChatbot.spec
 #
 # Output: dist/TTRPGChatbot/TTRPGChatbot.exe  (plus supporting files)
 
@@ -94,7 +94,7 @@ extra_hiddenimports = [
 ]
 
 a = Analysis(
-    ["launcher.py"],
+    ["scripts/build/launcher.py"],
     pathex=["."],
     binaries=[
         *st_binaries,

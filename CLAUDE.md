@@ -10,15 +10,18 @@
 - **UI:** Streamlit (`streamlit_app.py` in project root)
 - **RAG pipeline:** LangChain with FastEmbed embeddings (`BAAI/bge-base-en-v1.5`)
 - **LLM:** Local models via Ollama
-- **Testing:** pytest (run via `run_tests.bat`)
+- **Testing:** pytest (run via `scripts/run_tests.bat`)
 
 ## Project Structure
 
 ```
 streamlit_app.py             # App entrypoint
-launcher.py                  # Executable launcher
-TTRPGChatbot.spec            # PyInstaller spec
-build_exe.bat                # Builds the standalone executable
+scripts/
+  build_exe.bat              # Builds the standalone executable
+  run_tests.bat              # Runs the test suite with coverage
+  build/
+    launcher.py               # Executable launcher (PyInstaller entrypoint)
+    TTRPGChatbot.spec         # PyInstaller spec
 src/
   app/
     TTRPGChatBot.py          # Top-level chatbot class
@@ -49,7 +52,6 @@ assets/                      # Static assets — do not modify
 build/, dist/                # PyInstaller build output
 htmlcov/                     # Coverage HTML report
 requirements.txt
-run_tests.bat
 ```
 
 ## Setup & Running
@@ -67,7 +69,7 @@ python -m streamlit run streamlit_app.py
 
 **Run tests:**
 ```
-run_tests.bat
+scripts\run_tests.bat
 ```
 
 ## Feature Implementation Workflow
@@ -78,7 +80,7 @@ When implementing a new feature, follow this sequence:
 2. **Tests first** — write unit tests for the feature before implementing it.
 3. **Implement** — build the feature.
 4. **Smoke test** — run the app and verify there are no obvious runtime exceptions.
-5. **Run tests** — execute `run_tests.bat`.
+5. **Run tests** — execute `scripts\run_tests.bat`.
 6. **If tests fail** — first check whether the *implementation* is wrong before modifying the tests. Only update tests if the implementation is correct and the test expectation is the problem.
 7. **Wait for review** — once the app runs cleanly and tests pass, stop. Do not push or open PRs; the user handles that.
 

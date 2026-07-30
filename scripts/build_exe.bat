@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+pushd "%~dp0.."
+
 echo ============================================================
 echo  Building TTRPGChatbot executable
 echo ============================================================
@@ -10,13 +12,14 @@ set PYTHON=venv\Scripts\python.exe
 
 if not exist "%PYTHON%" (
     echo ERROR: %PYTHON% not found. Create the venv and install requirements first.
+    popd
     exit /b 1
 )
 
 if exist build rmdir /S /Q build
 if exist dist rmdir /S /Q dist
 
-"%PYTHON%" -m PyInstaller TTRPGChatbot.spec --noconfirm
+"%PYTHON%" -m PyInstaller scripts\build\TTRPGChatbot.spec --noconfirm
 
 set EXIT_CODE=%ERRORLEVEL%
 
@@ -25,6 +28,7 @@ if %EXIT_CODE% NEQ 0 (
     echo ============================================================
     echo  Build FAILED  ^(exit code %EXIT_CODE%^)
     echo ============================================================
+    popd
     exit /b %EXIT_CODE%
 )
 
@@ -33,4 +37,5 @@ echo  Build complete
 echo  Executable: dist\TTRPGChatbot\TTRPGChatbot.exe
 echo ============================================================
 
+popd
 endlocal
