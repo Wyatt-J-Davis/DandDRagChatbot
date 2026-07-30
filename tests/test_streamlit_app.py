@@ -290,13 +290,13 @@ class TestKeyGating:
         assert not at.exception
         assert at.chat_input[0].disabled is False
 
-    def test_note_upload_available_without_key(self):
-        """Embeddings are local, so ingestion must stay keyless."""
+    def _boot_uploader(self, api_key):
+        """Boot with a model selected and no raw notes, varying only the key, so
+        the file-uploader path (not Re-Upload) is exercised."""
         at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
         for k, v in {**_ALL_KEYS, "model_name": "gpt-5.4-nano",
-                     "openai_api_key": ""}.items():
+                     "openai_api_key": api_key}.items():
             at.session_state[k] = v
-        # Hide raw_notes.json so the uploader is shown rather than Re-Upload.
         real_isfile = os.path.isfile
 
         def _isfile(path):
@@ -307,6 +307,18 @@ class TestKeyGating:
         with patch("os.path.isfile", side_effect=_isfile), \
              patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
+        return at
+
+    def test_note_upload_gated_without_key(self):
+        """Embeddings are now an OpenAI API call, so ingestion needs the key."""
+        at = self._boot_uploader("")
+        assert not at.exception
+        assert len(at.get("file_uploader")) == 0
+        messages = [i.value for i in at.info]
+        assert any("API key" in m and "Model Options" in m for m in messages)
+
+    def test_note_upload_available_with_key(self):
+        at = self._boot_uploader("sk-test")
         assert not at.exception
         uploaders = at.get("file_uploader")
         assert len(uploaders) == 1

@@ -219,6 +219,7 @@ class TestFileUploadPhase1:
             notes_uploaded=False,
             model_name="llama3:latest",
             model_temperature=0.7,
+            openai_api_key="sk-test",
             # name="" matches what the mocked st.text_input returns, avoiding
             # an early st.rerun() from the name-change auto-save check.
             party_members=[{"id": "p1", "name": "", "note_taker": True}],
@@ -297,6 +298,7 @@ class TestFileUploadPhase2:
             notes_uploaded=False,
             model_name="llama3:latest",
             model_temperature=0.7,
+            openai_api_key="sk-test",
             party_members=[{"id": "p1", "name": "", "note_taker": True}],
             is_processing=True,
             reupload_key=False,

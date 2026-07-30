@@ -192,12 +192,18 @@ class NoteEditor:
             st.error("No content in the editor to vectorize.")
             return
 
+        openai_key = st.session_state.get("openai_api_key")
+        if not openai_key:
+            st.error("Enter your OpenAI API key in Model Options to vectorize notes.")
+            st.session_state.is_processing = False
+            return
+
         self.databasehandler.clear_database(DatabaseHandler.DATABASE_DIR)
         for stale in (self._RAW_NOTES_FILE, self._CAMPAIGN_SUMMARY_FILE):
             if os.path.isfile(stale):
-                os.remvoe(stale)
+                os.remove(stale)
 
-        self.databasehandler.create_retrival_artifacts(DatabaseHandler.DATABASE_DIR)
+        self.databasehandler.create_retrival_artifacts(DatabaseHandler.DATABASE_DIR, openai_key)
 
         doc = _EditorDocument(content)
 
@@ -268,12 +274,20 @@ class NoteEditor:
 
             st.subheader("🧠 Vectorize")
             has_content = bool(strip_html(st.session_state.get("editor_content", "")).strip())
+            has_key = bool(st.session_state.get("openai_api_key"))
+            vectorize_ready = has_content and has_key
+            if not has_content:
+                vectorize_help = "No content to vectorize."
+            elif not has_key:
+                vectorize_help = "Enter your OpenAI API key in Model Options to vectorize notes."
+            else:
+                vectorize_help = "Clear the database and re-vectorize the current editor notes."
             if st.button(
                 "⚡ Vectorize Notes",
                 type="primary",
                 use_container_width=True,
-                disabled=not has_content or processing,
-                help="No content to vectorize." if not has_content else "Clear the database and re-vectorize the current editor notes.",
+                disabled=not vectorize_ready or processing,
+                help=vectorize_help,
             ):
                 st.session_state._do_vectorize = True
                 st.session_state.is_processing = True

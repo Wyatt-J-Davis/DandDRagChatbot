@@ -6,12 +6,22 @@ from langchain_chroma import Chroma
 import re
 import io
 import shutil
-from langchain_community.embeddings import FastEmbedEmbeddings
-from langchain_experimental.text_splitter import SemanticChunker
+from langchain_openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document as langchaindoc
 from docx import Document as DocxReader
+from . import LLMHandler
 
 DATABASE_DIR = "data/chrome_langchain_db"
+EMBEDDING_MODEL = "text-embedding-3-small"
+_CHUNK_SIZE = 1000
+_CHUNK_OVERLAP = 200
+
+# Written into the persisted DB dir so a store embedded with a different backend
+# (e.g. the old local 768-dim model) is detected and wiped rather than opened
+# with mismatched query vectors.
+_EMBEDDING_MARKER = ".embedding_backend"
+_EMBEDDING_BACKEND_ID = f"openai:{EMBEDDING_MODEL}"
 
 
 class DatabaseHandler:
@@ -20,6 +30,9 @@ class DatabaseHandler:
         self.document_retriever = None
         self.vector_store = None
         self.last_processed_df = None
+        # Set when create_retrival_artifacts discards a dimension-incompatible
+        # store on disk, so the page can prompt a one-time re-upload.
+        self.legacy_db_reset = False
     
     # function yeilds progress percent until final returncode
     def generate_database(self, document, databasedir):
@@ -56,9 +69,15 @@ class DatabaseHandler:
                 yield percent_complete # provide percent complete for progress bar usage
                     
             if self.vector_store is not None:
-                self.vector_store.add_documents(documents=documents, ids=idlist)
+                try:
+                    self.vector_store.add_documents(documents=documents, ids=idlist)
+                except Exception as e:
+                    message = LLMHandler.translate_openai_error(e)
+                    if message:
+                        raise ValueError(message) from e
+                    raise
             else:
-                retCode = False 
+                retCode = False
         else:
             retCode = False
 
@@ -66,7 +85,13 @@ class DatabaseHandler:
     
     def retrieve_notes(self, query):
         if self.document_retriever is not None:
-            relevant_docs = self.document_retriever.invoke(query)
+            try:
+                relevant_docs = self.document_retriever.invoke(query)
+            except Exception as e:
+                message = LLMHandler.translate_openai_error(e)
+                if message:
+                    raise ValueError(message) from e
+                raise
             return relevant_docs
         else:
             raise ValueError("Document retriever not initialized. Generate the retriver first with 'create_retrival_artifacts' method.")
@@ -92,11 +117,13 @@ class DatabaseHandler:
                     time.sleep(0.3)
                     gc.collect()
 
-    def create_retrival_artifacts(self, databasedir):
+    def create_retrival_artifacts(self, databasedir, api_key):
         if self.vector_store is not None:
             return
-        embeddings = self.__load_embeddings()
-        self.text_splitter = SemanticChunker(embeddings)
+        self.legacy_db_reset = False
+        self.__reset_incompatible_database(databasedir)
+        embeddings = self.__load_embeddings(api_key)
+        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=_CHUNK_SIZE, chunk_overlap=_CHUNK_OVERLAP)
         try:
             self.vector_store = Chroma(
                     collection_name="notes",
@@ -123,6 +150,41 @@ class DatabaseHandler:
             search_type="similarity_score_threshold",
             search_kwargs={"k": 10, "score_threshold": .32}
             )
+        self.__write_backend_marker(databasedir)
+
+    def __reset_incompatible_database(self, databasedir):
+        """Wipe a persisted store whose embedding backend does not match the
+        current one; its vectors have the wrong dimension and can't be queried."""
+        if not os.path.isdir(databasedir):
+            return
+        marker = os.path.join(databasedir, _EMBEDDING_MARKER)
+        if os.path.isfile(marker):
+            try:
+                with open(marker) as f:
+                    if f.read().strip() == _EMBEDDING_BACKEND_ID:
+                        return
+            except OSError:
+                pass
+        for attempt in range(5):
+            try:
+                shutil.rmtree(databasedir)
+                break
+            except FileNotFoundError:
+                break
+            except PermissionError:
+                if attempt < 4:
+                    time.sleep(0.3)
+                    gc.collect()
+        self.legacy_db_reset = True
+
+    def __write_backend_marker(self, databasedir):
+        if not os.path.isdir(databasedir):
+            return
+        try:
+            with open(os.path.join(databasedir, _EMBEDDING_MARKER), "w") as f:
+                f.write(_EMBEDDING_BACKEND_ID)
+        except OSError:
+            pass
 
     def __convert_document_into_dataframe(self, document, databasedir):
         file_extension = document.name.split('.')[-1].lower()
@@ -154,8 +216,8 @@ class DatabaseHandler:
         return df
 
 
-    def __load_embeddings(self):
-        return FastEmbedEmbeddings(model_name="BAAI/bge-base-en-v1.5")
+    def __load_embeddings(self, api_key):
+        return OpenAIEmbeddings(model=EMBEDDING_MODEL, api_key=api_key)
 
     def __parse_journal_text(self,file_content):
         """Parses a text file with date headers into a structured list of dicts."""

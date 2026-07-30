@@ -64,6 +64,22 @@ _ERROR_MESSAGES = {
 }
 
 
+def translate_openai_error(exc):
+    """Return the app's friendly message for a raw OpenAI SDK error, or None.
+
+    Shared by the chat path (invoke_model) and the embedding path
+    (DatabaseHandler) so a rejected key, a throttle, or a dead network reads the
+    same wherever it surfaces.
+    """
+    if isinstance(exc, (openai.AuthenticationError, openai.PermissionDeniedError)):
+        return _AUTH_ERROR_MESSAGE
+    if isinstance(exc, openai.RateLimitError):
+        return _RATE_LIMIT_ERROR_MESSAGE
+    if isinstance(exc, openai.APIConnectionError):
+        return _CONNECTION_ERROR_MESSAGE
+    return None
+
+
 def missing_key_message(provider=PROVIDER_OPENAI):
     """Provider-named prompt shown by every page that gates an action behind the
     session key, so the instruction stays identical wherever the user runs into
@@ -71,7 +87,7 @@ def missing_key_message(provider=PROVIDER_OPENAI):
     name = provider if provider in _ERROR_MESSAGES else PROVIDER_OPENAI
     return (
         f"🔑 Enter your {name} API key in **Model Options** on the sidebar to enable "
-        "chat and campaign summaries. Uploading notes does not require a key."
+        "chat, campaign summaries, and note uploads."
     )
 
 

@@ -228,12 +228,16 @@ class TTRPGChatbot:
 
         note_document = None
         model_ready = st.session_state.model_name is not None
+        # Embeddings run through the OpenAI API now, so ingestion needs that key
+        # regardless of which provider answers chat.
+        openai_key = st.session_state.get("openai_api_key")
+        upload_ready = model_ready and bool(openai_key)
 
         if self.summaryhandler.raw_notes_exist() and (st.session_state.reupload_key == False):
             st.session_state.notes_uploaded = True
             sidebar_button = st.sidebar.button('Re-Upload Notes',
-                                               disabled=not model_ready or st.session_state.is_processing,
-                                               help="Select a model before re-uploading notes." if not model_ready else None)
+                                               disabled=not upload_ready or st.session_state.is_processing,
+                                               help="Select a model and enter your OpenAI API key before re-uploading notes." if not upload_ready else None)
             if sidebar_button:
                 self.databasehandler.clear_database(self._DATABASEDIR)
                 for stale in ("data/raw_notes.json", "data/campaign_summary.json"):
@@ -250,11 +254,22 @@ class TTRPGChatbot:
             with placeholder.container():
                 if not model_ready:
                     st.info("⚠️ Please select a model in **Model Options** before uploading campaign notes.")
+                elif not openai_key:
+                    st.info("🔑 Enter your OpenAI API key in **Model Options** to upload and embed campaign notes.")
                 else:
                     note_document = st.file_uploader("Upload your campaign notes", type=["txt", "docx", "csv"],
                                                      disabled=st.session_state.is_processing)
-        # Init text splitter, retriever, and vector database
-        self.databasehandler.create_retrival_artifacts(self._DATABASEDIR)
+        # Init text splitter, retriever, and vector database — only once a key is
+        # available to embed with.
+        if openai_key:
+            self.databasehandler.create_retrival_artifacts(self._DATABASEDIR, openai_key)
+            if self.databasehandler.legacy_db_reset:
+                for stale in ("data/raw_notes.json", "data/campaign_summary.json"):
+                    if os.path.isfile(stale):
+                        os.remove(stale)
+                st.session_state.notes_uploaded = False
+                st.session_state.summary_generated = False
+                st.warning("Your notes were embedded with a previous model and are no longer compatible. Please re-upload your campaign notes.")
         # Check to see if user uploaded notes
         if note_document is not None:
             if not st.session_state.get('_processing_upload'):
