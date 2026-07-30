@@ -177,6 +177,7 @@ class TTRPGChatbot:
             "notes_uploaded": st.session_state.notes_uploaded,
             "party_members": st.session_state.party_members,
         })
+        os.makedirs("data", exist_ok=True)
         with open(self._USERDATAFILE, "w") as f:
             json.dump(existing, f)
 
