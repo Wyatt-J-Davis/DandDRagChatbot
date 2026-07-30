@@ -16,37 +16,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # TypeError.  The package is a thin HTTP client, so importing it is cheap.
 
 # --- langchain_openai ---
+# OpenAIEmbeddings and ChatOpenAI are imported at module level; mocking the
+# package keeps tests off the network.
 mock_langchain_openai = MagicMock()
 sys.modules["langchain_openai"] = mock_langchain_openai
-
-# --- anthropic ---
-# Deliberately NOT mocked, for the same reason as openai: LLMHandler catches
-# anthropic's real exception classes to translate them into user-facing
-# messages, and `except <MagicMock>` is a TypeError.  The package is a thin
-# HTTP client, so importing it is cheap.
-
-# --- langchain_anthropic ---
-mock_langchain_anthropic = MagicMock()
-sys.modules["langchain_anthropic"] = mock_langchain_anthropic
-
-# --- FastEmbed embeddings (replaces HuggingFace) ---
-mock_fastembed = MagicMock()
-sys.modules["fastembed"] = mock_fastembed
-# langchain_community.embeddings.FastEmbedEmbeddings is imported at module level
-mock_lc_community = MagicMock()
-mock_lc_community.embeddings.FastEmbedEmbeddings = MagicMock()
-sys.modules["langchain_community"] = mock_lc_community
-sys.modules["langchain_community.embeddings"] = mock_lc_community.embeddings
 
 # --- Chroma vector store ---
 mock_chroma_mod = MagicMock()
 sys.modules["langchain_chroma"] = mock_chroma_mod
-
-# --- SemanticChunker ---
-mock_exp = MagicMock()
-mock_exp_splitter = MagicMock()
-sys.modules["langchain_experimental"] = mock_exp
-sys.modules["langchain_experimental.text_splitter"] = mock_exp_splitter
 
 # --- streamlit_lottie ---
 sys.modules["streamlit_lottie"] = MagicMock()
