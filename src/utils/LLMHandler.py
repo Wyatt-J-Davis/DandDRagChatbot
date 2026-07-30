@@ -94,7 +94,7 @@ class LLMHandler:
             # call can emit an unbounded reasoning trace and stall the
             # summarizer.  Minimal effort plus a hard output cap keeps each
             # map-reduce step terminating (and billable) within known bounds.
-            kwargs["reasoning_effort"] = "minimal"
+            kwargs["reasoning_effort"] = "low"
             kwargs["max_completion_tokens"] = _SUMMARY_MAX_PREDICT
         self.currnet_model = ChatOpenAI(**kwargs)
 
