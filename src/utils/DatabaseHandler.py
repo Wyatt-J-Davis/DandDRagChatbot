@@ -121,9 +121,12 @@ class DatabaseHandler:
                     gc.collect()
 
     def create_retrival_artifacts(self, databasedir, api_key):
+        # Per-call signal: the handler persists across Streamlit reruns, so this
+        # must be cleared even when the build below no-ops behind the guard,
+        # otherwise a one-time legacy wipe would re-fire on every rerun.
+        self.legacy_db_reset = False
         if self.vector_store is not None:
             return
-        self.legacy_db_reset = False
         self.__reset_incompatible_database(databasedir)
         embeddings = self.__load_embeddings(api_key)
         self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=_CHUNK_SIZE, chunk_overlap=_CHUNK_OVERLAP)

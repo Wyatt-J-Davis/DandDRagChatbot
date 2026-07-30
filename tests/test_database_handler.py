@@ -382,6 +382,21 @@ class TestLegacyDatabaseReset:
         assert (db_dir / "chroma.sqlite3").exists()
         assert self.db.legacy_db_reset is False
 
+    def test_legacy_flag_is_per_call_not_sticky(self, tmp_path):
+        """The handler lives across Streamlit reruns; a reset reported once must
+        not keep firing on later calls that no-op behind the vector-store guard."""
+        db_dir = tmp_path / "chrome_db"
+        db_dir.mkdir()
+        (db_dir / "chroma.sqlite3").write_bytes(b"old-768-dim-index")
+        with patch("src.utils.DatabaseHandler.Chroma"):
+            self.db.create_retrival_artifacts(str(db_dir), "sk-test")
+        assert self.db.legacy_db_reset is True
+        # Second call (a rerun): vector_store already set, so it early-returns —
+        # but it must no longer report a legacy reset.
+        with patch("src.utils.DatabaseHandler.Chroma"):
+            self.db.create_retrival_artifacts(str(db_dir), "sk-test")
+        assert self.db.legacy_db_reset is False
+
     def test_marker_written_after_successful_build(self, tmp_path):
         db_dir = tmp_path / "chrome_db"
 
