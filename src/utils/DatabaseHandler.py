@@ -21,7 +21,10 @@ _CHUNK_OVERLAP = 200
 # (e.g. the old local 768-dim model) is detected and wiped rather than opened
 # with mismatched query vectors.
 _EMBEDDING_MARKER = ".embedding_backend"
-_EMBEDDING_BACKEND_ID = f"openai:{EMBEDDING_MODEL}"
+# The distance metric is part of the identity: an L2-built store scores queries
+# differently, so switching to cosine must force a rebuild too.
+_DISTANCE_METRIC = "cosine"
+_EMBEDDING_BACKEND_ID = f"openai:{EMBEDDING_MODEL}:{_DISTANCE_METRIC}"
 
 
 class DatabaseHandler:
@@ -128,7 +131,8 @@ class DatabaseHandler:
             self.vector_store = Chroma(
                     collection_name="notes",
                     persist_directory=databasedir,
-                    embedding_function=embeddings
+                    embedding_function=embeddings,
+                    collection_configuration={"hnsw": {"space": _DISTANCE_METRIC}}
                     )
         except Exception:
             gc.collect()
@@ -144,11 +148,12 @@ class DatabaseHandler:
             self.vector_store = Chroma(
                     collection_name="notes",
                     persist_directory=databasedir,
-                    embedding_function=embeddings
+                    embedding_function=embeddings,
+                    collection_configuration={"hnsw": {"space": _DISTANCE_METRIC}}
                     )
         self.document_retriever = self.vector_store.as_retriever(
             search_type="similarity_score_threshold",
-            search_kwargs={"k": 10, "score_threshold": .32}
+            search_kwargs={"k": 10, "score_threshold": .25}
             )
         self.__write_backend_marker(databasedir)
 

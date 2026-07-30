@@ -210,7 +210,10 @@ class TestKeyGating:
             at.session_state[k] = v
         at.session_state["model_name"] = "gpt-5.4-nano"
         at.session_state["openai_api_key"] = api_key
-        with patch("os.path.isfile", side_effect=_isfile):
+        # Hide the real DB dir so the marker/legacy-reset path never touches
+        # on-disk state and stays deterministic across the suite.
+        with patch("os.path.isfile", side_effect=_isfile), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
         return at
 
@@ -482,7 +485,8 @@ class TestReuploadButtonFlow:
         at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
         for k, v in _ALL_KEYS.items():
             at.session_state[k] = v
-        with patch("os.path.isfile", side_effect=_isfile):
+        with patch("os.path.isfile", side_effect=_isfile), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
         assert not at.exception
         labels = [b.label for b in at.sidebar.button]
@@ -525,14 +529,16 @@ class TestProcessChatFlow:
 
     def test_chat_input_visible_when_notes_and_model_ready(self):
         at, _isfile = self._boot_with_db()
-        with patch("os.path.isfile", side_effect=_isfile):
+        with patch("os.path.isfile", side_effect=_isfile), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
         assert not at.exception
         assert len(at.chat_input) == 1
 
     def test_no_notes_found_appends_canned_response(self):
         at, _isfile = self._boot_with_db()
-        with patch("os.path.isfile", side_effect=_isfile):
+        with patch("os.path.isfile", side_effect=_isfile), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
             at.chat_input[0].set_value("What happened to the dragon?").run()
         assert not at.exception
@@ -544,7 +550,8 @@ class TestProcessChatFlow:
 
     def test_user_message_stored_in_session(self):
         at, _isfile = self._boot_with_db()
-        with patch("os.path.isfile", side_effect=_isfile):
+        with patch("os.path.isfile", side_effect=_isfile), \
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
             at.chat_input[0].set_value("Did the wizard survive?").run()
         assert not at.exception

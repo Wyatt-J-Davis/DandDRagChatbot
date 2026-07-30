@@ -270,6 +270,7 @@ class TestCreateRetrivalArtifacts:
             collection_name="notes",
             persist_directory="custom/db/path",
             embedding_function=ANY,
+            collection_configuration={"hnsw": {"space": "cosine"}},
         )
 
     def test_retriever_configured_with_similarity_score_threshold(self):
@@ -278,7 +279,7 @@ class TestCreateRetrivalArtifacts:
             self.db.create_retrival_artifacts("data/test_db", "sk-test")
         mock_store.as_retriever.assert_called_once_with(
             search_type="similarity_score_threshold",
-            search_kwargs={"k": 10, "score_threshold": 0.32},
+            search_kwargs={"k": 10, "score_threshold": 0.25},
         )
 
     def test_embeddings_passed_to_chroma_and_splitter_is_local(self):
@@ -374,7 +375,7 @@ class TestLegacyDatabaseReset:
     def test_matching_marker_is_not_wiped(self, tmp_path):
         db_dir = tmp_path / "chrome_db"
         db_dir.mkdir()
-        (db_dir / ".embedding_backend").write_text("openai:text-embedding-3-small")
+        (db_dir / ".embedding_backend").write_text("openai:text-embedding-3-small:cosine")
         (db_dir / "chroma.sqlite3").write_bytes(b"current-index")
         with patch("src.utils.DatabaseHandler.Chroma"):
             self.db.create_retrival_artifacts(str(db_dir), "sk-test")
