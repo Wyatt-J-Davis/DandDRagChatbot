@@ -328,7 +328,7 @@ class NoteEditor:
         st.title("📝 Note Editor")
         st.info(
             "Create and edit your campaign notes here. "
-            "Notes are saved automatically and persist between sessions."
+            "Notes are saved automatically."
         )
 
         self.__init_state_variables()

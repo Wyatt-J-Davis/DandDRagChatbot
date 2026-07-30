@@ -414,7 +414,7 @@ class TTRPGChatbot:
 
     def __init_UI(self):
         st.title("TTRPG Journal Q&A Chatbot 🧙‍♂️")
-        st.info("This app takes your notes from your TTRPG campaign and passes your question along with relevant context from your notes to the local LLM. It does not permanently store your notes or chat history or use them to train any model. Please consult provided references as the AI may hallucinate.")
+        st.info("This app chunks, and vectorizes your notes from your TTRPG campaign and passes your question along with relevant context from your notes to the user-specified LLM. It does not permanently store your notes or chat history or use them to train any model. Please consult provided references as the LLM may hallucinate.")
 
     def run(self):
         self.__process_model_options()

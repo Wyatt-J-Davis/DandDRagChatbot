@@ -146,10 +146,6 @@ class CampaignSummarizer:
             return
 
         st.info("No campaign summary has been generated yet.")
-        st.warning(
-            "Generating a summary may take several minutes depending on the length "
-            "of your notes and your hardware. Please be patient."
-        )
 
         has_key = bool(st.session_state.get("openai_api_key"))
         if not has_key:
