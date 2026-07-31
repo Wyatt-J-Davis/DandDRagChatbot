@@ -2,9 +2,7 @@
 
 > A campaign Q&A chatbot for tabletop RPG players. Upload your dated campaign notes, ask questions in plain language, generate a campaign summary, and keep notes — all grounded in your own journal via Retrieval-Augmented Generation (RAG), running entirely on your machine with a local LLM.
 
-<!-- Screenshot / demo GIF goes here, e.g.:
-![TTRPG Campaign Assistant](assets/screenshot.png)
--->
+![TTRPG Campaign Assistant](assets/chatdemo.gif)
 
 **[Demo Video](https://drive.google.com/file/d/1uaDG5qKW1TUAhX0aV6PVxxXFYU1kDjre/view?usp=sharing)**
 
