@@ -94,8 +94,8 @@ extra_hiddenimports = [
 ]
 
 a = Analysis(
-    ["scripts/build/launcher.py"],
-    pathex=["."],
+    ["launcher.py"],
+    pathex=["../.."],
     binaries=[
         *st_binaries,
         *alt_binaries,
@@ -113,10 +113,9 @@ a = Analysis(
         *lcc_datas,
         *chroma_datas,
         *sq_datas,
-        ("streamlit_app.py", "."),
-        ("pages",             "pages"),
-        ("src",               "src"),
-        ("assets",            "assets"),
+        ("../../streamlit_app.py", "."),
+        ("../../src",              "src"),
+        ("../../assets",           "assets"),
         *collect_data_files("streamlit_lottie"),
     ],
     hiddenimports=[
@@ -164,7 +163,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=True,
-    icon="assets/icon.ico",
+    icon="../../assets/icon.ico",
 )
 
 coll = COLLECT(
