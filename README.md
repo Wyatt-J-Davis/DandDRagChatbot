@@ -1,12 +1,12 @@
 # TTRPG Campaign Assistant 🧙‍♂️
 
-> A campaign Q&A chatbot for tabletop RPG players. Upload your dated campaign notes, ask questions in plain language, generate a campaign summary, and keep notes — all grounded in your own journal via Retrieval-Augmented Generation (RAG).
+A campaign Q&A chatbot for tabletop RPG players. Upload your dated campaign notes, ask questions in plain language, generate a campaign summary, and keep notes — all grounded in your own journal via Retrieval-Augmented Generation (RAG).
+
+![TTRPG Campaign Assistant](assets/chatdemo.gif)
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ttrpgchatbot.streamlit.app/)
 
 **[Demo Video](https://drive.google.com/file/d/1I0d2QcdKzuUCRJrmx3qVgO65fLcu1dzd/view?usp=sharing)**
-
-**▶️ Try it now: [ttrpgchatbot.streamlit.app](https://ttrpgchatbot.streamlit.app/)** — no install required. Bring your own OpenAI API key.
 
 The assistant chunks and vectorizes your campaign notes, then passes your question along with the most relevant note excerpts to an LLM so answers stay grounded in what actually happened at your table. Every answer links back to the source note entries so you can check the LLM's work. Your notes and chat history are not permanently stored server-side and are never used to train any model.
 
