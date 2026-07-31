@@ -1,4 +1,4 @@
-# TTRPG Campaign Assistant
+# TTRPG Campaign Assistant 🧙‍♂️
 
 > A campaign Q&A chatbot for tabletop RPG players. Upload your dated campaign notes, ask questions in plain language, generate a campaign summary, and keep notes — all grounded in your own journal via Retrieval-Augmented Generation (RAG).
 
