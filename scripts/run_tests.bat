@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+pushd "%~dp0.."
+
 echo ============================================================
 echo  Running tests with coverage
 echo ============================================================
@@ -15,6 +17,7 @@ if %EXIT_CODE% NEQ 0 (
     echo ============================================================
     echo  Tests FAILED  ^(exit code %EXIT_CODE%^)
     echo ============================================================
+    popd
     exit /b %EXIT_CODE%
 )
 
@@ -25,4 +28,5 @@ echo ============================================================
 
 start "" "tests\coverage_report\index.html"
 
+popd
 endlocal
