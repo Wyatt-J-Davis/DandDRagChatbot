@@ -4,8 +4,6 @@ A campaign Q&A chatbot for tabletop RPG players. Upload your dated campaign note
 
 ![TTRPG Campaign Assistant](assets/chatdemo.gif)
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ttrpgchatbot.streamlit.app/)
-
 **[Demo Video](https://drive.google.com/file/d/1I0d2QcdKzuUCRJrmx3qVgO65fLcu1dzd/view?usp=sharing)**
 
 The assistant chunks and vectorizes your campaign notes, then passes your question along with the most relevant note excerpts to a local LLM (served by [Ollama](https://ollama.com/)) so answers stay grounded in what actually happened at your table. Every answer links back to the source note entries so you can check the LLM's work. Everything — embeddings, vector store, and chat model — runs locally; nothing is uploaded to a third-party API, and no API key is required.
@@ -14,9 +12,9 @@ The assistant chunks and vectorizes your campaign notes, then passes your questi
 
 ## Community Cloud Demo
 
-**▶️ Try it now: [ttrpgchatbot.streamlit.app](https://ttrpgchatbot.streamlit.app/)** — no install required. Bring your own OpenAI API key.
+[![Open in Streamlit Community Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ttrpgchatbot.streamlit.app/) — no install required. Bring your own OpenAI API key.
 
-This branch is the local-first version of the app, built around Ollama and FastEmbed. The hosted demo runs a separate build (the `streamlit` branch) on Streamlit Community Cloud, swapping the local pieces for hosted equivalents so it works in a browser with nothing installed:
+Dev branch is the local-first version of the app, built around Ollama and FastEmbed. The hosted demo runs a separate build (the `streamlit` branch) on Streamlit Community Cloud, swapping the local pieces for hosted equivalents so it works in a browser with nothing installed:
 
 - **[Streamlit Community Cloud](https://streamlit.io/cloud)** — hosting
 - **[OpenAI](https://platform.openai.com/)** — chat models (`gpt-5.4-nano`/`-mini`/`-full`) and `text-embedding-3-small` embeddings, billed to your own API key
