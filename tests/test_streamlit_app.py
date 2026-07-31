@@ -5,15 +5,16 @@ Heavy external dependencies (openai, FastEmbed, Chroma) are mocked
 in conftest.py so the app boots without real services.
 """
 import os
-import json
 import pytest
 from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
-import src.app.TTRPGChatBot as _chatbot_module
+from src.utils.SummaryHandler import SummaryHandler
 
 APP_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "streamlit_app.py")
 TIMEOUT = 30
+
+RAW_NOTES_KEY = SummaryHandler.RAW_NOTES_KEY
 
 # Keys that __init_state_variables checks — populate all of them to skip its init block.
 _ALL_KEYS = {
@@ -59,17 +60,12 @@ def _run_preloaded(**overrides) -> AppTest:
 
 
 def _db_patches():
-    """Return an isfile side_effect that simulates raw_notes.json existing (no user_data.json)."""
-    real_isfile = os.path.isfile
+    """Return an isfile side_effect for the on-disk DB paths.
 
-    def _isfile(path):
-        if "raw_notes" in str(path):
-            return True
-        if "user_data" in str(path):
-            return False
-        return real_isfile(path)
-
-    return _isfile
+    Raw notes now live in session state (set ``RAW_NOTES_KEY`` on the app), not on
+    disk, so this only passes real paths through for the vector-store checks.
+    """
+    return os.path.isfile
 
 
 def _run_app() -> AppTest:
@@ -210,6 +206,7 @@ class TestKeyGating:
             at.session_state[k] = v
         at.session_state["model_name"] = "gpt-5.4-nano"
         at.session_state["openai_api_key"] = api_key
+        at.session_state[RAW_NOTES_KEY] = "{}"
         # Hide the real DB dir so the marker/legacy-reset path never touches
         # on-disk state and stays deterministic across the suite.
         with patch("os.path.isfile", side_effect=_isfile), \
@@ -275,48 +272,25 @@ class TestKeyGating:
 
 
 # ---------------------------------------------------------------------------
-# Startup restore — saved model + session-only key
+# Startup — session-only key, nothing restored from disk
 # ---------------------------------------------------------------------------
 
-class TestStartupRestore:
-    def _boot_with_saved_model(self, tmp_path, model_name, api_key=""):
-        data_file = tmp_path / "user_data.json"
-        data_file.write_text(json.dumps({
-            "model_name": model_name,
-            "notes_uploaded": False,
-            "party_members": [{"id": "abc", "name": "Aria", "note_taker": True}],
-        }))
-        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
-        at.session_state["openai_api_key"] = api_key
-        with patch.object(_chatbot_module.TTRPGChatbot, "_USERDATAFILE", str(data_file)), \
-             patch("os.path.isdir", side_effect=_hide_db_isdir()):
-            at.run()
-        return at
-
-    def test_saved_model_restored_without_key_and_no_error(self, tmp_path):
-        at = self._boot_with_saved_model(tmp_path, "gpt-5.4-mini")
+class TestStartup:
+    def test_defaults_when_no_prior_session(self):
+        """Nothing is restored from disk, so a fresh boot starts at defaults."""
+        at = _run_app()
         assert not at.exception
-        assert at.session_state.model_name == "gpt-5.4-mini"
+        assert at.session_state.model_name == "gpt-5.4-nano"  # cheapest preselected
+        assert at.session_state.notes_uploaded is False
 
-    def test_stale_saved_model_cleared_with_reselect_prompt(self, tmp_path):
-        at = self._boot_with_saved_model(tmp_path, "llama3:latest")
-        assert not at.exception
-        warnings = [w.value for w in at.warning]
-        assert any("llama3:latest" in w and "Model Options" in w for w in warnings)
-
-    def test_model_name_persisted_but_key_is_not(self, tmp_path):
-        data_file = tmp_path / "user_data.json"
+    def test_boots_cleanly_with_session_only_key(self):
+        """The API key lives in session state only; the app boots without error."""
         at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
-        for k, v in {**_ALL_KEYS, "model_name": "gpt-5.4-mini",
-                     "openai_api_key": "sk-secret"}.items():
+        for k, v in {**_ALL_KEYS, "openai_api_key": "sk-secret"}.items():
             at.session_state[k] = v
-        with patch.object(_chatbot_module.TTRPGChatbot, "_USERDATAFILE", str(data_file)), \
-             patch("os.path.isdir", side_effect=_hide_db_isdir()):
+        with patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
-        saved = json.loads(data_file.read_text())
-        assert saved["model_name"] == "gpt-5.4-mini"
-        assert "openai_api_key" not in saved
-        assert "sk-secret" not in data_file.read_text()
+        assert not at.exception
 
 
 # ---------------------------------------------------------------------------
@@ -347,84 +321,6 @@ class TestSessionStateInit:
 
 
 # ---------------------------------------------------------------------------
-# User-data persistence
-# ---------------------------------------------------------------------------
-
-class TestUserDataLoading:
-    def test_loads_model_name_from_user_data(self, tmp_path):
-        user_data = {
-            "model_name": "llama3:latest",
-            "model_temperature": 0.5,
-            "notes_uploaded": False,
-            "party_members": [{"id": "abc", "name": "Aria", "note_taker": False}]
-        }
-        data_dir = tmp_path / "data"
-        data_dir.mkdir()
-        user_data_file = data_dir / "user_data.json"
-        user_data_file.write_text(json.dumps(user_data))
-
-        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
-        with patch("os.path.isdir", return_value=False), \
-             patch("os.path.isfile", return_value=True), \
-             patch("builtins.open", side_effect=lambda p, *a, **kw:
-                   open(str(user_data_file), *a, **kw)
-                   if "user_data" in str(p) else open(str(tmp_path / "fake.json"), *a, **kw)):
-            try:
-                at.run()
-            except Exception:
-                pass  # allow file-not-found for asset files
-
-        # If model_name loaded from file it should be "llama3:latest"
-        if not at.exception:
-            assert at.session_state.model_name == "llama3:latest"
-
-
-# ---------------------------------------------------------------------------
-# User-data init
-# ---------------------------------------------------------------------------
-
-class TestUserDataInitCoverage:
-    def test_state_loaded_when_user_data_file_exists(self, tmp_path):
-        # Use model_name=None so __init_state_variables skips the load_model call
-        # (line 62). That avoids a double load_model issue with the mock, while
-        # still covering lines 47 and 52-61.
-        user_data = {
-            "model_name": None,
-            "model_temperature": 0.5,
-            "notes_uploaded": True,
-            "party_members": [{"id": "t1", "name": "Aria", "note_taker": False}],
-        }
-        data_file = tmp_path / "user_data.json"
-        data_file.write_text(json.dumps(user_data))
-
-        _real_open = open  # capture before patching
-
-        def _open(path, *args, **kwargs):
-            if "user_data" in str(path):
-                mode = args[0] if args else kwargs.get("mode", "r")
-                if "w" in mode:
-                    return _real_open(str(tmp_path / "out.json"), "w")
-                return _real_open(str(data_file), *args, **kwargs)
-            return _real_open(path, *args, **kwargs)
-
-        _real_isfile = os.path.isfile
-
-        def _isfile(path):
-            return True if "user_data" in str(path) else _real_isfile(path)
-
-        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
-        with patch("builtins.open", side_effect=_open), \
-             patch("os.path.isfile", side_effect=_isfile), \
-             patch("os.path.isdir", side_effect=_hide_db_isdir()):
-            at.run()
-
-        assert not at.exception
-        # party_members is set by __init_state_variables and not overwritten
-        # by subsequent UI methods, so it reliably reflects the loaded file.
-        assert any(m["name"] == "Aria" for m in at.session_state.party_members)
-
-
-# ---------------------------------------------------------------------------
 # Model selection
 # ---------------------------------------------------------------------------
 
@@ -434,19 +330,6 @@ class TestModelSelectionSavesState:
         at = _run_preloaded(model_name="gpt-5.4-mini", openai_api_key="sk-test")
         assert not at.exception
         assert at.session_state.model_name == "gpt-5.4-mini"
-
-    def test_api_key_never_written_to_user_data(self, tmp_path):
-        """The key lives in session state only — it must not reach user_data.json."""
-        data_file = tmp_path / "user_data.json"
-        at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
-        for k, v in {**_ALL_KEYS, "openai_api_key": "sk-secret"}.items():
-            at.session_state[k] = v
-        with patch.object(_chatbot_module.TTRPGChatbot, "_USERDATAFILE", str(data_file)), \
-             patch("os.path.isdir", side_effect=_hide_db_isdir()):
-            at.run()
-        assert not at.exception
-        assert data_file.is_file()
-        assert "sk-secret" not in data_file.read_text()
 
 
 # ---------------------------------------------------------------------------
@@ -485,6 +368,7 @@ class TestReuploadButtonFlow:
         at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
         for k, v in _ALL_KEYS.items():
             at.session_state[k] = v
+        at.session_state[RAW_NOTES_KEY] = "{}"
         with patch("os.path.isfile", side_effect=_isfile), \
              patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
@@ -497,10 +381,11 @@ class TestReuploadButtonFlow:
         at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
         for k, v in _ALL_KEYS.items():
             at.session_state[k] = v
+        at.session_state[RAW_NOTES_KEY] = "{}"
         at.session_state["messages"] = [{"role": "user", "content": "old", "avatar": None}]
         at.session_state["button_key"] = 3
         with patch("os.path.isfile", side_effect=_isfile), \
-             patch("os.remove"):
+             patch("os.path.isdir", side_effect=_hide_db_isdir()):
             at.run()
             reupload = [b for b in at.sidebar.button if "Re-Upload" in b.label]
             assert len(reupload) == 1
@@ -523,6 +408,7 @@ class TestProcessChatFlow:
             at.session_state[k] = v
         at.session_state["model_name"] = "gpt-5.4-nano"
         at.session_state["openai_api_key"] = "sk-test"
+        at.session_state[RAW_NOTES_KEY] = "{}"
         for k, v in state_overrides.items():
             at.session_state[k] = v
         return at, _isfile

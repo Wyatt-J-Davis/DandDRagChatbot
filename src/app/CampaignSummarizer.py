@@ -1,4 +1,3 @@
-import os
 import re
 import json
 import streamlit as st
@@ -10,8 +9,6 @@ from ..utils.ModelOptions import ModelOptions
 
 
 class CampaignSummarizer:
-    _USERDATAFILE = "data//user_data.json"
-
     def __init__(self):
         self.llm_handler = LLMHandler.LLMHandler()
         self.summary_handler = SummaryHandler.SummaryHandler(self.llm_handler)
@@ -27,23 +24,13 @@ class CampaignSummarizer:
         if 'openai_api_key' not in st.session_state:
             st.session_state.openai_api_key = ""
 
-        needs_model_init = "summary_model_name" not in st.session_state
-        needs_party_init = "party_members" not in st.session_state
+        # Saved content is kept in session state only; on first run (or after a
+        # refresh) these start at their defaults rather than loading from disk.
+        if "summary_model_name" not in st.session_state:
+            st.session_state.summary_model_name = None
 
-        if needs_model_init or needs_party_init:
-            user_data = {}
-            if os.path.isfile(self._USERDATAFILE):
-                try:
-                    with open(self._USERDATAFILE, "r") as f:
-                        user_data = json.load(f)
-                except Exception:
-                    pass
-
-            if needs_model_init:
-                st.session_state.summary_model_name = user_data.get("summary_model_name")
-
-            if needs_party_init:
-                st.session_state.party_members = user_data.get("party_members", [])
+        if "party_members" not in st.session_state:
+            st.session_state.party_members = []
 
     def __process_model_options(self):
         modeloptions = ModelOptions(self.llm_handler)
@@ -77,20 +64,6 @@ class CampaignSummarizer:
             )
             if selected_model is not None:
                 st.session_state.summary_model_name = selected_model
-                self.__save_user_data()
-
-    def __save_user_data(self):
-        existing = {}
-        if os.path.isfile(self._USERDATAFILE):
-            try:
-                with open(self._USERDATAFILE, "r") as f:
-                    existing = json.load(f)
-            except Exception:
-                pass
-        existing["summary_model_name"] = st.session_state.summary_model_name
-        os.makedirs("data", exist_ok=True)
-        with open(self._USERDATAFILE, "w") as f:
-            json.dump(existing, f)
 
     def run(self):
         """Entry point for the campaign summary Streamlit page."""

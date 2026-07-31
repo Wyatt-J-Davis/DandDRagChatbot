@@ -1,69 +1,81 @@
-"""Unit tests for SummaryHandler — file I/O and LLM calls are mocked."""
-import json
-import os
+"""Unit tests for SummaryHandler — session state and LLM calls are mocked."""
 import pytest
 import pandas as pd
-from unittest.mock import MagicMock, patch, mock_open
+import streamlit as st
+from unittest.mock import MagicMock, patch
 
 from src.utils.SummaryHandler import SummaryHandler
+
+RAW_NOTES_KEY = SummaryHandler.RAW_NOTES_KEY
+SUMMARY_KEY = SummaryHandler.SUMMARY_KEY
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_handler(tmp_path):
-    """Return a SummaryHandler with paths redirected to tmp_path."""
-    mock_llm = MagicMock()
-    handler = SummaryHandler(mock_llm)
-    handler.SUMMARY_FILE = str(tmp_path / "campaign_summary.json")
-    handler.RAW_NOTES_FILE = str(tmp_path / "raw_notes.json")
-    return handler
+class _SS(dict):
+    """Minimal session_state stand-in supporting attr and item access."""
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def get(self, key, default=None):
+        return self[key] if key in self else default
 
 
-def _write_raw_notes(tmp_path, rows=None):
-    """Write a minimal raw_notes.json fixture to tmp_path."""
+@pytest.fixture(autouse=True)
+def _session_state():
+    ss = _SS()
+    with patch("streamlit.session_state", ss):
+        yield ss
+
+
+def _make_handler():
+    """Return a SummaryHandler backed by a mock LLM."""
+    return SummaryHandler(MagicMock())
+
+
+def _write_raw_notes(rows=None):
+    """Seed raw notes into session state as a DataFrame JSON string."""
     if rows is None:
         rows = [
             {"Date": "2023-01-01", "Contents": "The party entered the dungeon."},
             {"Date": "2023-01-08", "Contents": "They defeated the goblin king."},
         ]
-    df = pd.DataFrame(rows)
-    df.to_json(str(tmp_path / "raw_notes.json"))
+    st.session_state[RAW_NOTES_KEY] = pd.DataFrame(rows).to_json()
 
 
 # ---------------------------------------------------------------------------
 # summary_exists / raw_notes_exist / get_saved_summary
 # ---------------------------------------------------------------------------
 
-class TestFileChecks:
-    def test_summary_exists_false_when_no_file(self, tmp_path):
-        h = _make_handler(tmp_path)
-        assert h.summary_exists() is False
+class TestSessionChecks:
+    def test_summary_exists_false_when_absent(self):
+        assert _make_handler().summary_exists() is False
 
-    def test_summary_exists_true_when_file_present(self, tmp_path):
-        h = _make_handler(tmp_path)
-        (tmp_path / "campaign_summary.json").write_text(json.dumps({"summary": "x"}))
-        assert h.summary_exists() is True
+    def test_summary_exists_true_when_present(self):
+        st.session_state[SUMMARY_KEY] = {"summary": "x"}
+        assert _make_handler().summary_exists() is True
 
-    def test_raw_notes_exist_false_when_no_file(self, tmp_path):
-        h = _make_handler(tmp_path)
-        assert h.raw_notes_exist() is False
+    def test_raw_notes_exist_false_when_absent(self):
+        assert _make_handler().raw_notes_exist() is False
 
-    def test_raw_notes_exist_true_when_file_present(self, tmp_path):
-        h = _make_handler(tmp_path)
-        _write_raw_notes(tmp_path)
-        assert h.raw_notes_exist() is True
+    def test_raw_notes_exist_true_when_present(self):
+        _write_raw_notes()
+        assert _make_handler().raw_notes_exist() is True
 
-    def test_get_saved_summary_returns_none_when_missing(self, tmp_path):
-        h = _make_handler(tmp_path)
-        assert h.get_saved_summary() is None
+    def test_get_saved_summary_returns_none_when_missing(self):
+        assert _make_handler().get_saved_summary() is None
 
-    def test_get_saved_summary_returns_dict_when_present(self, tmp_path):
-        h = _make_handler(tmp_path)
-        data = {"summary": "Campaign started.", "model": "gpt-5.4-nano"}
-        (tmp_path / "campaign_summary.json").write_text(json.dumps(data))
-        result = h.get_saved_summary()
+    def test_get_saved_summary_returns_dict_when_present(self):
+        st.session_state[SUMMARY_KEY] = {"summary": "Campaign started.", "model": "gpt-5.4-nano"}
+        result = _make_handler().get_saved_summary()
         assert result["summary"] == "Campaign started."
         assert result["model"] == "gpt-5.4-nano"
 
@@ -242,14 +254,14 @@ class TestGetChunkCharSize:
 # ---------------------------------------------------------------------------
 
 class TestGenerateSummaryStreaming:
-    def test_raises_when_raw_notes_missing(self, tmp_path):
-        h = _make_handler(tmp_path)
+    def test_raises_when_raw_notes_missing(self):
+        h = _make_handler()
         with pytest.raises(FileNotFoundError):
             list(h.generate_summary_streaming("gpt-5.4-nano"))
 
-    def test_yields_only_false_then_true(self, tmp_path):
-        _write_raw_notes(tmp_path)
-        h = _make_handler(tmp_path)
+    def test_yields_only_false_then_true(self):
+        _write_raw_notes()
+        h = _make_handler()
         h.llm_handler.invoke_model.return_value = "The campaign summary."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000), \
@@ -261,9 +273,9 @@ class TestGenerateSummaryStreaming:
         assert len(done_results) == 1
         assert len(progress_results) >= 1
 
-    def test_final_yield_contains_summary_text(self, tmp_path):
-        _write_raw_notes(tmp_path)
-        h = _make_handler(tmp_path)
+    def test_final_yield_contains_summary_text(self):
+        _write_raw_notes()
+        h = _make_handler()
         h.llm_handler.invoke_model.return_value = "Narrative summary text."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
@@ -274,27 +286,25 @@ class TestGenerateSummaryStreaming:
         assert progress == 100
         assert "Narrative summary text." in text
 
-    def test_saves_summary_to_disk(self, tmp_path):
-        _write_raw_notes(tmp_path)
-        h = _make_handler(tmp_path)
+    def test_saves_summary_to_session_state(self):
+        _write_raw_notes()
+        h = _make_handler()
         h.llm_handler.invoke_model.return_value = "Saved summary."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
             list(h.generate_summary_streaming("gpt-5.4-nano"))
 
-        assert os.path.isfile(h.SUMMARY_FILE)
-        with open(h.SUMMARY_FILE) as f:
-            data = json.load(f)
+        data = st.session_state[SUMMARY_KEY]
         assert data["summary"] == "Saved summary."
         assert data["model"] == "gpt-5.4-nano"
         assert "generated_at" in data
 
-    def test_multi_chunk_calls_invoke_multiple_times(self, tmp_path):
-        _write_raw_notes(tmp_path, rows=[
+    def test_multi_chunk_calls_invoke_multiple_times(self):
+        _write_raw_notes(rows=[
             {"Date": "2023-01-01", "Contents": "A " * 500},
             {"Date": "2023-01-02", "Contents": "B " * 500},
         ])
-        h = _make_handler(tmp_path)
+        h = _make_handler()
         h.llm_handler.invoke_model.return_value = "chunk summary"
 
         with patch.object(h, "_get_chunk_char_size", return_value=200):
@@ -302,9 +312,9 @@ class TestGenerateSummaryStreaming:
 
         assert h.llm_handler.invoke_model.call_count > 1
 
-    def test_progress_values_are_within_range(self, tmp_path):
-        _write_raw_notes(tmp_path)
-        h = _make_handler(tmp_path)
+    def test_progress_values_are_within_range(self):
+        _write_raw_notes()
+        h = _make_handler()
         h.llm_handler.invoke_model.return_value = "ok"
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
@@ -313,9 +323,9 @@ class TestGenerateSummaryStreaming:
         for _, progress, _ in results:
             assert 0 <= progress <= 100
 
-    def test_party_members_included_in_final_summary_prompt(self, tmp_path):
-        _write_raw_notes(tmp_path)
-        h = _make_handler(tmp_path)
+    def test_party_members_included_in_final_summary_prompt(self):
+        _write_raw_notes()
+        h = _make_handler()
         h.llm_handler.invoke_model.return_value = "Summary with party."
 
         party = [
@@ -333,9 +343,9 @@ class TestGenerateSummaryStreaming:
         assert "Aria" in input_dict["party_members"]
         assert "Brom" in input_dict["party_members"]
 
-    def test_generate_without_party_members_does_not_raise(self, tmp_path):
-        _write_raw_notes(tmp_path)
-        h = _make_handler(tmp_path)
+    def test_generate_without_party_members_does_not_raise(self):
+        _write_raw_notes()
+        h = _make_handler()
         h.llm_handler.invoke_model.return_value = "Summary."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
@@ -343,9 +353,9 @@ class TestGenerateSummaryStreaming:
 
         assert results[-1][0] is True
 
-    def test_generate_with_empty_party_members_does_not_raise(self, tmp_path):
-        _write_raw_notes(tmp_path)
-        h = _make_handler(tmp_path)
+    def test_generate_with_empty_party_members_does_not_raise(self):
+        _write_raw_notes()
+        h = _make_handler()
         h.llm_handler.invoke_model.return_value = "Summary."
 
         with patch.object(h, "_get_chunk_char_size", return_value=100_000):
@@ -353,20 +363,20 @@ class TestGenerateSummaryStreaming:
 
         assert results[-1][0] is True
 
-    def test_chunk_sizing_uses_llm_handler_context_clamp(self, tmp_path):
+    def test_chunk_sizing_uses_llm_handler_context_clamp(self):
         from src.utils.LLMHandler import _MAX_CONTEXT_TOKENS
 
-        h = _make_handler(tmp_path)
+        h = _make_handler()
         h.llm_handler.get_context_tokens.return_value = _MAX_CONTEXT_TOKENS
         assert h._get_chunk_char_size("gpt-5.4-nano") == 32768
 
-    def test_multi_chunk_runs_full_map_reduce_to_completion(self, tmp_path):
-        _write_raw_notes(tmp_path, rows=[
+    def test_multi_chunk_runs_full_map_reduce_to_completion(self):
+        _write_raw_notes(rows=[
             {"Date": "2023-01-01", "Contents": "A " * 2000},
             {"Date": "2023-01-02", "Contents": "B " * 2000},
             {"Date": "2023-01-03", "Contents": "C " * 2000},
         ])
-        h = _make_handler(tmp_path)
+        h = _make_handler()
         # Map output is verbose enough to force a reduce pass; the combine pass
         # then returns something short, so the loop converges.
         state = {"calls": 0}
@@ -386,19 +396,18 @@ class TestGenerateSummaryStreaming:
         assert any("Writing final campaign summary" in s for s in statuses)
         assert results[-1][0] is True
 
-        with open(h.SUMMARY_FILE) as f:
-            data = json.load(f)
+        data = st.session_state[SUMMARY_KEY]
         assert data["model"] == "gpt-5.4-nano"
         assert data["summary"]
 
-    def test_reduce_loop_raises_when_it_does_not_converge(self, tmp_path):
+    def test_reduce_loop_raises_when_it_does_not_converge(self):
         from src.utils.SummaryHandler import _MAX_REDUCE_PASSES
 
-        _write_raw_notes(tmp_path, rows=[
+        _write_raw_notes(rows=[
             {"Date": "2023-01-01", "Contents": "A " * 2000},
             {"Date": "2023-01-02", "Contents": "B " * 2000},
         ])
-        h = _make_handler(tmp_path)
+        h = _make_handler()
         # Each pass makes real progress but shrinks the material only slowly,
         # so it would need far more than the cap to fit — the pass cap is the
         # only thing that stops this, and it must, so the summarizer can't hang.
@@ -413,12 +422,12 @@ class TestGenerateSummaryStreaming:
 
         assert h.llm_handler.invoke_model.call_count <= _MAX_REDUCE_PASSES * 50
 
-    def test_reduce_loop_raises_when_model_output_does_not_shrink(self, tmp_path):
-        _write_raw_notes(tmp_path, rows=[
+    def test_reduce_loop_raises_when_model_output_does_not_shrink(self):
+        _write_raw_notes(rows=[
             {"Date": "2023-01-01", "Contents": "A " * 500},
             {"Date": "2023-01-02", "Contents": "B " * 500},
         ])
-        h = _make_handler(tmp_path)
+        h = _make_handler()
         # Model returns very verbose output — combined never shrinks below chunk_size
         h.llm_handler.invoke_model.return_value = "word " * 200  # ~1000 chars
 

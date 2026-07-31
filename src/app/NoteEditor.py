@@ -2,7 +2,6 @@
 
 import io
 import json
-import os
 
 import pandas as pd
 import streamlit as st
@@ -11,7 +10,11 @@ from html.parser import HTMLParser
 from streamlit_lottie import st_lottie
 
 from ..utils import DatabaseHandler
+from ..utils.SummaryHandler import SummaryHandler
 from ..utils.TextEditorHandler import TextEditorHandler
+
+_RAW_NOTES_KEY = SummaryHandler.RAW_NOTES_KEY
+_SUMMARY_KEY = SummaryHandler.SUMMARY_KEY
 
 
 # ---------------------------------------------------------------------------
@@ -43,54 +46,12 @@ def strip_html(html_content: str) -> str:
     return extractor.get_text()
 
 
-def load_editor_notes(filepath: str) -> str:
-    """Return saved notes from disk, or empty string if unavailable."""
-    if os.path.isfile(filepath):
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception:
-            pass
-    return ""
-
-
-def save_editor_notes(filepath: str, content: str) -> None:
-    """Persist notes to disk, creating parent directories as needed."""
-    dir_path = os.path.dirname(filepath)
-    if dir_path:
-        os.makedirs(dir_path, exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(content or "")
-
-
-def load_editor_settings(filepath: str) -> dict:
-    """Return saved editor settings from disk, or an empty dict if unavailable."""
-    if os.path.isfile(filepath):
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                return data
-        except Exception:
-            pass
-    return {}
-
-
-def save_editor_settings(filepath: str, settings: dict) -> None:
-    """Persist editor settings to disk, creating parent directories as needed."""
-    dir_path = os.path.dirname(filepath)
-    if dir_path:
-        os.makedirs(dir_path, exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(settings or {}, f)
-
-
-def raw_notes_to_text(raw_notes_path: str) -> str:
-    """Convert data/raw_notes.json (DataFrame JSON) to plain text."""
-    if not os.path.isfile(raw_notes_path):
+def raw_notes_to_text(raw_notes_json: str) -> str:
+    """Convert the raw-notes DataFrame JSON string (from session state) to plain text."""
+    if not raw_notes_json:
         return ""
     try:
-        df = pd.read_json(raw_notes_path)
+        df = pd.read_json(io.StringIO(raw_notes_json))
     except Exception:
         return ""
     parts = []
@@ -143,11 +104,6 @@ class _EditorDocument:
 # ---------------------------------------------------------------------------
 
 class NoteEditor:
-    _NOTES_FILE = "data/editor_notes.txt"
-    _RAW_NOTES_FILE = "data/raw_notes.json"
-    _CAMPAIGN_SUMMARY_FILE = "data/campaign_summary.json"
-    _SETTINGS_FILE = "data/editor_settings.json"
-
     def __init__(self):
         if "databasehandler" not in st.session_state:
             st.session_state.databasehandler = DatabaseHandler.DatabaseHandler()
@@ -159,31 +115,24 @@ class NoteEditor:
             st.session_state.is_processing = False
 
         if "editor_content" not in st.session_state:
-            saved = load_editor_notes(self._NOTES_FILE)
-            if not saved and os.path.isfile(self._RAW_NOTES_FILE):
-                saved = raw_notes_to_text(self._RAW_NOTES_FILE)
-            st.session_state.editor_content = saved
+            st.session_state.editor_content = raw_notes_to_text(st.session_state.get(_RAW_NOTES_KEY))
         if "editor_key" not in st.session_state:
             st.session_state.editor_key = 0
 
         # Streamlit drops widget-keyed state when the widget is not rendered for
-        # a full run (e.g. on page switch), and clears all state on app restart.
-        # Re-seed the toggle from disk whenever its key is absent so the dark
-        # mode preference survives both.
+        # a full run (e.g. on page switch). Keep the preference in a separate
+        # (non-widget) session key and re-seed the toggle from it whenever the
+        # widget key is absent so the dark mode choice survives a page switch.
         if "editor_dark_mode" not in st.session_state:
-            settings = load_editor_settings(self._SETTINGS_FILE)
-            st.session_state.editor_dark_mode = bool(settings.get("dark_mode", False))
+            st.session_state.editor_dark_mode = bool(st.session_state.get("editor_dark_mode_pref", False))
 
     def __persist_dark_mode(self):
-        settings = load_editor_settings(self._SETTINGS_FILE)
-        settings["dark_mode"] = bool(st.session_state.editor_dark_mode)
-        save_editor_settings(self._SETTINGS_FILE, settings)
+        st.session_state.editor_dark_mode_pref = bool(st.session_state.editor_dark_mode)
 
     def __import_uploaded_notes(self):
-        text = raw_notes_to_text(self._RAW_NOTES_FILE)
+        text = raw_notes_to_text(st.session_state.get(_RAW_NOTES_KEY))
         if text:
             st.session_state.editor_content = text
-            save_editor_notes(self._NOTES_FILE, text)
             st.session_state.editor_key += 1
 
     def __vectorize_notes(self):
@@ -199,9 +148,8 @@ class NoteEditor:
             return
 
         self.databasehandler.clear_database(DatabaseHandler.DATABASE_DIR)
-        for stale in (self._RAW_NOTES_FILE, self._CAMPAIGN_SUMMARY_FILE):
-            if os.path.isfile(stale):
-                os.remove(stale)
+        st.session_state.pop(_RAW_NOTES_KEY, None)
+        st.session_state.pop(_SUMMARY_KEY, None)
 
         self.databasehandler.create_retrival_artifacts(DatabaseHandler.DATABASE_DIR, openai_key)
 
@@ -237,8 +185,7 @@ class NoteEditor:
 
         if return_code:
             if self.databasehandler.last_processed_df is not None:
-                os.makedirs("data", exist_ok=True)
-                self.databasehandler.last_processed_df.to_json(self._RAW_NOTES_FILE)
+                st.session_state[_RAW_NOTES_KEY] = self.databasehandler.last_processed_df.to_json()
             st.toast("📜 Notes vectorized successfully!", icon="🧙‍♂️")
         else:
             st.error("Vectorization failed. Ensure the editor contains valid content.")
@@ -249,7 +196,7 @@ class NoteEditor:
             st.header("📜 Note Options")
 
             processing = st.session_state.is_processing
-            raw_notes_exist = os.path.isfile(self._RAW_NOTES_FILE)
+            raw_notes_exist = bool(st.session_state.get(_RAW_NOTES_KEY))
             if st.button(
                 "📥 Load from Uploaded Notes",
                 disabled=not raw_notes_exist or processing,
@@ -322,13 +269,12 @@ class NoteEditor:
         )
         if new_content != st.session_state.editor_content:
             st.session_state.editor_content = new_content
-            save_editor_notes(self._NOTES_FILE, new_content)
 
     def run(self):
         st.title("📝 Note Editor")
         st.info(
             "Create and edit your campaign notes here. "
-            "Notes are saved automatically."
+            "Notes are kept for this session only and are cleared when the app is refreshed or restarted."
         )
 
         self.__init_state_variables()

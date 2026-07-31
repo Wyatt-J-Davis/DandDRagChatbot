@@ -1,6 +1,6 @@
-import json
-import os
+import io
 import datetime
+import streamlit as st
 from langchain_core.prompts import ChatPromptTemplate
 
 _CHUNK_SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
@@ -41,23 +41,22 @@ _CONTEXT_USAGE_RATIO = 0.5
 
 
 class SummaryHandler:
-    SUMMARY_FILE = "data/campaign_summary.json"
-    RAW_NOTES_FILE = "data/raw_notes.json"
+    # Saved content lives in session state (scoped to the browser session) rather
+    # than on disk, so nothing user-generated is written to the deployment host.
+    RAW_NOTES_KEY = "raw_notes_json"
+    SUMMARY_KEY = "campaign_summary"
 
     def __init__(self, llm_handler):
         self.llm_handler = llm_handler
 
     def summary_exists(self):
-        return os.path.isfile(self.SUMMARY_FILE)
+        return bool(st.session_state.get(self.SUMMARY_KEY))
 
     def raw_notes_exist(self):
-        return os.path.isfile(self.RAW_NOTES_FILE)
+        return bool(st.session_state.get(self.RAW_NOTES_KEY))
 
     def get_saved_summary(self):
-        if self.summary_exists():
-            with open(self.SUMMARY_FILE, "r") as f:
-                return json.load(f)
-        return None
+        return st.session_state.get(self.SUMMARY_KEY)
 
     def generate_summary_streaming(self, model_name, party_members=None):
         """
@@ -79,7 +78,7 @@ class SummaryHandler:
         if not self.raw_notes_exist():
             raise FileNotFoundError("Raw notes not found. Upload notes on the main page first.")
 
-        df = pd.read_json(self.RAW_NOTES_FILE)
+        df = pd.read_json(io.StringIO(st.session_state[self.RAW_NOTES_KEY]))
         df = self._sort_chronologically(df)
         chunk_size = self._get_chunk_char_size(model_name)
 
@@ -142,9 +141,7 @@ class SummaryHandler:
             "model": model_name,
             "generated_at": datetime.datetime.now().isoformat(),
         }
-        os.makedirs("data", exist_ok=True)
-        with open(self.SUMMARY_FILE, "w") as f:
-            json.dump(result, f)
+        st.session_state[self.SUMMARY_KEY] = result
 
         yield (True, 100, summary)
 

@@ -3,7 +3,6 @@ from streamlit_lottie import st_lottie
 from langchain_core.prompts import ChatPromptTemplate
 import json
 import time
-import os
 import uuid
 
 #import local modules
@@ -13,8 +12,6 @@ from ..utils import SummaryHandler
 from ..utils.ModelOptions import ModelOptions
 
 class TTRPGChatbot:
-    _USERDATAFILE = "data//user_data.json"
-
     def __init__(self):
         # constant class variables
         self._DATABASEDIR = DatabaseHandler.DATABASE_DIR
@@ -38,9 +35,8 @@ class TTRPGChatbot:
         # init static chat window UI
         self.__init_UI()
 
-        # init state variables and handle any errors with user data file
-        if (self.__init_state_variables() == False):
-            st.rerun() # retry initialization after handling error
+        # init state variables
+        self.__init_state_variables()
 
     def __init_state_variables(self):
         if 'is_processing' not in st.session_state:
@@ -51,50 +47,18 @@ class TTRPGChatbot:
         if 'openai_api_key' not in st.session_state:
             st.session_state.openai_api_key = ""
 
+        # Saved content is kept in session state only; nothing is restored from
+        # disk, so on first run (or after a refresh) everything starts at defaults.
         if ("reupload_key" not in st.session_state) or ("model_name" not in st.session_state) or ("notes_uploaded" not in st.session_state) or ("messages" not in st.session_state) or ("buttoninfo" not in st.session_state) or ("button_key" not in st.session_state) or ("party_members" not in st.session_state) or ("delete_index" not in st.session_state) or ("summary_generated" not in st.session_state):
-            if os.path.isfile(self._USERDATAFILE):
-                try:
-                    with open(self._USERDATAFILE, "r") as f:
-                        user_data = json.load(f)
-                except Exception as e:
-                    st.error(f"Error loading user data: {e}")
-                    os.remove(self._USERDATAFILE)
-                    return False
-                st.session_state.reupload_key = 0
-                st.session_state.model_name = user_data.get("model_name")
-                st.session_state.notes_uploaded = user_data.get("notes_uploaded")
-                st.session_state.messages = []
-                st.session_state.buttoninfo = []
-                st.session_state.button_key = 0
-                st.session_state.party_members = user_data.get("party_members")
-                st.session_state.delete_index = None
-                st.session_state.summary_generated = self.summaryhandler.summary_exists()
-                if st.session_state.model_name is not None:
-                    modeloptions = ModelOptions(self.llmhandler)
-                    api_key = st.session_state.get("openai_api_key")
-                    # The curated OpenAI list needs no key, so a saved model can
-                    # be validated immediately at startup, reachable without a
-                    # key (the normal startup state).
-                    valid_model, warning = modeloptions.validate_persisted_model(
-                        st.session_state.model_name, modeloptions.known_models())
-                    st.session_state.model_name = valid_model
-                    if warning:
-                        st.warning(warning)
-                    if valid_model is not None and api_key:
-                        self.llmhandler.load_model(str(valid_model), api_key)
-            # 1st run or missing user options data file, initialize session state variables to default values
-            else:
-                st.session_state.reupload_key = 0
-                st.session_state.model_name = None
-                st.session_state.notes_uploaded = False
-                st.session_state.messages = []
-                st.session_state.buttoninfo = []
-                st.session_state.button_key = 0
-                st.session_state.party_members = [{'id': str(uuid.uuid4()), 'name': "", 'note_taker': False}]
-                st.session_state.delete_index = None
-                st.session_state.summary_generated = self.summaryhandler.summary_exists()
-
-        return True
+            st.session_state.reupload_key = 0
+            st.session_state.model_name = None
+            st.session_state.notes_uploaded = False
+            st.session_state.messages = []
+            st.session_state.buttoninfo = []
+            st.session_state.button_key = 0
+            st.session_state.party_members = [{'id': str(uuid.uuid4()), 'name': "", 'note_taker': False}]
+            st.session_state.delete_index = None
+            st.session_state.summary_generated = self.summaryhandler.summary_exists()
 
     def __process_model_options(self):
         modeloptions = ModelOptions(self.llmhandler)
@@ -127,24 +91,6 @@ class TTRPGChatbot:
                 st.session_state.model_name = sidebar_model_select
                 if api_key:
                     self.llmhandler.load_model(sidebar_model_select, api_key)
-                self.__save_user_data()
-
-    def __save_user_data(self):
-        existing = {}
-        if os.path.isfile(self._USERDATAFILE):
-            try:
-                with open(self._USERDATAFILE, "r") as f:
-                    existing = json.load(f)
-            except Exception:
-                pass
-        existing.update({
-            "model_name": st.session_state.model_name,
-            "notes_uploaded": st.session_state.notes_uploaded,
-            "party_members": st.session_state.party_members,
-        })
-        os.makedirs("data", exist_ok=True)
-        with open(self._USERDATAFILE, "w") as f:
-            json.dump(existing, f)
 
     def __process_journal_options(self):
         with st.sidebar:
@@ -204,9 +150,8 @@ class TTRPGChatbot:
                                                help="Select a model and enter your OpenAI API key before re-uploading notes." if not upload_ready else None)
             if sidebar_button:
                 self.databasehandler.clear_database(self._DATABASEDIR)
-                for stale in ("data/raw_notes.json", "data/campaign_summary.json"):
-                    if os.path.isfile(stale):
-                        os.remove(stale)
+                st.session_state.pop(SummaryHandler.SummaryHandler.RAW_NOTES_KEY, None)
+                st.session_state.pop(SummaryHandler.SummaryHandler.SUMMARY_KEY, None)
                 st.session_state.summary_generated = False
                 st.session_state.reupload_key = True
                 self.__reset_chat_history()
@@ -228,9 +173,8 @@ class TTRPGChatbot:
         if openai_key:
             self.databasehandler.create_retrival_artifacts(self._DATABASEDIR, openai_key)
             if self.databasehandler.legacy_db_reset:
-                for stale in ("data/raw_notes.json", "data/campaign_summary.json"):
-                    if os.path.isfile(stale):
-                        os.remove(stale)
+                st.session_state.pop(SummaryHandler.SummaryHandler.RAW_NOTES_KEY, None)
+                st.session_state.pop(SummaryHandler.SummaryHandler.SUMMARY_KEY, None)
                 st.session_state.notes_uploaded = False
                 st.session_state.summary_generated = False
                 st.warning("Your notes were embedded with a previous model and are no longer compatible. Please re-upload your campaign notes.")
@@ -256,8 +200,6 @@ class TTRPGChatbot:
                     pass
             st.rerun()
 
-        self.__save_user_data()
-
     def __create_database_handler(self, document):
         gen = self.databasehandler.generate_database(document, self._DATABASEDIR)
 
@@ -282,10 +224,10 @@ class TTRPGChatbot:
         if not returnCode:
             return returnCode
 
-        # Persist the raw notes DataFrame so the summary page and SummaryHandler can access it
+        # Keep the raw notes DataFrame in session state so the summary page and
+        # SummaryHandler can access it without persisting anything to disk.
         if self.databasehandler.last_processed_df is not None:
-            os.makedirs("data", exist_ok=True)
-            self.databasehandler.last_processed_df.to_json("data/raw_notes.json")
+            st.session_state[SummaryHandler.SummaryHandler.RAW_NOTES_KEY] = self.databasehandler.last_processed_df.to_json()
 
         return returnCode
 

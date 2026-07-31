@@ -1,7 +1,5 @@
 """Pure unit tests for TTRPGChatbot class methods — no AppTest, no Streamlit runtime."""
 
-import json
-import os
 import pytest
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -26,7 +24,6 @@ def _make_bot():
     """Instantiate TTRPGChatbot without running __init__ to avoid Streamlit and I/O."""
     bot = TTRPGChatbot.__new__(TTRPGChatbot)
     bot._DATABASEDIR = DATABASE_DIR
-    bot._USERDATAFILE = "data//user_data.json"
     bot._PROMPTEMPLATE = MagicMock()
     bot.databasehandler = MagicMock()
     bot.llmhandler = MagicMock()
@@ -34,149 +31,65 @@ def _make_bot():
 
 
 # ---------------------------------------------------------------------------
-# __save_user_data — must preserve fields written by other pages
+# __init_state_variables — seeds session defaults, never reads from disk
 # ---------------------------------------------------------------------------
 
-class TestSaveUserData:
-    """__save_user_data must not erase summary_model fields set by CampaignSummarizer."""
+class TestInitStateVariables:
+    """Saved content lives only in session state; startup seeds defaults and
+    never loads a model or reads a user-data file."""
 
-    def test_preserves_summary_model_fields_when_file_has_them(self, tmp_path):
-        bot = _make_bot()
-        data_file = tmp_path / "user_data.json"
-        data_file.write_text(json.dumps({
-            "summary_model_name": "gpt-5.4",
-        }))
-        bot._USERDATAFILE = str(data_file)
-        ss = _SS(
-            model_name="gpt-5.4-nano",
-            openai_api_key="sk-secret",
-            notes_uploaded=True,
-            party_members=[{"id": "1", "name": "Aria", "note_taker": True}],
-        )
-        with patch("streamlit.session_state", ss):
-            bot._TTRPGChatbot__save_user_data()
-        saved = json.loads(data_file.read_text())
-        assert saved["summary_model_name"] == "gpt-5.4"
-        assert saved["model_name"] == "gpt-5.4-nano"
-
-    def test_never_persists_api_key_or_temperature(self, tmp_path):
-        bot = _make_bot()
-        data_file = tmp_path / "user_data.json"
-        bot._USERDATAFILE = str(data_file)
-        ss = _SS(
-            model_name="gpt-5.4-nano",
-            openai_api_key="sk-secret",
-            notes_uploaded=True,
-            party_members=[],
-        )
-        with patch("streamlit.session_state", ss):
-            bot._TTRPGChatbot__save_user_data()
-        saved = json.loads(data_file.read_text())
-        assert "openai_api_key" not in saved
-        assert "model_temperature" not in saved
-        assert "sk-secret" not in data_file.read_text()
-
-    def test_writes_qa_fields_when_no_prior_file(self, tmp_path):
-        bot = _make_bot()
-        data_file = tmp_path / "user_data.json"
-        bot._USERDATAFILE = str(data_file)
-        ss = _SS(
-            model_name="gpt-5.4-nano",
-            notes_uploaded=False,
-            party_members=[],
-        )
-        with patch("streamlit.session_state", ss):
-            bot._TTRPGChatbot__save_user_data()
-        saved = json.loads(data_file.read_text())
-        assert saved["model_name"] == "gpt-5.4-nano"
-        assert saved["notes_uploaded"] is False
-
-
-# ---------------------------------------------------------------------------
-# __init_state_variables — resilience to a persisted-but-missing model
-# ---------------------------------------------------------------------------
-
-class TestInitStateVariablesMissingModel:
-    """If user_data.json names a model that is no longer offered, startup must
-    not crash; the app falls back to no model so the user can pick one."""
-
-    def _bot_with_userdata(self, tmp_path, user_data):
+    def _ready_bot(self, summary_exists=False):
         bot = _make_bot()
         bot.summaryhandler = MagicMock()
-        bot.summaryhandler.summary_exists.return_value = False
-        bot.llmhandler.get_available_models.return_value = [
-            "gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4",
-        ]
-        data_file = tmp_path / "user_data.json"
-        data_file.write_text(json.dumps(user_data))
-        bot._USERDATAFILE = str(data_file)
+        bot.summaryhandler.summary_exists.return_value = summary_exists
         return bot
 
-    _UD = {
-        "model_name": "gpt-5.4-mini",
-        "notes_uploaded": False,
-        "party_members": [{"id": "p1", "name": "", "note_taker": True}],
-    }
-
-    _STALE_UD = {**_UD, "model_name": "llama3:latest"}
-
-    def test_does_not_raise_when_model_unavailable(self, tmp_path):
-        bot = self._bot_with_userdata(tmp_path, self._STALE_UD)
-        ss = _SS(openai_api_key="sk-test")
-        with patch("streamlit.session_state", ss), patch("streamlit.warning"):
-            result = bot._TTRPGChatbot__init_state_variables()
-        assert result is True
-
-    def test_clears_model_when_unavailable(self, tmp_path):
-        bot = self._bot_with_userdata(tmp_path, self._STALE_UD)
-        ss = _SS(openai_api_key="sk-test")
-        with patch("streamlit.session_state", ss), patch("streamlit.warning"):
-            bot._TTRPGChatbot__init_state_variables()
-        assert ss["model_name"] is None
-
-    def test_prompts_user_to_reselect_when_model_unavailable(self, tmp_path):
-        bot = self._bot_with_userdata(tmp_path, self._STALE_UD)
-        ss = _SS(openai_api_key="sk-test")
-        with patch("streamlit.session_state", ss), patch("streamlit.warning") as mock_warning:
-            bot._TTRPGChatbot__init_state_variables()
-        message = mock_warning.call_args.args[0]
-        assert "llama3:latest" in message
-        assert "Model Options" in message
-
-    def test_stale_model_cleared_even_without_a_key(self, tmp_path):
-        """Validation is a list lookup, not a load attempt, so it does not need a key."""
-        bot = self._bot_with_userdata(tmp_path, self._STALE_UD)
-        ss = _SS(openai_api_key="")
-        with patch("streamlit.session_state", ss), patch("streamlit.warning"):
-            bot._TTRPGChatbot__init_state_variables()
-        assert ss["model_name"] is None
-        bot.llmhandler.load_model.assert_not_called()
-
-    def test_keeps_model_when_available(self, tmp_path):
-        bot = self._bot_with_userdata(tmp_path, self._UD)
-        ss = _SS(openai_api_key="sk-test")
-        with patch("streamlit.session_state", ss):
-            bot._TTRPGChatbot__init_state_variables()
-        assert ss["model_name"] == "gpt-5.4-mini"
-        bot.llmhandler.load_model.assert_called_once_with("gpt-5.4-mini", "sk-test")
-
-    def test_skips_eager_load_when_no_api_key(self, tmp_path):
-        """Without a key there is nothing to construct — the saved model is kept
-        and loading is deferred until the user supplies one."""
-        bot = self._bot_with_userdata(tmp_path, self._UD)
+    def test_seeds_defaults_when_session_empty(self):
+        bot = self._ready_bot()
         ss = _SS()
         with patch("streamlit.session_state", ss):
             bot._TTRPGChatbot__init_state_variables()
-        assert ss["model_name"] == "gpt-5.4-mini"
+        assert ss["model_name"] is None
+        assert ss["notes_uploaded"] is False
+        assert ss["messages"] == []
+        assert ss["openai_api_key"] == ""
+        assert ss["party_members"] and ss["party_members"][0]["name"] == ""
+
+    def test_does_not_load_model_at_startup(self):
+        bot = self._ready_bot()
+        ss = _SS()
+        with patch("streamlit.session_state", ss):
+            bot._TTRPGChatbot__init_state_variables()
         bot.llmhandler.load_model.assert_not_called()
 
-    def test_no_warning_when_no_api_key_and_model_is_valid(self, tmp_path):
-        """A keyless startup is a normal state, not something to warn about."""
-        bot = self._bot_with_userdata(tmp_path, self._UD)
+    def test_summary_generated_reflects_summary_handler(self):
+        bot = self._ready_bot(summary_exists=True)
         ss = _SS()
-        with patch("streamlit.session_state", ss), patch("streamlit.warning") as mock_warning:
+        with patch("streamlit.session_state", ss):
             bot._TTRPGChatbot__init_state_variables()
-        mock_warning.assert_not_called()
+        assert ss["summary_generated"] is True
+
+    def test_does_not_overwrite_existing_session_state(self):
+        bot = self._ready_bot()
+        members = [{"id": "p1", "name": "Aria", "note_taker": True}]
+        ss = _SS(
+            is_processing=False,
+            openai_api_key="sk-test",
+            reupload_key=0,
+            model_name="gpt-5.4-nano",
+            notes_uploaded=True,
+            messages=[{"role": "user", "content": "hi", "avatar": None}],
+            buttoninfo=[],
+            button_key=3,
+            party_members=members,
+            delete_index=None,
+            summary_generated=True,
+        )
+        with patch("streamlit.session_state", ss):
+            bot._TTRPGChatbot__init_state_variables()
+        assert ss["model_name"] == "gpt-5.4-nano"
+        assert ss["party_members"] == members
+        assert ss["button_key"] == 3
 
 
 # ---------------------------------------------------------------------------

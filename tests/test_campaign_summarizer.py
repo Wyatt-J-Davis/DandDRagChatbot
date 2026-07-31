@@ -1,6 +1,5 @@
 """Unit tests for CampaignSummarizer — Streamlit calls are mocked."""
 
-import json
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
 
@@ -37,36 +36,25 @@ def _make_summarizer():
 # ---------------------------------------------------------------------------
 
 class TestInitStateVariables:
-    """__init_state_variables must load party_members from user data when absent from session."""
+    """__init_state_variables seeds session defaults without touching disk."""
 
-    def test_loads_party_members_from_file_when_absent_from_session(self, tmp_path):
+    def test_party_members_defaults_to_empty_list(self):
         cs = _make_summarizer()
-        saved_members = [{"id": "1", "name": "Aria", "note_taker": True}]
-        data_file = tmp_path / "user_data.json"
-        data_file.write_text(json.dumps({
-            "summary_model_name": "gpt-5.4-nano",
-            "party_members": saved_members,
-        }))
-        cs._USERDATAFILE = str(data_file)
-        ss = _SS()
-        with patch("streamlit.session_state", ss):
-            cs._CampaignSummarizer__init_state_variables()
-        assert ss.get("party_members") == saved_members
-
-    def test_party_members_defaults_to_empty_list_when_file_absent(self, tmp_path):
-        cs = _make_summarizer()
-        cs._USERDATAFILE = str(tmp_path / "nonexistent.json")
         ss = _SS()
         with patch("streamlit.session_state", ss):
             cs._CampaignSummarizer__init_state_variables()
         assert ss.get("party_members") == []
 
-    def test_does_not_overwrite_party_members_already_in_session(self, tmp_path):
+    def test_summary_model_name_defaults_to_none(self):
+        cs = _make_summarizer()
+        ss = _SS()
+        with patch("streamlit.session_state", ss):
+            cs._CampaignSummarizer__init_state_variables()
+        assert ss.get("summary_model_name") is None
+
+    def test_does_not_overwrite_party_members_already_in_session(self):
         cs = _make_summarizer()
         existing = [{"id": "99", "name": "Veteran", "note_taker": False}]
-        data_file = tmp_path / "user_data.json"
-        data_file.write_text(json.dumps({"party_members": [{"id": "1", "name": "Aria", "note_taker": True}]}))
-        cs._USERDATAFILE = str(data_file)
         ss = _SS(party_members=existing)
         with patch("streamlit.session_state", ss):
             cs._CampaignSummarizer__init_state_variables()
@@ -132,8 +120,7 @@ class TestProcessModelOptions:
              patch("streamlit.sidebar", MagicMock()), \
              patch("streamlit.header"), \
              patch("streamlit.text_input", return_value=""), \
-             patch("streamlit.selectbox", side_effect=_selectbox), \
-             patch.object(cs, "_CampaignSummarizer__save_user_data"):
+             patch("streamlit.selectbox", side_effect=_selectbox):
             cs._CampaignSummarizer__process_model_options()
         return selectbox_labels
 
