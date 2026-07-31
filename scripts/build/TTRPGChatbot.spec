@@ -1,8 +1,8 @@
 import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 # TTRPGChatbot.spec  —  PyInstaller build configuration
 #
-# Build with:
-#   python3 -m PyInstaller TTRPGChatbot.spec
+# Build with (from the project root):
+#   python3 -m PyInstaller scripts/build/TTRPGChatbot.spec
 #
 # Output: dist/TTRPGChatbot/TTRPGChatbot.exe  (plus supporting files)
 
@@ -95,7 +95,7 @@ extra_hiddenimports = [
 
 a = Analysis(
     ["launcher.py"],
-    pathex=["."],
+    pathex=["../.."],
     binaries=[
         *st_binaries,
         *alt_binaries,
@@ -113,10 +113,9 @@ a = Analysis(
         *lcc_datas,
         *chroma_datas,
         *sq_datas,
-        ("streamlit_app.py", "."),
-        ("pages",             "pages"),
-        ("src",               "src"),
-        ("assets",            "assets"),
+        ("../../streamlit_app.py", "."),
+        ("../../src",              "src"),
+        ("../../assets",           "assets"),
         *collect_data_files("streamlit_lottie"),
     ],
     hiddenimports=[
@@ -164,7 +163,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=True,
-    icon="assets/icon.ico",
+    icon="../../assets/icon.ico",
 )
 
 coll = COLLECT(
