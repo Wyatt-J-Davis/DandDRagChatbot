@@ -4,9 +4,7 @@
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ttrpgchatbot.streamlit.app/)
 
-<!-- Screenshot / demo GIF goes here, e.g.:
-![TTRPG Campaign Assistant](assets/screenshot.png)
--->
+**[Demo Video](https://drive.google.com/file/d/1I0d2QcdKzuUCRJrmx3qVgO65fLcu1dzd/view?usp=sharing)**
 
 **▶️ Try it now: [ttrpgchatbot.streamlit.app](https://ttrpgchatbot.streamlit.app/)** — no install required. Bring your own OpenAI API key.
 
